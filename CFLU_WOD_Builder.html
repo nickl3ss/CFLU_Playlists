@@ -129,9 +129,9 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
 .stat-val{font-family:'IBM Plex Mono',monospace;font-size:1rem;font-weight:700;color:var(--acc)}
 .stat-lbl{font-size:.6rem;color:var(--text2);text-transform:uppercase;letter-spacing:.08em;margin-top:2px}
 
-.chart-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:16px;position:relative}
-.chart-title{font-family:'IBM Plex Mono',monospace;font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text2);margin-bottom:8px}
-#bpm-canvas{display:block;width:100%;cursor:crosshair}
+.chart-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:12px;position:relative;height:10vh;min-height:70px;display:flex;flex-direction:column;overflow:hidden}
+.chart-title{font-family:'IBM Plex Mono',monospace;font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text2);margin-bottom:6px;flex-shrink:0}
+#bpm-canvas{display:block;width:100%;cursor:crosshair;flex:1;min-height:0}
 
 /* TRACK LIST */
 .track-list-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px;display:flex;flex-direction:column}
@@ -186,7 +186,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
 <!-- ===== SIDEBAR ===== -->
 <aside class="sidebar">
   <div class="sb-header">
-    <div class="sb-logo">CrossFit Ludwigshafen</div>
+    <div class="sb-logo">CFLU</div>
     <div class="sb-title">WOD Playlist Builder</div>
   </div>
 
@@ -373,6 +373,13 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
     <div class="sb-section">
       <div class="sb-label">Spotify Export</div>
       <div class="sp-instructions">
+        <strong style="color:var(--text);font-size:.78rem">Einmalige Einrichtung:</strong><br>
+        1. <a href="https://developer.spotify.com/dashboard" target="_blank" style="color:var(--acc)">developer.spotify.com/dashboard</a> öffnen<br>
+        2. App erstellen &rarr; <em>Web API</em> als API-Typ wählen<br>
+        3. Settings &rarr; Redirect URI eintragen:<br>
+        <code>http://127.0.0.1:8888/CFLU_WOD_Builder.html</code><br>
+        4. Client ID aus den App-Settings kopieren<br><br>
+        <strong style="color:var(--text);font-size:.78rem">Pro Session:</strong><br>
         Server starten: <code>python -m http.server 8888</code><br>
         Browser: <code>http://127.0.0.1:8888/CFLU_WOD_Builder.html</code>
       </div>
@@ -406,11 +413,11 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
       <div class="limit-warn" id="limit-warn">⚠ Export auf 100 Tracks begrenzt (Spotify-Limit).</div>
       <div class="chart-wrap">
         <div class="chart-title">BPM-Verlauf</div>
-        <canvas id="bpm-canvas" height="80"></canvas>
+        <canvas id="bpm-canvas"></canvas>
       </div>
     </div>
 
-    <div class="main-scroll" style="flex:1;overflow-y:auto">
+    <div class="main-scroll">
       <div class="track-list-wrap">
         <div class="tl-header">
           <div>#</div><div>Track</div><div>BPM</div><div>Camelot</div><div>Energy</div><div>Dauer</div><div></div>
@@ -1050,15 +1057,14 @@ function renderResult(genre,wod,cd,warns){
     row.addEventListener('mouseleave',()=>{clearHighlight();});
   });
 
-  // Chart
-  bpmChartData=[...wod,...cd];
-  drawChart(wod.length);
-
   // Spotify export button
   if(spToken){document.getElementById('sp-export-btn2').style.display='block';}
 
+  bpmChartData=[...wod,...cd];
   document.getElementById('empty-state').classList.add('hidden');
   document.getElementById('result-area').classList.remove('hidden');
+  // Draw chart after layout is visible so offsetHeight is correct
+  requestAnimationFrame(()=>drawChart(wod.length));
 }
 
 function makeRow(idx,t,num,delta,cc,isCd,isRef){
@@ -1087,9 +1093,8 @@ function drawChart(wodCount){
   if(!canvas) return;
   const dpr=window.devicePixelRatio||1;
   const W=canvas.offsetWidth||800;
-  const H=80;
+  const H=canvas.offsetHeight||80;
   canvas.width=W*dpr; canvas.height=H*dpr;
-  canvas.style.height=H+'px';
   chartCtx=canvas.getContext('2d');
   chartCtx.scale(dpr,dpr);
   _drawChart(wodCount,-1);
@@ -1098,10 +1103,12 @@ function drawChart(wodCount){
     const rect=canvas.getBoundingClientRect();
     const mx=(e.clientX-rect.left);
     if(!bpmChartData.length) return;
-    const pad={l:36,r:12,t:8,b:20};
+    const pad={l:36,r:12,t:8,b:22};
     const w=W-pad.l-pad.r;
-    const idx=Math.round((mx-pad.l)/w*(bpmChartData.length-1));
-    const clamped=Math.max(0,Math.min(bpmChartData.length-1,idx));
+    const totalD=bpmChartData.reduce((s,t)=>s+(t.dur||210),0);
+    const tRatio=Math.max(0,Math.min(1,(mx-pad.l)/w));
+    let cumA=0,clamped=bpmChartData.length-1;
+    for(let i=0;i<bpmChartData.length;i++){cumA+=(bpmChartData[i].dur||210);if(cumA/totalD>=tRatio){clamped=i;break;}}
     if(clamped!==hoveredTrackIdx){
       hoveredTrackIdx=clamped;
       _drawChart(wodCount,clamped);
@@ -1116,44 +1123,79 @@ function _drawChart(wodCount,hoverIdx){
   if(!canvas||!chartCtx||!bpmChartData.length) return;
   const dpr=window.devicePixelRatio||1;
   const W=canvas.offsetWidth||800;
-  const H=80;
+  const H=canvas.offsetHeight||80;
   const bpms=bpmChartData.map(t=>t.bpm);
   const minB=Math.min(...bpms)-5,maxB=Math.max(...bpms)+5;
-  const pad={l:36,r:12,t:8,b:20};
+  const pad={l:36,r:12,t:8,b:22};
   const w=W-pad.l-pad.r,h=H-pad.t-pad.b;
   chartCtx.clearRect(0,0,W*dpr,H*dpr);
   chartCtx.save();
 
-  // Grid
+  // Cumulative time positions
+  const cumDur=[];let cumAcc=0;
+  bpmChartData.forEach(t=>{cumDur.push(cumAcc);cumAcc+=(t.dur||210);});
+  const totalDur=cumAcc||1;
+  const wodDur=bpmChartData.slice(0,wodCount).reduce((s,t)=>s+(t.dur||210),0);
+
+  // Y-axis BPM grid
   [.25,.5,.75,1].forEach(f=>{
     const y=pad.t+h*(1-f);
     chartCtx.strokeStyle='rgba(255,255,255,.05)';chartCtx.lineWidth=1;
     chartCtx.beginPath();chartCtx.moveTo(pad.l,y);chartCtx.lineTo(W-pad.r,y);chartCtx.stroke();
-    chartCtx.fillStyle='rgba(255,255,255,.25)';chartCtx.font='8px IBM Plex Mono,monospace';
+    chartCtx.fillStyle='rgba(255,255,255,.25)';chartCtx.font='8px IBM Plex Mono,monospace';chartCtx.textAlign='left';
     chartCtx.fillText(Math.round(minB+(maxB-minB)*f),2,y+3);
   });
 
+  // X-axis time grid + minute labels
+  const totalMin=totalDur/60;
+  const stepMin=totalMin<10?1:totalMin<20?2:totalMin<50?5:10;
+  const stepSec=stepMin*60;
+  chartCtx.font='8px IBM Plex Mono,monospace';chartCtx.textAlign='center';
+  for(let ts=stepSec;ts<totalDur;ts+=stepSec){
+    const x=pad.l+(ts/totalDur)*w;
+    chartCtx.strokeStyle='rgba(255,255,255,.07)';chartCtx.lineWidth=1;
+    chartCtx.beginPath();chartCtx.moveTo(x,pad.t);chartCtx.lineTo(x,H-pad.b);chartCtx.stroke();
+    chartCtx.fillStyle='rgba(255,255,255,.3)';
+    chartCtx.fillText(Math.floor(ts/60)+':00',x,H-pad.b+11);
+  }
+
+  // Track points — X proportional to cumulative duration (song length)
   const pts=bpmChartData.map((t,i)=>({
-    x:pad.l+(i/(bpmChartData.length-1||1))*w,
+    x:pad.l+(cumDur[i]/totalDur)*w,
     y:pad.t+h*(1-(t.bpm-minB)/(maxB-minB)),
     cd:i>=wodCount
   }));
 
-  // Fill
+  // Step path helper — waagerecht bis nächster Song, dann senkrechter Sprung
+  function stepPath(ctx,close){
+    ctx.moveTo(pts[0].x, close ? H-pad.b : pts[0].y);
+    if(close) ctx.lineTo(pts[0].x, pts[0].y);
+    for(let i=0;i<pts.length;i++){
+      const ex=i<pts.length-1?pts[i+1].x:pad.l+w;
+      ctx.lineTo(ex, pts[i].y);                          // waagerecht bis Song-Ende
+      if(i<pts.length-1) ctx.lineTo(ex, pts[i+1].y);   // senkrechter BPM-Sprung
+    }
+    if(close){ctx.lineTo(pad.l+w, H-pad.b); ctx.closePath();}
+  }
+
+  // Fill — split at WOD/Cool-Down boundary by time
   const grad=chartCtx.createLinearGradient(pad.l,0,W-pad.r,0);
-  const sp=wodCount/Math.max(bpmChartData.length,1);
+  const sp=wodDur/totalDur;
   grad.addColorStop(0,'rgba(29,185,84,.12)');
   grad.addColorStop(Math.min(sp,.99),'rgba(29,185,84,.12)');
   if(wodCount<bpmChartData.length){grad.addColorStop(Math.min(sp+.001,1),'rgba(168,85,247,.08)');grad.addColorStop(1,'rgba(168,85,247,.08)');}
-  chartCtx.beginPath();chartCtx.moveTo(pts[0].x,H-pad.b);
-  pts.forEach(p=>chartCtx.lineTo(p.x,p.y));
-  chartCtx.lineTo(pts[pts.length-1].x,H-pad.b);chartCtx.closePath();
-  chartCtx.fillStyle=grad;chartCtx.fill();
+  chartCtx.beginPath(); stepPath(chartCtx,true);
+  chartCtx.fillStyle=grad; chartCtx.fill();
 
-  // Line
-  chartCtx.beginPath();chartCtx.moveTo(pts[0].x,pts[0].y);
-  pts.forEach(p=>chartCtx.lineTo(p.x,p.y));
-  chartCtx.strokeStyle='#1db954';chartCtx.lineWidth=2;chartCtx.stroke();
+  // Step line
+  chartCtx.beginPath(); stepPath(chartCtx,false);
+  chartCtx.strokeStyle='#1db954'; chartCtx.lineWidth=2; chartCtx.stroke();
+
+  // WOD Ende Marker — konfigurierte WOD-Dauer
+  const wodTargetSec=Math.min(wodMinutes*60,totalDur);
+  const wx=pad.l+(wodTargetSec/totalDur)*w;
+  chartCtx.strokeStyle='rgba(100,140,175,.75)';chartCtx.lineWidth=1.5;
+  chartCtx.beginPath();chartCtx.moveTo(wx,pad.t);chartCtx.lineTo(wx,H-pad.b);chartCtx.stroke();
 
   // Dots
   pts.forEach((p,i)=>{
