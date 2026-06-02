@@ -1,0 +1,29 @@
+# CFLU WOD Playlist Builder — .gitignore
+
+# Quelldaten (Datenschutz — nicht ins Repo)
+Spotify_Source.xlsx
+*.xlsx
+*.csv
+
+# Generierte Datenbasis (aus Build-Script erzeugt)
+cflu_tracks.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# VS Code
+.vscode/settings.json
+.vscode/launch.json
+
+# Logs
+*.log

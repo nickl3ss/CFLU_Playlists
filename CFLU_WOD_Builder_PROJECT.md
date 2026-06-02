@@ -1,0 +1,424 @@
+# CFLU WOD Playlist Builder
+
+> CrossFit Ludwigshafen — Lokaler Playlist-Generator für WOD-Begleitung  
+> Standalone HTML-Anwendung · Python HTTP Server · Spotify PKCE Export
+
+---
+
+## Projektübersicht
+
+Ein lokal laufender, vollständig in einer HTML-Datei implementierter WOD Playlist Builder für CrossFit Ludwigshafen. Der Builder erstellt auf Basis einer bereinigten Spotify-Trackliste (3.314 Songs) regelbasierte WOD-Playlists mit Camelot-Kompatibilität, BPM-Steuerung und direktem Spotify-Export.
+
+### Technologie-Stack
+
+| Komponente | Technologie |
+|---|---|
+| Frontend | Vanilla HTML / CSS / JavaScript (Single File) |
+| Datenbasis | JSON eingebettet in HTML (~547 KB) |
+| Charts | Chart.js 4.x (CDN) |
+| Fonts | Google Fonts (IBM Plex Mono, Barlow Condensed) |
+| Server | Python `http.server` (lokal) |
+| Auth | Spotify PKCE OAuth 2.0 (kein Backend) |
+| Datenbuild | Python 3 (pandas, json) |
+
+### Dateien
+
+```
+CFLU_WOD_Builder.html       ← Hauptanwendung (alles eingebettet)
+CFLU_Start.bat              ← Windows Starter (Server + Browser)
+CFLU_Pool_Build.py          ← Datenbasis-Generator (aus Spotify_Source.xlsx)
+Spotify_Source.xlsx         ← Quelldaten (nicht im Repo — lokal ablegen)
+CFLU_WOD_Builder_PROJECT.md ← Diese Datei
+```
+
+---
+
+## Lokaler Start
+
+### Voraussetzungen
+
+- Python 3.x installiert, im PATH
+- Alle Dateien im gleichen Ordner
+
+### Start
+
+```batch
+CFLU_Start.bat
+```
+
+Die BAT-Datei:
+1. Prüft ob `CFLU_WOD_Builder.html` vorhanden ist
+2. Prüft ob Python installiert ist
+3. Prüft ob Port 8888 frei ist
+4. Startet `python -m http.server 8888`
+5. Öffnet `http://127.0.0.1:8888/CFLU_WOD_Builder.html` automatisch im Browser
+
+### Manuell
+
+```bash
+cd /pfad/zum/ordner
+python -m http.server 8888
+# Browser: http://127.0.0.1:8888/CFLU_WOD_Builder.html
+```
+
+---
+
+## Spotify-Integration
+
+### Einmalige Einrichtung
+
+1. [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) → App erstellen
+2. Settings → Redirect URI eintragen: `http://127.0.0.1:8888/CFLU_WOD_Builder.html`
+3. Client ID notieren
+
+### Pro Session
+
+- Client ID im Builder eingeben (wird **nicht gespeichert** — kein localStorage)
+- "Verbinden" → PKCE OAuth Flow
+- Scopes: `playlist-modify-public`, `playlist-modify-private`
+- Export via `POST /me/playlists` + `POST /playlists/{id}/items`
+- Hartes Limit: **100 Tracks** (Spotify API) — Warnung bei Überschreitung
+
+### API-Einschränkungen (Stand Februar 2026)
+
+- `GET /audio-features` ist im Development Mode **nicht verfügbar** — BPM/Camelot kommen ausschließlich aus der lokalen Datenbasis
+- Development Mode: max. 5 User pro App (ausreichend für Einzelnutzer)
+- Redirect URI muss exakt `http://127.0.0.1:8888/CFLU_WOD_Builder.html` lauten
+
+---
+
+## Datenbasis
+
+### Quelle
+
+`Spotify_Source.xlsx` — exportiert aus Spotify via Exportify + Tunebat/Chosic
+
+### Felder pro Track
+
+| Feld | Typ | Beschreibung |
+|---|---|---|
+| `id` | string | Spotify Track ID |
+| `song` | string | Songtitel |
+| `artist` | string | Interpret(en), kommagetrennt |
+| `bpm` | int | Beats per Minute |
+| `camelot` | string | Camelot Key (z.B. `9B`, `11A`) |
+| `energy` | int | Spotify Energy 0–100 |
+| `dur` | int | Dauer in Sekunden |
+| `genre` | string | Genre-Gruppe (klassifiziert) |
+| `bpmg` | string | BPM-Gruppe A–I |
+
+### Bereinigung (CFLU_Pool_Build.py)
+
+- Duplikate entfernen: gleicher Artist + normalisierter 15-Zeichen-Titelkey + BPM ±1 + gleicher Camelot
+- Suffix-Strip vor Titelvergleich: `Radio Edit`, `Single Edit`, `Extended Mix`, `Remix`, `Remastered`, `Live`, `Acoustic` u.ä.
+- Bei Duplikat: höhere Energy behalten, bei Gleichstand längere Duration
+- Ergebnis: **3.314 unique Tracks** (Stand aktueller Build)
+
+### Genre-Gruppen
+
+| Genre | Tracks | Ø BPM | Ø Energy |
+|---|---|---|---|
+| Rock | 693 | 122 | 69 |
+| EDM / Electronic | 650 | 133 | 81 |
+| Pop & New Wave | 504 | 112 | 69 |
+| Ska & Reggae | 281 | 129 | 79 |
+| Synthwave / Electronica | 255 | 121 | 74 |
+| Moderne Deutsche Musik (ab 2000) | 239 | 123 | 72 |
+| Hip Hop & R&B | 169 | 114 | 72 |
+| Metal & Hard Rock | 162 | 123 | 79 |
+| Punk | 160 | 140 | 85 |
+| Funk & Disco | 112 | 116 | 72 |
+| Deutschrock / NDW / Schlager (vor 2000) | 89 | 121 | 64 |
+| **Alle Deutschen Tracks** | 328 | 122 | 69 |
+| **Going Wild (alle)** | 3.314 | 122 | 74 |
+
+*Alle Deutschen Tracks und Going Wild sind virtuelle Gruppen — keine eigenen Datensätze*
+
+### BPM-Gruppen
+
+| Stufe | Bereich | Kontext |
+|---|---|---|
+| A | 60–89 | Cool-Down / Ambient |
+| B | 90–109 | Warm-Up |
+| C | 110–119 | Moderat |
+| D | 120–129 | WOD-Einstieg |
+| E | 130–139 | WOD Mid |
+| F | 140–149 | WOD High |
+| G | 150–159 | Peak |
+| H | 160–174 | Finisher |
+| I | 175+ | Maximum |
+
+**Sprungregeln:** Innerhalb einer Gruppe ✅ · ±1 Gruppe ✅ · ±2 Gruppen ❌ · Rückwärts (BPM sinkt) ❌
+
+---
+
+## Anwendungslogik
+
+### Workflow (3 Schritte)
+
+```
+Schritt 1: Song wählen
+    ├── Weg A: Genre + BPM-Slider + Toleranz ± BPM + Textsuche
+    ├── Weg B: Direktsuche über alle 3.314 Tracks (genreunabhängig)
+    └── Weg C: Spotify-Link → Track ID extrahieren → in Pool suchen
+              └── Nicht gefunden → manuelle BPM/Energy/Camelot Eingabe
+
+Schritt 2: Position wählen
+    ├── Start       → Song als #1, Playlist steigt aufwärts
+    ├── Ende        → Song als letzter WOD-Track, Playlist baut sich auf
+    ├── Midpoint    → Song bei ~50%, davor aufsteigend, danach weiter aufsteigend
+    └── Mid Plateau → Song bei ~50%, danach konstante Energie
+
+    + Positions-Ampel: BPM-Bewertung + Camelot-Bewertung + Gesamt
+
+Schritt 3: Einstellungen
+    ├── WOD-Dauer: 5–240 min (5er Schritte, Standard: 20 min)
+    ├── Max. BPM-Sprung: +5–+20 BPM (Standard: +10)
+    └── Cool-Down: Toggle + Dauer 5–60 min (Standard: 15 min)
+```
+
+### Positions-Ampel — BPM-Referenzwerte
+
+| Position | 🟢 Grün | 🟡 Gelb | 🔴 Rot |
+|---|---|---|---|
+| Start | 110–145 | 90–109 / 146–160 | <90 / >160 |
+| Ende | 155–190 | 145–154 / 191–205 | <145 / >205 |
+| Midpoint | 130–165 | 115–129 / 166–180 | <115 / >180 |
+| Mid Plateau | 130–165 | 115–129 / 166–180 | <115 / >180 |
+
+### Positions-Ampel — Camelot-Bewertung
+
+| Zone | Keys | Ampel |
+|---|---|---|
+| Zone 1 (WOD-Kern) | 8B, 9B, 10B, 11B, 12B, 1B | 🟢 Grün |
+| Zone 2 (Ergänzung) | 8A, 9A, 10A, 11A, 12A, 1A | 🟡 Gelb |
+| Zone 3 (Schwach) | 2A–7B | 🔴 Rot |
+
+---
+
+## Algorithmus
+
+### Camelot-Kompatibilitätsregeln
+
+| Priorität | Regel | Beispiel |
+|---|---|---|
+| 🟢 Prio 1 (Grün) | Gleiche Zahl A↔B | 9A→9B |
+| 🟢 Prio 1 (Grün) | ±1 Zahl, gleicher Buchstabe | 9B→10B |
+| 🟢 Prio 1 (Grün) | Wrap-around 12↔1, gleicher Buchstabe | 12B→1B |
+| 🟡 Prio 2 (Gelb) | +2 Zahl, gleicher Buchstabe (Energie-Boost) | 9B→11B |
+| 🟡 Prio 2 (Gelb) | -2 Zahl, gleicher Buchstabe (nur wenn BPM steigt) | 11B→9B |
+| 🔴 Fallback (Rot) | Alles andere + BPM-Eskalation | — |
+
+### Track-Auswahl (pickNext)
+
+```
+1. Basis-Filter:
+   - Nicht bereits verwendet (usedIds)
+   - BPM >= aktueller Track
+   - BPM-Sprung <= maxJump
+   - BPM-Gruppe: max ±1 Stufe
+   - Titel-Key nicht in usedTitleKeys (15-Zeichen normalisiert, Suffixe entfernt)
+   - Interpret max. 10% der Playlist (min. 1)
+
+2. Kandidaten-Selektion (Phasen):
+   Phase 1: Camelot grün + Zone 1/2
+   Phase 2: Camelot grün (ohne Zonen-Einschränkung)
+   Phase 3: Camelot gelb
+   Phase 4: BPM-Eskalation (+5 Schritte bis +40, Camelot lockern)
+
+3. Sortierung der Kandidaten:
+   1. Camelot-Kompatibilität (grün > gelb > rot)
+   2. Energy absteigend
+   3. Kleinster BPM-Sprung
+```
+
+### Cool-Down
+
+- BPM ≤ 70% des höchsten WOD-BPM
+- Energy < Gruppenduchrschnitt
+- Keine bereits verwendeten Tracks
+- Keine Camelot-Regel
+- Bei zu wenig Tracks: verwandte Genre-Gruppe als Fallback + Warnung
+
+### Interpret-Begrenzung
+
+- Max. 10% der WOD-Tracks pro Interpret (erster Name im Artist-Feld)
+- Mindestens 1 Track immer erlaubt
+- `floor(trackCount * 0.1)` gerundet nach unten
+
+---
+
+## UI-Komponenten
+
+### Regler mit Farbskalen
+
+**BPM-Sprung-Regler (5–20 BPM):**
+- Grün: 8–15 (Idealbereich)
+- Gelb: 5–7 / 16–18 (Übergang)
+- Rot: <5 / >18
+
+**Ziel-BPM-Regler (60–220):**
+- Grün: 120–170 (WOD-Idealbereich)
+- Gelb: 90–119 / 171–185 (Übergang)
+- Rot: <90 / >185
+
+*Implementierung: dynamischer CSS-Gradient + Thumb-Farbe via injiziertem `<style>`-Tag*
+
+### BPM-Verlauf Chart
+
+- Canvas-basiert, dynamische X/Y-Skalierung
+- WOD-Bereich: grün · Cool-Down: lila
+- Referenz-Track: markierter Punkt
+- **Hover Track-Zeile → Chart:** weißer Ring + gestrichelte Vertikallinie
+- **Hover Chart-Punkt → Track-Zeile:** weiße Umrandung + Auto-Scroll
+- Tooltip: BPM + Songtitel
+
+### Track-Liste
+
+- Separat scrollbar (`overflow-y: auto`, max-height: 360px)
+- Format: `# · Interpret — Song — BPM (+Δ) — Camelot — Energy — Dauer`
+- Camelot-Dot: 🟢 grün / 🟡 gelb / 🔴 rot
+- Referenz-Track: grün hinterlegt + "REF" Badge
+- Spotify-Icon pro Track → öffnet `https://open.spotify.com/track/{id}`
+- Cool-Down: lila Trennlinie + separater Block
+
+---
+
+## Bekannte Einschränkungen & Offene Punkte
+
+### Bekannte Bugs (Stand aktueller Version)
+
+| # | Problem | Status |
+|---|---|---|
+| 1 | `selectedTrack?.(...)` TypeError bei Playlist-Generierung | ✅ Behoben |
+| 2 | `addTrack()` doppelt in `buildUp()` | ✅ Behoben |
+| 3 | Plateau-Filter Operator-Precedence `&&!...||!` | ✅ Behoben |
+| 4 | Redirect URI fehlte Dateiname → Directory Listing | ✅ Behoben |
+
+### Offene Erweiterungen (noch nicht implementiert)
+
+| # | Anforderung | Priorität |
+|---|---|---|
+| 1 | Datenbasis als externe JSON-Datei (statt eingebettet) | Mittel |
+| 2 | Pool-Erweiterung via Spotify Album/Playlist-Import | Niedrig (verworfen) |
+| 3 | BPM-Verlauf Chart: Hover-Tooltip verbessern (Song-Name vollständig) | Niedrig |
+| 4 | `buildDown()` für "Ende"-Position: Dauer-Ziel nicht exakt eingehalten | Mittel |
+| 5 | Plateau-Modus: usedArtists-Tracking unvollständig | Niedrig |
+| 6 | Direktsuche: Genre-Dropdown nach Auswahl nicht immer korrekt gesperrt | Niedrig |
+
+### Technische Schulden
+
+- `addTrack()` Hilfsfunktion ist definiert aber in `buildUp`/`buildDown` nicht konsistent genutzt — vereinheitlichen
+- Slider-Farbgradient via injiziertem `<style>`-Tag ist ein Workaround — besser: CSS Custom Properties mit `@property`
+- Chart-Resize bei Fenstergrößenänderung: funktioniert, aber kurzes Flackern möglich
+
+---
+
+## Datenbasis neu generieren
+
+Falls `Spotify_Source.xlsx` aktualisiert wird:
+
+```bash
+python3 CFLU_Pool_Build.py
+```
+
+Das Script:
+1. Liest `Spotify_Source.xlsx`
+2. Bereinigt Doubletten (Titel-Key + Artist + BPM ±1 + Camelot)
+3. Klassifiziert Genre-Gruppen
+4. Berechnet BPM-Gruppen A–I
+5. Parst Duration korrekt (Format `HH:MM` stored as `datetime.time`)
+6. Schreibt `cflu_tracks.json`
+7. JSON muss manuell in `CFLU_WOD_Builder.html` eingebettet werden (oder Build-Script anpassen)
+
+### Genre-Klassifizierungs-Logik (Reihenfolge)
+
+```python
+1. Ska & Reggae    → 'ska', 'rocksteady', 'reggae', 'dub', 'dancehall'
+2. Punk            → 'punk', 'skate punk', 'pop punk', 'hardcore punk', 'oi!'
+3. EDM / Electronic (BPM >= 118) → 'edm', 'house', 'techno', 'trance', ...
+4. Synthwave       → 'synthwave', 'vaporwave', 'chillwave', 'lo-fi', ...
+5. Moderne Deutsche Musik (Album >= 2000) → 'deutsch*', 'german', 'ndw', ...
+6. Deutschrock / NDW / Schlager (Album < 2000) → gleiche Keywords
+7. Metal & Hard Rock → 'metal', 'glam metal', 'heavy metal', ...
+8. Rock            → 'rock', 'hard rock', 'classic rock', 'indie rock', ...
+9. Hip Hop & R&B   → 'hip-hop', 'rap', 'r&b', 'trap', ...
+10. Funk & Disco   → 'funk', 'disco', 'soul', 'motown', ...
+11. Pop & New Wave → 'pop', 'new wave', 'synthpop', 'singer-songwriter', ...
+12. Fallback       → Pop & New Wave
+```
+
+---
+
+## Entwicklungshinweise für Claude Code
+
+### Projekt-Kontext
+
+- Der Builder ist eine **Single-File-Anwendung** — HTML, CSS und JS in einer Datei
+- Die Datenbasis (JSON) ist **eingebettet** — Änderungen am Build-Script erfordern HTML-Neugeneration
+- Kein Build-System, kein npm, kein Framework — bewusst einfach gehalten für lokalen Betrieb
+
+### Wichtige Invarianten (nicht brechen)
+
+```
+1. Redirect URI muss exakt 'http://127.0.0.1:8888/CFLU_WOD_Builder.html' sein
+2. Client ID darf NICHT in localStorage/sessionStorage persistent gespeichert werden
+3. Spotify Export: max. 100 Tracks pro Batch (API-Limit) — immer hard cappen
+4. BPM darf in der WOD-Playlist nie rückwärts gehen (< vorheriger Track)
+5. BPM-Gruppen: max. ±1 Stufe pro Schritt (außer bei BPM-Eskalation als Fallback)
+6. Camelot Cool-Down: keine Regel — nur BPM/Energy relevant
+```
+
+### Entwicklungs-Workflow
+
+```bash
+# 1. HTML bearbeiten in VS Code
+# 2. BAT starten (oder manuell: python -m http.server 8888)
+# 3. Browser: http://127.0.0.1:8888/CFLU_WOD_Builder.html
+# 4. Änderungen: Browser-Reload (kein Hot-Reload)
+# 5. Datenbasis ändern: CFLU_Pool_Build.py ausführen, JSON neu einbetten
+```
+
+### Empfohlene VS Code Extensions
+
+- **Live Server** (nicht direkt nutzbar wegen Spotify Redirect, aber für CSS-Debug hilfreich)
+- **Prettier** für HTML/CSS/JS Formatierung
+- **GitLens** für Versionskontrolle
+- **Claude Code** für KI-gestützte Weiterentwicklung
+
+### Git-Empfehlung
+
+```gitignore
+# .gitignore
+Spotify_Source.xlsx    # Quelldaten — nicht ins Repo (Datenschutz)
+cflu_tracks.json       # Generiert — nicht ins Repo
+*.log
+```
+
+```bash
+# Empfohlene Commit-Struktur
+git init
+git add CFLU_WOD_Builder.html CFLU_Start.bat CFLU_Pool_Build.py README.md
+git commit -m "Initial commit: CFLU WOD Playlist Builder v3"
+```
+
+---
+
+## Versionsverlauf
+
+| Version | Änderungen |
+|---|---|
+| v1.0 | Initiale Version — EDM-spezifischer Builder mit eingebetteter EDM-Liste |
+| v2.0 | Gesamtliste (3.347 Tracks), 13 Genre-Gruppen, Spotify PKCE Export |
+| v2.1 | Ref/Peak Modi, Suchfunktion alle Genres, Camelot-Priorität |
+| v2.2 | ±BPM Toleranz-Regler, Titeldedup, Camelot-Zonierung |
+| **v3.0** | **Vollständiger Neuaufbau: Song-zuerst-Workflow, Positions-Ampel, farbige Regler, Hover-Sync Chart↔Liste, Spotify-Link pro Track, Cool-Down Dauer einstellbar, nur Minuten-Modus, 3.314 Tracks nach verbesserter Bereinigung** |
+
+---
+
+## Kontakt / Kontext
+
+- **Betreiber:** CrossFit Ludwigshafen (CFLU)
+- **Zweck:** WOD-Musik-Planung für Gruppentraining
+- **Trainingsbox:** ~11m × 20m · 10 Rower · 10 Assault Bikes · 2 Ski Ergs · 23 Pull-Up Bars · 13–15 Barbell Stations
+- **Entwickelt mit:** Claude (Anthropic) — Fortsetzung via Claude Code empfohlen
