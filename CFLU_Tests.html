@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>CFLU WOD Builder — Tests</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=Barlow+Condensed:wght@300;500;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0d0d0d;--bg2:#141414;--bg3:#1a1a1a;--bg4:#222;--bg5:#2a2a2a;--acc:#1db954;--text:#fff;--text2:#b3b3b3;--text3:#535353;--border:#282828;--red:#f15e6c;--yellow:#f7c948;--green:#1db954}
+body{font-family:'IBM Plex Mono',monospace;background:var(--bg);color:var(--text);padding:32px;font-size:.8rem}
+h1{font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:900;text-transform:uppercase;letter-spacing:.1em;color:var(--acc);margin-bottom:4px}
+.subtitle{color:var(--text3);margin-bottom:28px;font-size:.72rem}
+.summary{display:flex;gap:16px;margin-bottom:28px;padding:12px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;align-items:center}
+.summary-num{font-size:1.4rem;font-weight:700}
+.summary-num.pass{color:var(--green)}
+.summary-num.fail{color:var(--red)}
+.summary-num.skip{color:var(--text3)}
+.summary-label{font-size:.65rem;color:var(--text2);text-transform:uppercase;letter-spacing:.1em}
+.suite{margin-bottom:20px}
+.suite-name{font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text2);padding:6px 0;border-bottom:1px solid var(--border);margin-bottom:6px}
+.suite-stats{font-size:.65rem;color:var(--text3);float:right;padding-top:2px}
+.test{display:flex;gap:10px;align-items:baseline;padding:4px 8px;border-radius:4px;margin-bottom:2px}
+.test:hover{background:var(--bg3)}
+.test.pass .icon{color:var(--green)}
+.test.fail{background:rgba(241,94,108,.06)}
+.test.fail .icon{color:var(--red)}
+.test-name{flex:1;color:var(--text2)}
+.test.fail .test-name{color:var(--text)}
+.test-err{font-size:.68rem;color:var(--red);margin-top:2px;padding-left:20px;padding-bottom:4px}
+.badge{display:inline-block;font-size:.6rem;padding:1px 6px;border-radius:3px;font-weight:700;letter-spacing:.06em}
+.badge.pass{background:rgba(29,185,84,.15);color:var(--green);border:1px solid rgba(29,185,84,.3)}
+.badge.fail{background:rgba(241,94,108,.15);color:var(--red);border:1px solid rgba(241,94,108,.3)}
+</style>
+</head>
+<body>
+<h1>CFLU WOD Builder</h1>
+<div class="subtitle">Test Suite — Alle Funktionen</div>
+<div id="summary"></div>
+<div id="output"></div>
+
+<script>
+// ============================================================
+//  MINI TEST FRAMEWORK
+// ============================================================
+const _suites=[];let _cur=null;
+function describe(name,fn){_cur={name,tests:[]};_suites.push(_cur);fn();}
+function it(name,fn){
+  try{fn();_cur.tests.push({name,ok:true});}
+  catch(e){_cur.tests.push({name,ok:false,err:e.message});}
+}
+function expect(actual){
+  const fail=msg=>{throw new Error(msg);};
+  return{
+    toBe(exp){if(actual!==exp)fail(`ожид. ${JSON.stringify(exp)}, получено ${JSON.stringify(actual)}`);},
+    toEqual(exp){if(JSON.stringify(actual)!==JSON.stringify(exp))fail(`ожид. ${JSON.stringify(exp)}, получено ${JSON.stringify(actual)}`);},
+    toBeNull(){if(actual!==null)fail(`ожид. null, получено ${JSON.stringify(actual)}`);},
+    toBeGreaterThan(n){if(!(actual>n))fail(`ожид. > ${n}, получено ${actual}`);},
+    toBeLessThanOrEqual(n){if(!(actual<=n))fail(`ожид. <= ${n}, получено ${actual}`);},
+    toBeGreaterThanOrEqual(n){if(!(actual>=n))fail(`ожид. >= ${n}, получено ${actual}`);},
+    toBeTruthy(){if(!actual)fail(`ожид. truthy, получено ${JSON.stringify(actual)}`);},
+    toBeFalsy(){if(actual)fail(`ожид. falsy, получено ${JSON.stringify(actual)}`);},
+    toHaveLength(n){if((actual||[]).length!==n)fail(`ожид. Länge ${n}, получено ${(actual||[]).length}`);},
+    toContain(item){if(!(actual||[]).includes(item))fail(`ожид. enthält ${JSON.stringify(item)}`);},
+    toMatch(re){if(!re.test(actual))fail(`ожид. match ${re}, получено ${actual}`);},
+  };
+}
+
+// ============================================================
+//  KONSTANTEN (aus CFLU_WOD_Builder.html)
+// ============================================================
+const BPM_GROUPS=['A','B','C','D','E','F','G','H','I'];
+const BPM_RANGES={A:[0,90],B:[90,110],C:[110,120],D:[120,130],E:[130,140],F:[140,150],G:[150,160],H:[160,175],I:[175,999]};
+const CAM_ZONE1=new Set(['8B','9B','10B','11B','12B','1B']);
+const CAM_ZONE2=new Set(['8A','9A','10A','11A','12A','1A']);
+const SUFFIX_RE=/[\s\-–(]*(radio\s*edit|single\s*edit|album\s*version|original\s*mix|club\s*mix|extended\s*(mix|version)?|long\s*version|remaster(ed)?.*|feat\..*|ft\..*|live.*|acoustic.*|mono.*|stereo.*)[^)]*\)?/gi;
+
+// ============================================================
+//  GLOBALER ZUSTAND (Mocks)
+// ============================================================
+let maxJump=10;
+let wodEnergyMin=50;
+let wodEnergyMax=85;
+
+// ============================================================
+//  FUNKTIONEN (kopiert aus Hauptdatei)
+// ============================================================
+function bpmGroup(bpm){for(const[g,[lo,hi]]of Object.entries(BPM_RANGES))if(bpm>=lo&&bpm<hi)return g;return'I';}
+function groupIdx(g){return BPM_GROUPS.indexOf(g);}
+function neighbour(g1,g2){return Math.abs(groupIdx(g1)-groupIdx(g2))<=1;}
+function fmtDur(s){if(!s)return'—';const m=Math.floor(s/60),sec=s%60;return m+'m'+String(sec).padStart(2,'0')+'s';}
+function fmtMin(s){return Math.round(s/60)+'min';}
+function titleKey(s){return s.replace(SUFFIX_RE,'').toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,15);}
+
+function lerpColor(t,stops){
+  if(t<=stops[0].p)return stops[0];
+  if(t>=stops[stops.length-1].p)return stops[stops.length-1];
+  for(let i=0;i<stops.length-1;i++){
+    const a=stops[i],b=stops[i+1];
+    if(t>=a.p&&t<=b.p){
+      const f=(t-a.p)/(b.p-a.p);
+      return{r:Math.round(a.r+(b.r-a.r)*f),g:Math.round(a.g+(b.g-a.g)*f),b:Math.round(a.b+(b.b-a.b)*f)};
+    }
+  }
+  return stops[stops.length-1];
+}
+
+function camCompat(c1,c2){
+  if(!c1||!c2||c1==='nan'||c2==='nan')return'unknown';
+  try{
+    const n1=parseInt(c1),l1=c1.slice(-1).toUpperCase();
+    const n2=parseInt(c2),l2=c2.slice(-1).toUpperCase();
+    if(n1===n2)return'green';
+    const diff=Math.min(Math.abs(n1-n2),12-Math.abs(n1-n2));
+    if(diff===1&&l1===l2)return'green';
+    if(diff===2&&l1===l2)return'yellow';
+    return'red';
+  }catch(e){return'unknown';}
+}
+function camStrictOk(c1,c2){return camCompat(c1,c2)==='green';}
+
+function addTrack(t,result,usedIds,usedTitleKeys,usedArtists){
+  result.push(t);
+  usedIds.add(t.id||t.song);
+  const tk=titleKey(t.song);if(tk)usedTitleKeys.add(tk);
+  const ak=t.artist.split(',')[0].trim().toLowerCase();
+  usedArtists.set(ak,(usedArtists.get(ak)||0)+1);
+}
+
+function pickNext(pool,cur,usedIds,usedTitleKeys,usedArtists,totalTracks){
+  const cg=bpmGroup(cur.bpm);
+  const maxArtist=Math.max(1,Math.floor(totalTracks*0.1));
+  const baseOk=t=>{
+    if(usedIds.has(t.id||t.song))return false;
+    if(t.bpm<cur.bpm)return false;
+    if(t.bpm-cur.bpm>maxJump)return false;
+    if(!neighbour(cg,bpmGroup(t.bpm)))return false;
+    if(titleKey(t.song)&&usedTitleKeys.has(titleKey(t.song)))return false;
+    const ak=t.artist.split(',')[0].trim().toLowerCase();
+    if((usedArtists.get(ak)||0)>=maxArtist)return false;
+    if(t.energy<wodEnergyMin||t.energy>wodEnergyMax)return false;
+    return true;
+  };
+  let cands=pool.filter(t=>baseOk(t)&&camStrictOk(cur.camelot,t.camelot)&&(CAM_ZONE1.has(t.camelot)||CAM_ZONE2.has(t.camelot)));
+  if(!cands.length)cands=pool.filter(t=>baseOk(t)&&camStrictOk(cur.camelot,t.camelot));
+  if(!cands.length)cands=pool.filter(t=>baseOk(t)&&camCompat(cur.camelot,t.camelot)!=='red');
+  if(!cands.length){
+    for(let extra=5;extra<=40;extra+=5){
+      cands=pool.filter(t=>{
+        if(usedIds.has(t.id||t.song))return false;
+        if(t.bpm<cur.bpm+extra)return false;
+        if(t.bpm-cur.bpm>maxJump+extra)return false;
+        if(titleKey(t.song)&&usedTitleKeys.has(titleKey(t.song)))return false;
+        const ak=t.artist.split(',')[0].trim().toLowerCase();
+        if((usedArtists.get(ak)||0)>=maxArtist)return false;
+        return true;
+      });
+      if(cands.length)break;
+    }
+  }
+  if(!cands.length)return null;
+  const cs={green:2,yellow:1,red:0,unknown:0};
+  cands.sort((a,b)=>{
+    const ca=camCompat(cur.camelot,a.camelot),cb=camCompat(cur.camelot,b.camelot);
+    if(cs[ca]!==cs[cb])return cs[cb]-cs[ca];
+    if(b.energy!==a.energy)return b.energy-a.energy;
+    return(a.bpm-cur.bpm)-(b.bpm-cur.bpm);
+  });
+  return cands[0];
+}
+
+function buildUp(pool,startT,usedIds,usedTitleKeys,usedArtists,targetSec,count){
+  const result=[startT];
+  usedIds.add(startT.id||startT.song);
+  const tk=titleKey(startT.song);if(tk)usedTitleKeys.add(tk);
+  const ak=startT.artist.split(',')[0].trim().toLowerCase();
+  usedArtists.set(ak,(usedArtists.get(ak)||0)+1);
+  let totalDur=startT.dur;
+  let cur=startT;
+  const limit=count||9999;
+  while(result.length<limit){
+    if(targetSec&&totalDur>=(targetSec+30))break;
+    const next=pickNext(pool,cur,usedIds,usedTitleKeys,usedArtists,limit||20);
+    if(!next)break;
+    result.push(next);
+    usedIds.add(next.id||next.song);
+    const ntk=titleKey(next.song);if(ntk)usedTitleKeys.add(ntk);
+    const nak=next.artist.split(',')[0].trim().toLowerCase();
+    usedArtists.set(nak,(usedArtists.get(nak)||0)+1);
+    totalDur+=next.dur;
+    cur=next;
+  }
+  return result;
+}
+
+function buildDown(pool,endT,usedIds,usedTitleKeys,usedArtists,count){
+  const result=[];
+  let cur=endT;
+  for(let i=0;i<count;i++){
+    const cg=bpmGroup(cur.bpm);
+    let cands=pool.filter(t=>{
+      if(usedIds.has(t.id||t.song))return false;
+      if(t.bpm>cur.bpm)return false;
+      if(cur.bpm-t.bpm>maxJump)return false;
+      if(!neighbour(cg,bpmGroup(t.bpm)))return false;
+      if(titleKey(t.song)&&usedTitleKeys.has(titleKey(t.song)))return false;
+      if(t.energy<wodEnergyMin||t.energy>wodEnergyMax)return false;
+      return true;
+    });
+    if(!cands.length)break;
+    const cs={green:2,yellow:1,red:0,unknown:0};
+    cands.sort((a,b)=>{
+      const ca=camCompat(cur.camelot,a.camelot),cb=camCompat(cur.camelot,b.camelot);
+      if(cs[ca]!==cs[cb])return cs[cb]-cs[ca];
+      return b.energy-a.energy;
+    });
+    const pick=cands[0];
+    result.unshift(pick);
+    usedIds.add(pick.id||pick.song);
+    const tk=titleKey(pick.song);if(tk)usedTitleKeys.add(tk);
+    cur=pick;
+  }
+  return result;
+}
+
+// WOD-Typ Energy-Berechnung (isoliert aus onWodTypeSlider)
+function calcWodEnergy(sliderVal){
+  const t=sliderVal/100;
+  return{min:Math.round(28+t*44),max:Math.round(70+t*30)};
+}
+
+// ============================================================
+//  MOCK TRACK-POOL
+// ============================================================
+const T = {
+  // === Energie im Standard-Bereich (50-85) ===
+  a1:{id:'a1',song:'Alpha One',   artist:'Band A',bpm:120,camelot:'9B', energy:72,dur:210,genre:'Rock',bpmg:'D'},
+  a2:{id:'a2',song:'Alpha Two',   artist:'Band B',bpm:124,camelot:'10B',energy:76,dur:200,genre:'Rock',bpmg:'D'},
+  a3:{id:'a3',song:'Alpha Three', artist:'Band C',bpm:128,camelot:'9A', energy:75,dur:220,genre:'Rock',bpmg:'D'},
+  b1:{id:'b1',song:'Beta One',    artist:'Band D',bpm:130,camelot:'9B', energy:80,dur:215,genre:'Rock',bpmg:'E'},
+  b2:{id:'b2',song:'Beta Two',    artist:'Band E',bpm:135,camelot:'11B',energy:83,dur:195,genre:'Rock',bpmg:'E'},
+  b3:{id:'b3',song:'Beta Three',  artist:'Band A',bpm:132,camelot:'10B',energy:78,dur:205,genre:'Rock',bpmg:'E'},
+  c1:{id:'c1',song:'Gamma One',   artist:'Band F',bpm:138,camelot:'10B',energy:82,dur:200,genre:'Rock',bpmg:'E'},
+  // === Energie außerhalb Standard-Bereich ===
+  hi:{id:'hi',song:'High Energy', artist:'Band G',bpm:125,camelot:'9B', energy:92,dur:200,genre:'Punk',bpmg:'D'},
+  lo:{id:'lo',song:'Low Energy',  artist:'Band H',bpm:122,camelot:'9B', energy:25,dur:200,genre:'Rock',bpmg:'D'},
+  // === Für Duplikat-Tests ===
+  d1:{id:'d1',song:'Dup Song',              artist:'Band I',bpm:126,camelot:'9B',energy:70,dur:200,genre:'Rock',bpmg:'D'},
+  d2:{id:'d2',song:'Dup Song (Radio Edit)', artist:'Band I',bpm:126,camelot:'9B',energy:68,dur:195,genre:'Rock',bpmg:'D'},
+  // === BPM-Sprung zu groß (> maxJump=10 von 120 aus) ===
+  far:{id:'far',song:'Far Jump',  artist:'Band J',bpm:145,camelot:'9B', energy:80,dur:200,genre:'Rock',bpmg:'F'},
+  // === BPM tiefer als Start ===
+  low:{id:'low',song:'Low BPM',   artist:'Band K',bpm:110,camelot:'9B', energy:72,dur:200,genre:'Rock',bpmg:'C'},
+  // === Nur für buildDown ===
+  pre:{id:'pre',song:'Pre Song',  artist:'Band L',bpm:112,camelot:'9B', energy:72,dur:210,genre:'Rock',bpmg:'C'},
+};
+const FULL_POOL=Object.values(T);
+
+// ============================================================
+//  TEST-SUITEN
+// ============================================================
+
+// ------ bpmGroup ------
+describe('bpmGroup — BPM zu Gruppe', ()=>{
+  it('0 BPM → A', ()=>expect(bpmGroup(0)).toBe('A'));
+  it('89 BPM → A (obere Grenze A)', ()=>expect(bpmGroup(89)).toBe('A'));
+  it('90 BPM → B (untere Grenze B)', ()=>expect(bpmGroup(90)).toBe('B'));
+  it('109 BPM → B', ()=>expect(bpmGroup(109)).toBe('B'));
+  it('110 BPM → C', ()=>expect(bpmGroup(110)).toBe('C'));
+  it('119 BPM → C', ()=>expect(bpmGroup(119)).toBe('C'));
+  it('120 BPM → D', ()=>expect(bpmGroup(120)).toBe('D'));
+  it('129 BPM → D', ()=>expect(bpmGroup(129)).toBe('D'));
+  it('130 BPM → E', ()=>expect(bpmGroup(130)).toBe('E'));
+  it('140 BPM → F', ()=>expect(bpmGroup(140)).toBe('F'));
+  it('150 BPM → G', ()=>expect(bpmGroup(150)).toBe('G'));
+  it('160 BPM → H', ()=>expect(bpmGroup(160)).toBe('H'));
+  it('174 BPM → H (obere Grenze H)', ()=>expect(bpmGroup(174)).toBe('H'));
+  it('175 BPM → I (untere Grenze I)', ()=>expect(bpmGroup(175)).toBe('I'));
+  it('220 BPM → I', ()=>expect(bpmGroup(220)).toBe('I'));
+});
+
+// ------ groupIdx ------
+describe('groupIdx — Gruppe zu Index', ()=>{
+  it('A → 0', ()=>expect(groupIdx('A')).toBe(0));
+  it('B → 1', ()=>expect(groupIdx('B')).toBe(1));
+  it('D → 3', ()=>expect(groupIdx('D')).toBe(3));
+  it('E → 4', ()=>expect(groupIdx('E')).toBe(4));
+  it('I → 8', ()=>expect(groupIdx('I')).toBe(8));
+  it('Unbekannte Gruppe → -1', ()=>expect(groupIdx('Z')).toBe(-1));
+});
+
+// ------ neighbour ------
+describe('neighbour — BPM-Gruppen-Nachbarschaft', ()=>{
+  it('gleiche Gruppe A-A → true', ()=>expect(neighbour('A','A')).toBeTruthy());
+  it('Nachbar D-E → true', ()=>expect(neighbour('D','E')).toBeTruthy());
+  it('Nachbar E-D (rückwärts) → true', ()=>expect(neighbour('E','D')).toBeTruthy());
+  it('2 Stufen D-F → false', ()=>expect(neighbour('D','F')).toBeFalsy());
+  it('weit entfernt A-I → false', ()=>expect(neighbour('A','I')).toBeFalsy());
+  it('Grenze C-D → true', ()=>expect(neighbour('C','D')).toBeTruthy());
+  it('Grenze B-D → false (2 Stufen)', ()=>expect(neighbour('B','D')).toBeFalsy());
+});
+
+// ------ fmtDur ------
+describe('fmtDur — Sekunden formatieren', ()=>{
+  it('0 → —', ()=>expect(fmtDur(0)).toBe('—'));
+  it('null → —', ()=>expect(fmtDur(null)).toBe('—'));
+  it('60s → 1m00s', ()=>expect(fmtDur(60)).toBe('1m00s'));
+  it('90s → 1m30s', ()=>expect(fmtDur(90)).toBe('1m30s'));
+  it('214s → 3m34s', ()=>expect(fmtDur(214)).toBe('3m34s'));
+  it('3600s → 60m00s', ()=>expect(fmtDur(3600)).toBe('60m00s'));
+  it('Sekunden < 10 mit führender Null', ()=>expect(fmtDur(65)).toBe('1m05s'));
+});
+
+// ------ fmtMin ------
+describe('fmtMin — Sekunden in Minuten', ()=>{
+  it('60s → 1min', ()=>expect(fmtMin(60)).toBe('1min'));
+  it('90s → 2min (rundet)', ()=>expect(fmtMin(90)).toBe('2min'));
+  it('1200s → 20min', ()=>expect(fmtMin(1200)).toBe('20min'));
+  it('0s → 0min', ()=>expect(fmtMin(0)).toBe('0min'));
+});
+
+// ------ titleKey ------
+describe('titleKey — Titel-Normalisierung für Dedup', ()=>{
+  it('Normaler Titel', ()=>expect(titleKey('Alpha One')).toBe('alphaone'));
+  it('Radio Edit wird entfernt', ()=>expect(titleKey('Song (Radio Edit)')).toBe('song'));
+  it('Remastered wird entfernt', ()=>expect(titleKey('Song - Remastered 2018')).toBe('song'));
+  it('feat. wird entfernt', ()=>expect(titleKey('Song feat. Artist')).toBe('song'));
+  it('Extended Mix wird entfernt', ()=>expect(titleKey('Song Extended Mix')).toBe('song'));
+  it('Live wird entfernt', ()=>expect(titleKey('Song Live at Wembley')).toBe('song'));
+  it('Auf 15 Zeichen gekürzt', ()=>expect(titleKey('A Very Long Title That Exceeds Limit')).toHaveLength(15));
+  it('Sonderzeichen entfernt', ()=>expect(titleKey("It's Rock'n'Roll")).toBe('itsrocknroll'));
+  it('Großschreibung normalisiert', ()=>expect(titleKey('MY SONG')).toBe('mysong'));
+  it('Gleicher Key für Original und Radio Edit', ()=>{
+    expect(titleKey('Dup Song')).toBe(titleKey('Dup Song (Radio Edit)'));
+  });
+});
+
+// ------ camCompat ------
+describe('camCompat — Camelot-Kompatibilität', ()=>{
+  it('Gleiche Zahl A↔B → green', ()=>expect(camCompat('9B','9A')).toBe('green'));
+  it('Gleicher Key → green', ()=>expect(camCompat('9B','9B')).toBe('green'));
+  it('+1 gleicher Buchstabe → green', ()=>expect(camCompat('9B','10B')).toBe('green'));
+  it('-1 gleicher Buchstabe → green', ()=>expect(camCompat('9B','8B')).toBe('green'));
+  it('Wrap-around 12→1 gleicher Buchstabe → green', ()=>expect(camCompat('12B','1B')).toBe('green'));
+  it('Wrap-around 1→12 gleicher Buchstabe → green', ()=>expect(camCompat('1B','12B')).toBe('green'));
+  it('+2 gleicher Buchstabe → yellow', ()=>expect(camCompat('9B','11B')).toBe('yellow'));
+  it('-2 gleicher Buchstabe → yellow', ()=>expect(camCompat('9B','7B')).toBe('yellow'));
+  it('+3 gleicher Buchstabe → red', ()=>expect(camCompat('9B','12B')).toBe('red'));
+  it('Verschiedene Zahlen + verschiedene Buchstaben → red', ()=>expect(camCompat('9B','5A')).toBe('red'));
+  it('null → unknown', ()=>expect(camCompat(null,'9B')).toBe('unknown'));
+  it('"nan" → unknown', ()=>expect(camCompat('nan','9B')).toBe('unknown'));
+  it('undefined → unknown', ()=>expect(camCompat(undefined,'9B')).toBe('unknown'));
+});
+
+// ------ lerpColor ------
+describe('lerpColor — Farb-Interpolation', ()=>{
+  const stops=[{p:0,r:0,g:0,b:0},{p:1,r:100,g:200,b:50}];
+  it('t=0 → Startfarbe', ()=>{
+    const c=lerpColor(0,stops);
+    expect(c.r).toBe(0);expect(c.g).toBe(0);expect(c.b).toBe(0);
+  });
+  it('t=1 → Endfarbe', ()=>{
+    const c=lerpColor(1,stops);
+    expect(c.r).toBe(100);expect(c.g).toBe(200);expect(c.b).toBe(50);
+  });
+  it('t=0.5 → Mittelwert', ()=>{
+    const c=lerpColor(0.5,stops);
+    expect(c.r).toBe(50);expect(c.g).toBe(100);expect(c.b).toBe(25);
+  });
+  it('t<0 → Clip auf Startfarbe', ()=>{
+    const c=lerpColor(-0.5,stops);
+    expect(c.r).toBe(0);
+  });
+  it('t>1 → Clip auf Endfarbe', ()=>{
+    const c=lerpColor(1.5,stops);
+    expect(c.r).toBe(100);
+  });
+  it('3 Stops — mittlerer Stop korrekt interpoliert', ()=>{
+    const s=[{p:0,r:0,g:0,b:0},{p:0.5,r:100,g:0,b:0},{p:1,r:100,g:100,b:0}];
+    const c=lerpColor(0.25,s);
+    expect(c.r).toBe(50);
+  });
+});
+
+// ------ addTrack ------
+describe('addTrack — Track zu Ergebnis hinzufügen', ()=>{
+  it('Track in result-Array', ()=>{
+    const res=[],ids=new Set(),tks=new Set(),artists=new Map();
+    addTrack(T.a1,res,ids,tks,artists);
+    expect(res).toHaveLength(1);
+    expect(res[0].id).toBe('a1');
+  });
+  it('ID zu usedIds', ()=>{
+    const res=[],ids=new Set(),tks=new Set(),artists=new Map();
+    addTrack(T.a1,res,ids,tks,artists);
+    expect(ids.has('a1')).toBeTruthy();
+  });
+  it('titleKey zu usedTitleKeys', ()=>{
+    const res=[],ids=new Set(),tks=new Set(),artists=new Map();
+    addTrack(T.a1,res,ids,tks,artists);
+    expect(tks.has(titleKey(T.a1.song))).toBeTruthy();
+  });
+  it('Artist-Zähler wird erhöht', ()=>{
+    const res=[],ids=new Set(),tks=new Set(),artists=new Map();
+    addTrack(T.a1,res,ids,tks,artists);
+    expect(artists.get('band a')).toBe(1);
+  });
+  it('Artist-Zähler akkumuliert bei mehreren Tracks', ()=>{
+    const res=[],ids=new Set(),tks=new Set(),artists=new Map();
+    addTrack(T.a1,res,ids,tks,artists);
+    addTrack(T.b3,res,ids,tks,artists); // b3 hat auch Artist 'Band A'
+    expect(artists.get('band a')).toBe(2);
+  });
+});
+
+// ------ pickNext ------
+describe('pickNext — nächsten Track auswählen', ()=>{
+  it('Gibt gültigen Track zurück', ()=>{
+    const pool=[T.a2,T.b1];
+    const next=pickNext(pool,T.a1,new Set(),new Set(),new Map(),10);
+    expect(next).toBeTruthy();
+  });
+  it('BPM des nächsten Tracks >= aktueller BPM', ()=>{
+    const pool=[T.a2,T.b1,T.a3];
+    const next=pickNext(pool,T.a1,new Set(),new Set(),new Map(),10);
+    expect(next.bpm).toBeGreaterThanOrEqual(T.a1.bpm);
+  });
+  it('BPM-Sprung nicht größer als maxJump (10)', ()=>{
+    const pool=[T.a2,T.a3,T.b1];
+    const next=pickNext(pool,T.a1,new Set(),new Set(),new Map(),10); // a1=120
+    expect(next.bpm-T.a1.bpm).toBeLessThanOrEqual(maxJump);
+  });
+  it('Zu großer BPM-Sprung (>10 von 120) → nicht ausgewählt', ()=>{
+    const pool=[T.far]; // far=145, Sprung=25 > 10
+    const next=pickNext(pool,T.a1,new Set(),new Set(),new Map(),10);
+    expect(next).toBeNull();
+  });
+  it('BPM tiefer als aktuell → nicht ausgewählt', ()=>{
+    const pool=[T.low]; // low=110 < a1=120
+    const next=pickNext(pool,T.a1,new Set(),new Set(),new Map(),10);
+    expect(next).toBeNull();
+  });
+  it('Bereits verwendeter Track → nicht ausgewählt', ()=>{
+    const used=new Set(['a2']);
+    const pool=[T.a2];
+    const next=pickNext(pool,T.a1,used,new Set(),new Map(),10);
+    expect(next).toBeNull();
+  });
+  it('Energie außerhalb Bereich (hoch) → nicht ausgewählt', ()=>{
+    const pool=[T.hi]; // energy=92 > wodEnergyMax=85
+    const next=pickNext(pool,T.a1,new Set(),new Set(),new Map(),10);
+    expect(next).toBeNull();
+  });
+  it('Energie außerhalb Bereich (niedrig) → nicht ausgewählt', ()=>{
+    const pool=[T.lo]; // energy=25 < wodEnergyMin=50
+    const next=pickNext(pool,T.a1,new Set(),new Set(),new Map(),10);
+    expect(next).toBeNull();
+  });
+  it('Duplikat-Titel (Radio Edit) → nicht ausgewählt wenn Original verwendet', ()=>{
+    const usedTks=new Set([titleKey(T.d1.song)]);
+    const pool=[T.d2]; // d2 hat gleichen titleKey wie d1
+    const next=pickNext(pool,T.a1,new Set(),usedTks,new Map(),10);
+    expect(next).toBeNull();
+  });
+  it('Bevorzugt grüne Camelot-Kompatibilität', ()=>{
+    // a1=9B, a2=10B (green), a3=9A (green), b3=10B+E (green)
+    // Erstelle Pool mit green und yellow Kandidaten
+    const green={id:'g1',song:'Green Track',artist:'Band Z',bpm:124,camelot:'10B',energy:76,dur:200,genre:'Rock',bpmg:'D'};
+    const yellow={id:'y1',song:'Yellow Track',artist:'Band Z2',bpm:124,camelot:'11B',energy:76,dur:200,genre:'Rock',bpmg:'D'};
+    const pool=[yellow,green]; // yellow zuerst, aber green soll bevorzugt werden
+    const next=pickNext(pool,T.a1,new Set(),new Set(),new Map(),10);
+    expect(next.id).toBe('g1');
+  });
+  it('Leerer Pool → null', ()=>{
+    const next=pickNext([],T.a1,new Set(),new Set(),new Map(),10);
+    expect(next).toBeNull();
+  });
+  it('BPM-Gruppen-Sprung zu groß (±2 Gruppen) → nicht ausgewählt', ()=>{
+    // a1=D(120), far=F(145) — 2 Gruppen Abstand
+    const pool=[T.far];
+    const next=pickNext(pool,T.a1,new Set(),new Set(),new Map(),10);
+    expect(next).toBeNull();
+  });
+});
+
+// ------ buildUp ------
+describe('buildUp — Playlist aufwärts aufbauen', ()=>{
+  it('Erster Track ist immer startT', ()=>{
+    const pool=FULL_POOL;
+    const res=buildUp(pool,T.a1,new Set(),new Set(),new Map(),0,0);
+    expect(res[0].id).toBe('a1');
+  });
+  it('BPM steigt nie', ()=>{
+    const pool=[T.a1,T.a2,T.a3,T.b1,T.b2,T.b3,T.c1];
+    const res=buildUp(pool,T.a1,new Set(),new Set(),new Map(),0,0);
+    for(let i=1;i<res.length;i++) expect(res[i].bpm).toBeGreaterThanOrEqual(res[i-1].bpm);
+  });
+  it('Kein Track doppelt', ()=>{
+    const pool=[T.a1,T.a2,T.a3,T.b1,T.b2,T.b3,T.c1];
+    const res=buildUp(pool,T.a1,new Set(),new Set(),new Map(),0,0);
+    const ids=res.map(t=>t.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+  it('Stoppt bei targetSec (±30s Toleranz)', ()=>{
+    const pool=[T.a1,T.a2,T.a3,T.b1,T.b2,T.b3,T.c1];
+    const targetSec=2*210; // ~2 Songs
+    const res=buildUp(pool,T.a1,new Set(),new Set(),new Map(),targetSec,0);
+    const totalDur=res.reduce((s,t)=>s+t.dur,0);
+    expect(totalDur).toBeGreaterThanOrEqual(targetSec);
+  });
+  it('Count-Limit wird eingehalten', ()=>{
+    const pool=[T.a1,T.a2,T.a3,T.b1,T.b2,T.b3,T.c1];
+    const res=buildUp(pool,T.a1,new Set(),new Set(),new Map(),0,3);
+    expect(res.length).toBeLessThanOrEqual(3);
+  });
+  it('Leerer Pool → nur startT', ()=>{
+    const res=buildUp([],T.a1,new Set(),new Set(),new Map(),0,0);
+    expect(res).toHaveLength(1);
+    expect(res[0].id).toBe('a1');
+  });
+  it('Alle Tracks in Energy-Range', ()=>{
+    const pool=[T.a1,T.a2,T.a3,T.b1,T.b2,T.hi,T.lo]; // hi/lo außerhalb Bereich
+    const res=buildUp(pool,T.a1,new Set(),new Set(),new Map(),0,0);
+    res.forEach(t=>expect(t.energy).toBeGreaterThanOrEqual(wodEnergyMin));
+    res.forEach(t=>expect(t.energy).toBeLessThanOrEqual(wodEnergyMax));
+  });
+});
+
+// ------ buildDown ------
+describe('buildDown — Tracks rückwärts aufbauen', ()=>{
+  it('Gibt Array zurück', ()=>{
+    const pool=[T.pre,T.a1]; // pre=112 BPM, a1=120
+    const res=buildDown(pool,T.a1,new Set(['a1']),new Set(),new Map(),5);
+    expect(Array.isArray(res)).toBeTruthy();
+  });
+  it('BPM in Ergebnis-Array steigt (aufsteigend zu endT)', ()=>{
+    const pool=[T.pre,T.low];
+    const res=buildDown(pool,T.a1,new Set(['a1']),new Set(),new Map(),5);
+    for(let i=1;i<res.length;i++) expect(res[i].bpm).toBeGreaterThanOrEqual(res[i-1].bpm);
+  });
+  it('Kein Track mit BPM > endT.bpm', ()=>{
+    const pool=[T.a2,T.b1]; // a2=124, b1=130 — beide > a1=120
+    const res=buildDown(pool,T.a1,new Set(['a1']),new Set(),new Map(),5);
+    res.forEach(t=>expect(t.bpm).toBeLessThanOrEqual(T.a1.bpm));
+  });
+  it('Energie-Filter gilt', ()=>{
+    const pool=[T.hi,T.lo,T.pre]; // hi/lo außerhalb, pre im Bereich
+    const res=buildDown(pool,T.a1,new Set(['a1']),new Set(),new Map(),5);
+    res.forEach(t=>expect(t.energy).toBeGreaterThanOrEqual(wodEnergyMin));
+    res.forEach(t=>expect(t.energy).toBeLessThanOrEqual(wodEnergyMax));
+  });
+  it('Leerer Pool → leeres Array', ()=>{
+    const res=buildDown([],T.a1,new Set(['a1']),new Set(),new Map(),5);
+    expect(res).toHaveLength(0);
+  });
+});
+
+// ------ WOD-Typ Energy-Berechnung ------
+describe('calcWodEnergy — Energy-Bereich je WOD-Typ', ()=>{
+  it('Slider=0 (Skill/Strength) → niedriger Min-Wert', ()=>{
+    const e=calcWodEnergy(0);
+    expect(e.min).toBe(28);
+    expect(e.max).toBe(70);
+  });
+  it('Slider=50 (Mixed/Standard) → mittlerer Bereich', ()=>{
+    const e=calcWodEnergy(50);
+    expect(e.min).toBe(50);
+    expect(e.max).toBe(85);
+  });
+  it('Slider=100 (Intensity WOD) → hoher Min-Wert', ()=>{
+    const e=calcWodEnergy(100);
+    expect(e.min).toBe(72);
+    expect(e.max).toBe(100);
+  });
+  it('Min < Max bei allen Slider-Werten', ()=>{
+    for(let v=0;v<=100;v+=10){
+      const e=calcWodEnergy(v);
+      expect(e.min).toBeLessThanOrEqual(e.max-1);
+    }
+  });
+  it('Min und Max steigen monoton mit Slider', ()=>{
+    let prevMin=-1,prevMax=-1;
+    for(let v=0;v<=100;v+=10){
+      const e=calcWodEnergy(v);
+      expect(e.min).toBeGreaterThanOrEqual(prevMin);
+      expect(e.max).toBeGreaterThanOrEqual(prevMax);
+      prevMin=e.min;prevMax=e.max;
+    }
+  });
+});
+
+// ------ Integrations-Tests ------
+describe('Integration — vollständige Playlist', ()=>{
+  it('buildUp + buildDown bilden zusammenhängende BPM-Kette', ()=>{
+    const pool=[T.pre,T.a1,T.a2,T.a3,T.b1,T.b2,T.b3,T.c1];
+    const ref=T.b1; // Midpoint-Referenz bei 130 BPM
+    const used=new Set([ref.id]);
+    const tks=new Set([titleKey(ref.song)]);
+    const arts=new Map([['band d',1]]);
+    const before=buildDown(pool,ref,used,tks,arts,3);
+    before.forEach(t=>{used.add(t.id);tks.add(titleKey(t.song));});
+    const after=buildUp(pool,ref,used,tks,arts,0,3);
+    after.shift();
+    const full=[...before,ref,...after];
+    // BPM in before-Teil steigt (aufsteigend zu ref)
+    for(let i=1;i<before.length;i++) expect(before[i].bpm).toBeGreaterThanOrEqual(before[i-1].bpm);
+    // BPM in after-Teil steigt nie
+    for(let i=1;i<after.length;i++) expect(after[i].bpm).toBeGreaterThanOrEqual(after[i-1].bpm);
+  });
+  it('Kein Track doppelt in kombinierter Playlist', ()=>{
+    const pool=[T.pre,T.a1,T.a2,T.a3,T.b1,T.b2,T.b3,T.c1];
+    const used=new Set();const tks=new Set();const arts=new Map();
+    const res=buildUp(pool,T.a1,used,tks,arts,0,0);
+    const ids=res.map(t=>t.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+  it('Duplikat-Titel (Radio Edit) erscheint nicht in buildUp', ()=>{
+    // Pool enthält d1 und d2 (gleicher titleKey)
+    const pool=[T.a1,T.d1,T.d2,T.a2,T.b1];
+    const used=new Set();const tks=new Set();const arts=new Map();
+    const res=buildUp(pool,T.a1,used,tks,arts,0,0);
+    const dupIds=res.filter(t=>t.id==='d1'||t.id==='d2');
+    expect(dupIds.length).toBeLessThanOrEqual(1); // Maximal einer der Duplikate
+  });
+  it('Energy-Range-Wechsel filtert Pool sofort', ()=>{
+    wodEnergyMin=75;wodEnergyMax=100; // Nur hohe Energie
+    const pool=[T.a1,T.a2,T.b1,T.hi]; // hi=E:92, b1=E:80 — im Bereich
+    const next=pickNext(pool,{bpm:70,camelot:'9B'},new Set(),new Set(),new Map(),10);
+    if(next) expect(next.energy).toBeGreaterThanOrEqual(75);
+    wodEnergyMin=50;wodEnergyMax=85; // Reset
+  });
+});
+
+// ============================================================
+//  RENDER
+// ============================================================
+let totalPass=0,totalFail=0;
+const out=document.getElementById('output');
+
+_suites.forEach(suite=>{
+  const pass=suite.tests.filter(t=>t.ok).length;
+  const fail=suite.tests.filter(t=>!t.ok).length;
+  totalPass+=pass;totalFail+=fail;
+
+  const div=document.createElement('div');
+  div.className='suite';
+  div.innerHTML=`<div class="suite-name">${suite.name}<span class="suite-stats">${pass}/${suite.tests.length} bestanden</span></div>`;
+
+  suite.tests.forEach(test=>{
+    const row=document.createElement('div');
+    row.className='test '+(test.ok?'pass':'fail');
+    row.innerHTML=`<span class="icon">${test.ok?'✓':'✗'}</span><span class="test-name">${test.name}</span><span class="badge ${test.ok?'pass':'fail'}">${test.ok?'PASS':'FAIL'}</span>`;
+    div.appendChild(row);
+    if(!test.ok){
+      const err=document.createElement('div');
+      err.className='test-err';
+      err.textContent=test.err;
+      div.appendChild(err);
+    }
+  });
+  out.appendChild(div);
+});
+
+const total=totalPass+totalFail;
+document.getElementById('summary').innerHTML=`
+  <div class="summary">
+    <div><div class="summary-num pass">${totalPass}</div><div class="summary-label">Bestanden</div></div>
+    <div><div class="summary-num fail">${totalFail}</div><div class="summary-label">Fehlgeschlagen</div></div>
+    <div><div class="summary-num" style="color:var(--text2)">${total}</div><div class="summary-label">Gesamt</div></div>
+    <div style="margin-left:auto;align-self:center">
+      <span class="badge ${totalFail===0?'pass':'fail'}" style="font-size:.8rem;padding:4px 12px">
+        ${totalFail===0?'ALLE TESTS BESTANDEN':'FEHLER GEFUNDEN'}
+      </span>
+    </div>
+  </div>`;
+</script>
+</body>
+</html>
