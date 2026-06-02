@@ -175,4 +175,4 @@ Spotify_Source.xlsx         ← Source data (not in repo — place locally)
 
 ---
 
-*Developed for CrossFit Ludwigshafen with [Claude Code](https://claude.ai/code)*
+*Developed for nickl3ss with [Claude Code](https://claude.ai/code)*
