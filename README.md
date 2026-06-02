@@ -2,7 +2,7 @@
 
 > CrossFit Ludwigshafen — Local WOD playlist generator with Spotify export
 
-A fully self-contained, single-file web application that builds rule-based workout playlists from a curated pool of 3,314 tracks. Pick a reference song, set its position in the workout, configure duration and BPM parameters — and get a complete playlist with Camelot key harmony, BPM progression, and optional Cool-Down. Export directly to Spotify with one click.
+A fully self-contained, single-file web application that builds rule-based workout playlists from a curated pool of 3,314 tracks. Set the workout intensity, pick a reference song, configure duration and BPM parameters — and get a complete playlist with Camelot key harmony, BPM progression, and optional Cool-Down. Export directly to Spotify with one click.
 
 ---
 
@@ -60,7 +60,19 @@ In the builder, paste the Client ID into the *Spotify Export* section and click 
 
 ## Using the App
 
-The workflow has three steps in the left sidebar:
+The workflow has four steps in the left sidebar:
+
+### Step 0 — Set workout type
+
+A slider between **Skill / Strength** and **Intensity WOD** determines the Spotify Energy range applied to all track selections for the entire playlist.
+
+| Position | Energy Range | Typical use |
+|---|---|---|
+| Skill / Strength (0) | E: 28–70 | Technique work, weightlifting, gymnastics |
+| Mixed (50, default) | E: 50–85 | Balanced strength + conditioning |
+| Intensity WOD (100) | E: 72–100 | MetCon, AMRAPs, high-output intervals |
+
+The energy range filters the search lists, the generated playlist, and all intermediate track picks. The Cool-Down section uses its own separate energy filter and is unaffected.
 
 ### Step 1 — Pick a reference song
 
@@ -97,25 +109,35 @@ Click **▶ Playlist generieren** to build the playlist.
 
 | Element | Meaning |
 |---|---|
-| BPM chart | Step chart — each track's horizontal width = its duration; X-axis in minutes |
-| Gray-blue vertical line | Configured WOD end time |
-| Green dot | WOD track |
-| Purple dot | Cool-Down track |
+| BPM chart | Step chart — each track's horizontal width = its duration; X-axis shows time in minutes |
+| Gray-blue vertical line | Configured WOD end time (always shown) |
+| Green step / dot | WOD track |
+| Purple step / dot | Cool-Down track |
 | Camelot dot (🟢/🟡/🔴) | Harmonic compatibility with the previous track |
 | REF badge | Your chosen reference song |
 | Spotify icon | Opens the track directly in Spotify |
 
 Hovering over a track row highlights the corresponding chart point, and vice versa.
 
+**BPM chart X-axis intervals** are chosen automatically based on total playlist duration:
+
+| Total duration | Label interval |
+|---|---|
+| < 10 min | 1:00 |
+| 10–20 min | 2:00 |
+| 20–50 min | 5:00 |
+| > 50 min | 10:00 |
+
 ---
 
 ## Playlist Rules
 
+- All tracks must fall within the **Energy range** set by the WOD-Typ slider
 - BPM never decreases within the WOD section
 - Maximum ±1 BPM group per step (groups: A 0–89, B 90–109, C 110–119, D 120–129, E 130–139, F 140–149, G 150–159, H 160–174, I 175+)
 - No artist appears in more than 10% of the playlist
 - Duplicate titles (normalized, suffixes stripped) are excluded
-- Cool-Down: BPM ≤ 70% of peak WOD BPM, Energy below genre average, no Camelot rule
+- Cool-Down: BPM ≤ 70% of peak WOD BPM, Energy below genre average, no Camelot rule, no Energy range filter
 
 ---
 
@@ -156,12 +178,22 @@ This writes `cflu_tracks.json`. Open `CFLU_WOD_Builder.html`, find `const TRACK_
 
 ```
 CFLU_WOD_Builder.html       ← Single-file app (HTML + CSS + JS + embedded track data)
+CFLU_Tests.html             ← Browser-based test suite (~80 tests, no dependencies)
 CFLU_Start.bat              ← Windows launcher
 CFLU_Pool_Build.py          ← Track pool generator (reads Spotify_Source.xlsx)
 CFLU_WOD_Builder_PROJECT.md ← Full technical specification
 README.md                   ← This file
 Spotify_Source.xlsx         ← Source data (not in repo — place locally)
 ```
+
+### Running the tests
+
+Open in the running server:
+```
+http://127.0.0.1:8888/CFLU_Tests.html
+```
+
+Tests cover all pure functions and algorithm logic: `bpmGroup`, `groupIdx`, `neighbour`, `fmtDur`, `titleKey`, `camCompat`, `lerpColor`, `addTrack`, `pickNext`, `buildUp`, `buildDown`, energy range calculation, and integration scenarios.
 
 ---
 

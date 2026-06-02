@@ -7,7 +7,7 @@
 
 ## Projektübersicht
 
-Ein lokal laufender, vollständig in einer HTML-Datei implementierter WOD Playlist Builder für CrossFit Ludwigshafen. Der Builder erstellt auf Basis einer bereinigten Spotify-Trackliste (3.314 Songs) regelbasierte WOD-Playlists mit Camelot-Kompatibilität, BPM-Steuerung und direktem Spotify-Export.
+Ein lokal laufender, vollständig in einer HTML-Datei implementierter WOD Playlist Builder für CrossFit Ludwigshafen. Der Builder erstellt auf Basis einer bereinigten Spotify-Trackliste (3.314 Songs) regelbasierte WOD-Playlists mit Energy-Filterung nach WOD-Typ, Camelot-Kompatibilität, BPM-Steuerung und direktem Spotify-Export.
 
 ### Technologie-Stack
 
@@ -15,20 +15,23 @@ Ein lokal laufender, vollständig in einer HTML-Datei implementierter WOD Playli
 |---|---|
 | Frontend | Vanilla HTML / CSS / JavaScript (Single File) |
 | Datenbasis | JSON eingebettet in HTML (~547 KB) |
-| Charts | Chart.js 4.x (CDN) |
+| Charts | Canvas 2D (eigene Implementierung) |
 | Fonts | Google Fonts (IBM Plex Mono, Barlow Condensed) |
 | Server | Python `http.server` (lokal) |
 | Auth | Spotify PKCE OAuth 2.0 (kein Backend) |
 | Datenbuild | Python 3 (pandas, json) |
+| Tests | Standalone HTML (`CFLU_Tests.html`, ~80 Tests, keine Abhängigkeiten) |
 
 ### Dateien
 
 ```
 CFLU_WOD_Builder.html       ← Hauptanwendung (alles eingebettet)
+CFLU_Tests.html             ← Browser-Test-Suite (~80 Tests)
 CFLU_Start.bat              ← Windows Starter (Server + Browser)
 CFLU_Pool_Build.py          ← Datenbasis-Generator (aus Spotify_Source.xlsx)
 Spotify_Source.xlsx         ← Quelldaten (nicht im Repo — lokal ablegen)
 CFLU_WOD_Builder_PROJECT.md ← Diese Datei
+README.md                   ← Kurzanleitung
 ```
 
 ---
@@ -68,8 +71,9 @@ python -m http.server 8888
 ### Einmalige Einrichtung
 
 1. [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) → App erstellen
-2. Settings → Redirect URI eintragen: `http://127.0.0.1:8888/CFLU_WOD_Builder.html`
-3. Client ID notieren
+2. API-Typ: **Web API** auswählen
+3. Settings → Redirect URI eintragen: `http://127.0.0.1:8888/CFLU_WOD_Builder.html`
+4. Client ID aus den App-Settings kopieren
 
 ### Pro Session
 
@@ -82,7 +86,7 @@ python -m http.server 8888
 ### API-Einschränkungen (Stand Februar 2026)
 
 - `GET /audio-features` ist im Development Mode **nicht verfügbar** — BPM/Camelot kommen ausschließlich aus der lokalen Datenbasis
-- Development Mode: max. 5 User pro App (ausreichend für Einzelnutzer)
+- Development Mode: max. 25 User pro App (ausreichend für Einzelnutzer)
 - Redirect URI muss exakt `http://127.0.0.1:8888/CFLU_WOD_Builder.html` lauten
 
 ---
@@ -138,7 +142,7 @@ python -m http.server 8888
 
 | Stufe | Bereich | Kontext |
 |---|---|---|
-| A | 60–89 | Cool-Down / Ambient |
+| A | 0–89 | Cool-Down / Ambient |
 | B | 90–109 | Warm-Up |
 | C | 110–119 | Moderat |
 | D | 120–129 | WOD-Einstieg |
@@ -154,12 +158,23 @@ python -m http.server 8888
 
 ## Anwendungslogik
 
-### Workflow (3 Schritte)
+### Workflow (4 Schritte)
 
 ```
+Schritt 0: WOD-Typ festlegen
+    └── Slider: Skill / Strength ←→ Intensity WOD
+               ↓
+        Energy-Bereich wird berechnet:
+        Skill (0)   → E: 28–70
+        Mixed (50)  → E: 50–85  [Standard]
+        Intensity (100) → E: 72–100
+        → Gilt als globaler Filter für alle Schritte (außer Cool-Down)
+
 Schritt 1: Song wählen
     ├── Weg A: Genre + BPM-Slider + Toleranz ± BPM + Textsuche
+    │          (gefiltert nach aktuellem Energy-Bereich)
     ├── Weg B: Direktsuche über alle 3.314 Tracks (genreunabhängig)
+    │          (gefiltert nach aktuellem Energy-Bereich)
     └── Weg C: Spotify-Link → Track ID extrahieren → in Pool suchen
               └── Nicht gefunden → manuelle BPM/Energy/Camelot Eingabe
 
@@ -176,6 +191,16 @@ Schritt 3: Einstellungen
     ├── Max. BPM-Sprung: +5–+20 BPM (Standard: +10)
     └── Cool-Down: Toggle + Dauer 5–60 min (Standard: 15 min)
 ```
+
+### WOD-Typ — Energy-Berechnung
+
+```js
+wodEnergyMin = Math.round(28 + t * 44)   // t = Slider-Wert / 100
+wodEnergyMax = Math.round(70 + t * 30)
+```
+
+Der Energy-Filter gilt für: Songauswahl-Listen (Schritt 1), `pickNext()` Phasen 1–3, `buildDown()`, Plateau-Modus, `beforePool` bei "Ende"-Position.  
+**Nicht** für: Phase 4 (BPM-Eskalations-Fallback), Cool-Down-Selektion.
 
 ### Positions-Ampel — BPM-Referenzwerte
 
@@ -212,19 +237,20 @@ Schritt 3: Einstellungen
 ### Track-Auswahl (pickNext)
 
 ```
-1. Basis-Filter:
+1. Basis-Filter (baseOk):
    - Nicht bereits verwendet (usedIds)
    - BPM >= aktueller Track
    - BPM-Sprung <= maxJump
    - BPM-Gruppe: max ±1 Stufe
    - Titel-Key nicht in usedTitleKeys (15-Zeichen normalisiert, Suffixe entfernt)
    - Interpret max. 10% der Playlist (min. 1)
+   - Energy >= wodEnergyMin UND Energy <= wodEnergyMax
 
 2. Kandidaten-Selektion (Phasen):
    Phase 1: Camelot grün + Zone 1/2
    Phase 2: Camelot grün (ohne Zonen-Einschränkung)
    Phase 3: Camelot gelb
-   Phase 4: BPM-Eskalation (+5 Schritte bis +40, Camelot lockern)
+   Phase 4: BPM-Eskalation (+5 Schritte bis +40, Camelot lockern, Energy-Filter entfällt)
 
 3. Sortierung der Kandidaten:
    1. Camelot-Kompatibilität (grün > gelb > rot)
@@ -235,9 +261,10 @@ Schritt 3: Einstellungen
 ### Cool-Down
 
 - BPM ≤ 70% des höchsten WOD-BPM
-- Energy < Gruppenduchrschnitt
+- Energy < Genre-Durchschnitt
 - Keine bereits verwendeten Tracks
 - Keine Camelot-Regel
+- **Kein** WOD-Typ-Energy-Filter (eigene Logik)
 - Bei zu wenig Tracks: verwandte Genre-Gruppe als Fallback + Warnung
 
 ### Interpret-Begrenzung
@@ -252,6 +279,11 @@ Schritt 3: Einstellungen
 
 ### Regler mit Farbskalen
 
+**WOD-Typ-Regler (0–100):**
+- Stahlblau (0): Skill / Strength · E: 28–70
+- Grün (50): Mixed · E: 50–85 [Standard]
+- Rot (100): Intensity WOD · E: 72–100
+
 **BPM-Sprung-Regler (5–20 BPM):**
 - Grün: 8–15 (Idealbereich)
 - Gelb: 5–7 / 16–18 (Übergang)
@@ -262,16 +294,21 @@ Schritt 3: Einstellungen
 - Gelb: 90–119 / 171–185 (Übergang)
 - Rot: <90 / >185
 
-*Implementierung: dynamischer CSS-Gradient + Thumb-Farbe via injiziertem `<style>`-Tag*
+*Implementierung: dynamischer CSS-Gradient + Thumb-Farbe via injiziertem `<style>`-Tag*  
+*Regler ohne eigene Farblogik (WOD-Dauer, ±BPM Toleranz, Cool-Down-Dauer) nutzen `var(--bg5)` als Standard-Track-Farbe.*
 
 ### BPM-Verlauf Chart
 
-- Canvas-basiert, dynamische X/Y-Skalierung
-- WOD-Bereich: grün · Cool-Down: lila
-- Referenz-Track: markierter Punkt
+- **Stufen-Chart (Step Chart):** Jeder Track wird als waagerechtes Segment dargestellt — die Breite entspricht der Song-Dauer. An Übergängen zwischen Tracks springt die Linie senkrecht auf das nächste BPM-Niveau.
+- **Feste Höhe:** `10vh` (min. 70px) — kein dynamisches Wachstum
+- **X-Achse:** Zeitbasiert in Minuten, dynamisches Intervall je nach Gesamtdauer:
+  - < 10 min → 1:00-Ticks · 10–20 min → 2:00 · 20–50 min → 5:00 · > 50 min → 10:00
+- **WOD-Ende-Marker:** Graublauer vertikaler Balken bei der konfigurierten WOD-Dauer — immer sichtbar (unabhängig von Cool-Down)
+- WOD-Bereich: grün · Cool-Down: lila · Farbsplit zeitbasiert (nach `wodDur / totalDur`)
 - **Hover Track-Zeile → Chart:** weißer Ring + gestrichelte Vertikallinie
 - **Hover Chart-Punkt → Track-Zeile:** weiße Umrandung + Auto-Scroll
-- Tooltip: BPM + Songtitel
+- Tooltip: BPM + Songtitel (gekürzt auf 20 Zeichen)
+- Canvas-Größe beim Zeichnen aus `offsetWidth/offsetHeight` — korrekt da result-area vor `drawChart()` sichtbar gemacht wird
 
 ### Track-Liste
 
@@ -294,23 +331,55 @@ Schritt 3: Einstellungen
 | 2 | `addTrack()` doppelt in `buildUp()` | ✅ Behoben |
 | 3 | Plateau-Filter Operator-Precedence `&&!...||!` | ✅ Behoben |
 | 4 | Redirect URI fehlte Dateiname → Directory Listing | ✅ Behoben |
+| 5 | Regler (WOD-Dauer, ±BPM Toleranz, Cool-Down) nicht sichtbar | ✅ Behoben |
+| 6 | Chart mit `height=80` gezeichnet bevor result-area sichtbar (offsetHeight=0) | ✅ Behoben |
 
 ### Offene Erweiterungen (noch nicht implementiert)
 
 | # | Anforderung | Priorität |
 |---|---|---|
 | 1 | Datenbasis als externe JSON-Datei (statt eingebettet) | Mittel |
-| 2 | Pool-Erweiterung via Spotify Album/Playlist-Import | Niedrig (verworfen) |
-| 3 | BPM-Verlauf Chart: Hover-Tooltip verbessern (Song-Name vollständig) | Niedrig |
-| 4 | `buildDown()` für "Ende"-Position: Dauer-Ziel nicht exakt eingehalten | Mittel |
-| 5 | Plateau-Modus: usedArtists-Tracking unvollständig | Niedrig |
-| 6 | Direktsuche: Genre-Dropdown nach Auswahl nicht immer korrekt gesperrt | Niedrig |
+| 2 | BPM-Verlauf Chart: Hover-Tooltip verbessern (Song-Name vollständig) | Niedrig |
+| 3 | `buildDown()` für "Ende"-Position: Dauer-Ziel nicht exakt eingehalten | Mittel |
+| 4 | Plateau-Modus: usedArtists-Tracking unvollständig | Niedrig |
+| 5 | Direktsuche: Genre-Dropdown nach Auswahl nicht immer korrekt gesperrt | Niedrig |
 
 ### Technische Schulden
 
 - `addTrack()` Hilfsfunktion ist definiert aber in `buildUp`/`buildDown` nicht konsistent genutzt — vereinheitlichen
 - Slider-Farbgradient via injiziertem `<style>`-Tag ist ein Workaround — besser: CSS Custom Properties mit `@property`
 - Chart-Resize bei Fenstergrößenänderung: funktioniert, aber kurzes Flackern möglich
+
+---
+
+## Tests
+
+### Ausführen
+
+```
+http://127.0.0.1:8888/CFLU_Tests.html
+```
+
+Standalone HTML-Datei — kein npm, keine Abhängigkeiten. Alle Funktionen werden mit einem eigenen Mini-Test-Framework (describe/it/expect) geprüft.
+
+### Abgedeckte Funktionen (~80 Tests)
+
+| Suite | Getestete Funktion | Kernfälle |
+|---|---|---|
+| bpmGroup | BPM → Gruppe A–I | Alle Gruppen, Grenzwerte |
+| groupIdx | Gruppe → Index | Bekannte + unbekannte Gruppe |
+| neighbour | BPM-Gruppen-Nachbarschaft | ±1 erlaubt, ±2 verboten |
+| fmtDur | Sekunden formatieren | Null, führende Nullen, große Werte |
+| fmtMin | Sekunden in Minuten | Rundungsverhalten |
+| titleKey | Titel-Normalisierung | Suffixe (Radio Edit, feat., Live…), Länge, Dedup-Gleichheit |
+| camCompat | Camelot-Kompatibilität | green/yellow/red/unknown, Wrap-around 12↔1 |
+| lerpColor | Farb-Interpolation | Start/Ende/Mitte, Clipping, 3 Stops |
+| addTrack | Track registrieren | result, usedIds, titleKeys, Artist-Zähler |
+| pickNext | Nächsten Track wählen | BPM-Regeln, Energy-Filter, Duplikate, Camelot-Priorität, leerer Pool |
+| buildUp | Aufwärts aufbauen | Starttrack, monoton steigend, kein Duplikat, targetSec, Count-Limit |
+| buildDown | Rückwärts aufbauen | BPM-Richtung, Energy-Filter, leerer Pool |
+| calcWodEnergy | Energy-Bereich je WOD-Typ | Alle Slider-Stufen, Monotonie, Min < Max |
+| Integration | buildUp + buildDown | Zusammenhängende Kette, keine Duplikate, Energy-Wechsel |
 
 ---
 
@@ -367,6 +436,7 @@ Das Script:
 4. BPM darf in der WOD-Playlist nie rückwärts gehen (< vorheriger Track)
 5. BPM-Gruppen: max. ±1 Stufe pro Schritt (außer bei BPM-Eskalation als Fallback)
 6. Camelot Cool-Down: keine Regel — nur BPM/Energy relevant
+7. Energy-Filter (wodEnergyMin/Max) gilt NICHT für Cool-Down und NICHT für Phase 4
 ```
 
 ### Entwicklungs-Workflow
@@ -375,8 +445,9 @@ Das Script:
 # 1. HTML bearbeiten in VS Code
 # 2. BAT starten (oder manuell: python -m http.server 8888)
 # 3. Browser: http://127.0.0.1:8888/CFLU_WOD_Builder.html
-# 4. Änderungen: Browser-Reload (kein Hot-Reload)
-# 5. Datenbasis ändern: CFLU_Pool_Build.py ausführen, JSON neu einbetten
+# 4. Tests: http://127.0.0.1:8888/CFLU_Tests.html
+# 5. Änderungen: Browser-Reload (kein Hot-Reload)
+# 6. Datenbasis ändern: CFLU_Pool_Build.py ausführen, JSON neu einbetten
 ```
 
 ### Empfohlene VS Code Extensions
@@ -395,13 +466,6 @@ cflu_tracks.json       # Generiert — nicht ins Repo
 *.log
 ```
 
-```bash
-# Empfohlene Commit-Struktur
-git init
-git add CFLU_WOD_Builder.html CFLU_Start.bat CFLU_Pool_Build.py README.md
-git commit -m "Initial commit: CFLU WOD Playlist Builder v3"
-```
-
 ---
 
 ## Versionsverlauf
@@ -412,7 +476,8 @@ git commit -m "Initial commit: CFLU WOD Playlist Builder v3"
 | v2.0 | Gesamtliste (3.347 Tracks), 13 Genre-Gruppen, Spotify PKCE Export |
 | v2.1 | Ref/Peak Modi, Suchfunktion alle Genres, Camelot-Priorität |
 | v2.2 | ±BPM Toleranz-Regler, Titeldedup, Camelot-Zonierung |
-| **v3.0** | **Vollständiger Neuaufbau: Song-zuerst-Workflow, Positions-Ampel, farbige Regler, Hover-Sync Chart↔Liste, Spotify-Link pro Track, Cool-Down Dauer einstellbar, nur Minuten-Modus, 3.314 Tracks nach verbesserter Bereinigung** |
+| v3.0 | Vollständiger Neuaufbau: Song-zuerst-Workflow, Positions-Ampel, farbige Regler, Hover-Sync Chart↔Liste, Spotify-Link pro Track, Cool-Down Dauer einstellbar, nur Minuten-Modus, 3.314 Tracks nach verbesserter Bereinigung |
+| **v3.1** | **WOD-Typ-Slider (Skill/Strength ↔ Intensity WOD) mit globalem Energy-Filter · BPM-Chart als Stufen-Chart mit zeitbasierter X-Achse (Songbreite = Dauer) · WOD-Ende-Marker (graublau) · Slider-Sichtbarkeit-Fix · Spotify-Setup-Anleitung in Sidebar · Test-Suite (CFLU_Tests.html, ~80 Tests)** |
 
 ---
 
