@@ -191,6 +191,17 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
   </div>
 
   <div class="sb-scroll">
+    <!-- STEP 0: WOD TYPE -->
+    <div class="sb-section">
+      <div class="sb-label">WOD-Typ <span class="badge" id="wod-type-badge">Mixed</span></div>
+      <div class="range-wrap">
+        <input type="range" id="wod-type-slider" min="0" max="100" value="50" oninput="onWodTypeSlider(this)">
+      </div>
+      <div class="range-row"><span class="range-lbl">Skill / Strength</span><span class="range-lbl">Intensity WOD</span></div>
+      <div class="range-val" id="wod-energy-display">E: 50–85</div>
+      <div class="range-hint" id="wod-energy-hint">Ausgewogener Mix</div>
+    </div>
+
     <!-- STEP 1: SONG SELECTION -->
     <div class="sb-section">
       <div class="sb-label">Schritt 1 — Song wählen</div>
@@ -277,7 +288,12 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
             <span class="sel-badge" id="sel-cam">—</span>
             <span class="sel-badge" id="sel-eng">E:—</span>
             <span class="sel-badge" id="sel-genre" style="color:var(--text2)">—</span>
+            <a id="sel-sp-link" href="#" target="_blank" style="display:none;align-items:center;gap:4px;font-family:'IBM Plex Mono',monospace;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:4px;background:var(--bg4);color:var(--acc);text-decoration:none;border:1px solid rgba(29,185,84,.3)">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+              In Spotify öffnen
+            </a>
           </div>
+          <iframe id="sel-sp-embed" src="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" style="display:none;width:100%;height:80px;border:none;border-radius:6px;margin-top:10px"></iframe>
         </div>
       </div>
     </div>
@@ -461,6 +477,8 @@ let maxJump=10;
 let wodMinutes=20;
 let cdActive=false;
 let cdMinutes=15;
+let wodEnergyMin=50;
+let wodEnergyMax=85;
 let generatedWod=[];
 let generatedCd=[];
 let spToken=null;
@@ -506,6 +524,10 @@ const BPM_STOPS=[
 // Jump slider color stops (0-1 mapped from 5-20)
 const JUMP_STOPS=[
   {p:0,...RED},{p:.13,...YEL},{p:.2,...GRN},{p:.67,...GRN},{p:.73,...YEL},{p:1,...RED}
+];
+// WOD type slider: Skill/Strength (steel-blue) → Mixed (green) → Intensity (red)
+const WOD_TYPE_STOPS=[
+  {p:0,r:91,g:150,b:210},{p:.5,...GRN},{p:1,...RED}
 ];
 
 function updateSliderStyle(slider,stops,minV,maxV){
@@ -571,7 +593,7 @@ function updateFilterList(){
   const bpmTarget=+document.getElementById('bpm-slider').value;
   const q=document.getElementById('filter-search').value.toLowerCase();
   const pool=getPool(genre);
-  let filtered=pool.filter(t=>Math.abs(t.bpm-bpmTarget)<=bpmTol);
+  let filtered=pool.filter(t=>Math.abs(t.bpm-bpmTarget)<=bpmTol&&t.energy>=wodEnergyMin&&t.energy<=wodEnergyMax);
   if(q) filtered=filtered.filter(t=>t.song.toLowerCase().includes(q)||t.artist.toLowerCase().includes(q));
   filtered.sort((a,b)=>a.bpm-b.bpm||b.energy-a.energy);
   const sel=document.getElementById('filter-list');
@@ -594,7 +616,7 @@ function onDirectSearch(){
   const sel=document.getElementById('direct-list');
   sel.innerHTML='';
   if(q.length<2){document.getElementById('direct-count').textContent='Mind. 2 Zeichen eingeben';return;}
-  const res=ALL_TRACKS.filter(t=>t.song.toLowerCase().includes(q)||t.artist.toLowerCase().includes(q))
+  const res=ALL_TRACKS.filter(t=>(t.song.toLowerCase().includes(q)||t.artist.toLowerCase().includes(q))&&t.energy>=wodEnergyMin&&t.energy<=wodEnergyMax)
     .sort((a,b)=>{
       const aS=a.artist.toLowerCase().startsWith(q)?0:1,bS=b.artist.toLowerCase().startsWith(q)?0:1;
       return aS-bS||a.bpm-b.bpm;
@@ -651,6 +673,13 @@ function selectTrack(t, external=false){
   document.getElementById('sel-cam').textContent=selectedTrack.camelot||'—';
   document.getElementById('sel-eng').textContent='E:'+selectedTrack.energy;
   document.getElementById('sel-genre').textContent=selectedTrack.genre;
+  const spLink=document.getElementById('sel-sp-link');
+  const embed=document.getElementById('sel-sp-embed');
+  const hasId=selectedTrack.id&&selectedTrack.id!==''&&selectedTrack.id!=='nan';
+  spLink.href=hasId?'https://open.spotify.com/track/'+selectedTrack.id:'#';
+  spLink.style.display=hasId?'inline-flex':'none';
+  embed.src=hasId?'https://open.spotify.com/embed/track/'+selectedTrack.id+'?utm_source=generator&theme=0':'';
+  embed.style.display=hasId?'block':'none';
   document.getElementById('selected-display').classList.remove('section-hidden');
 
   // Auto-set genre if from direct/link
@@ -748,6 +777,20 @@ function onCdDurSlider(el){
   cdMinutes=+el.value;
   document.getElementById('cd-dur-badge').textContent=el.value+' min';
 }
+function onWodTypeSlider(el){
+  const t=+el.value/100;
+  wodEnergyMin=Math.round(28+t*44);
+  wodEnergyMax=Math.round(70+t*30);
+  const c=updateSliderStyle(el,WOD_TYPE_STOPS,0,100);
+  document.getElementById('wod-energy-display').textContent='E: '+wodEnergyMin+'–'+wodEnergyMax;
+  document.getElementById('wod-energy-display').style.color=toHex(c);
+  const v=+el.value;
+  const badge=v<20?'Skill / Strength':v<40?'Kraft-Mix':v<60?'Mixed':v<80?'WOD-Mix':'Intensity WOD';
+  const hint=v<20?'Fokus & Technik':v<40?'Kraft mit Ausdauer':v<60?'Ausgewogener Mix':v<80?'Hohe Intensität':'Maximale Intensität';
+  document.getElementById('wod-type-badge').textContent=badge;
+  document.getElementById('wod-energy-hint').textContent=hint;
+  updateFilterList();
+}
 function updateGenBtn(){
   const ok=selectedTrack&&selectedTrack.bpm>0;
   document.getElementById('gen-btn').disabled=!ok;
@@ -794,6 +837,7 @@ function pickNext(pool,cur,usedIds,usedTitleKeys,usedArtists,totalTracks){
     if(titleKey(t.song)&&usedTitleKeys.has(titleKey(t.song))) return false;
     const ak=t.artist.split(',')[0].trim().toLowerCase();
     if((usedArtists.get(ak)||0)>=maxArtist) return false;
+    if(t.energy<wodEnergyMin||t.energy>wodEnergyMax) return false;
     return true;
   };
 
@@ -874,6 +918,7 @@ function buildDown(pool,endT,usedIds,usedTitleKeys,usedArtists,count){
       if(cur.bpm-t.bpm>maxJump) return false;
       if(!neighbour(cg,bpmGroup(t.bpm))) return false;
       if(titleKey(t.song)&&usedTitleKeys.has(titleKey(t.song))) return false;
+      if(t.energy<wodEnergyMin||t.energy>wodEnergyMax) return false;
       return true;
     });
     if(!cands.length) break;
@@ -920,7 +965,7 @@ function _gen(){
     usedIds.add(ref.id||ref.song);
     const tk=titleKey(ref.song);if(tk)usedTitleKeys.add(tk);
     // Fill before to target duration
-    const beforePool=pool.filter(t=>!usedIds.has(t.id||t.song)&&t.bpm<=ref.bpm);
+    const beforePool=pool.filter(t=>!usedIds.has(t.id||t.song)&&t.bpm<=ref.bpm&&t.energy>=wodEnergyMin&&t.energy<=wodEnergyMax);
     const totalBefore=targetSec-ref.dur;
     let durSoFar=before.reduce((s,t)=>s+t.dur,0);
     let cur=before.length?before[before.length-1]:null;
@@ -952,7 +997,7 @@ function _gen(){
     } else {
       // plateau: same BPM band
       const refGrp=bpmGroup(ref.bpm);
-      const platCands=pool.filter(t=>!usedIds.has(t.id||t.song)&&neighbour(bpmGroup(t.bpm),refGrp)&&(!titleKey(t.song)||!usedTitleKeys.has(titleKey(t.song))))
+      const platCands=pool.filter(t=>!usedIds.has(t.id||t.song)&&neighbour(bpmGroup(t.bpm),refGrp)&&(!titleKey(t.song)||!usedTitleKeys.has(titleKey(t.song)))&&t.energy>=wodEnergyMin&&t.energy<=wodEnergyMax)
         .sort((a,b)=>b.energy-a.energy);
       let platDur=0;
       for(const t of platCands){
@@ -1328,6 +1373,8 @@ window.addEventListener('load',()=>{
   updateSliderStyle(bpmEl,BPM_STOPS,60,220);
   const jumpEl=document.getElementById('jump-slider');
   updateSliderStyle(jumpEl,JUMP_STOPS,5,20);
+  const wodTypeEl=document.getElementById('wod-type-slider');
+  onWodTypeSlider(wodTypeEl);
   // Populate filter list
   updateFilterList();
   // Check spotify callback
