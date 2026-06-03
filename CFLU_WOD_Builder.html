@@ -1185,7 +1185,7 @@ function buildUp(pool,startT,usedIds,usedTitleKeys,usedArtists,targetSec,count){
   let cur=startT;
   const limit=count||9999;
   while(result.length<limit){
-    if(targetSec&&totalDur>=(targetSec+30)) break;
+    if(targetSec&&totalDur>=targetSec) break;
     const next=pickNext(pool,cur,usedIds,usedTitleKeys,usedArtists,limit||20);
     if(!next) break;
     result.push(next);
@@ -1307,8 +1307,8 @@ function _gen(){
   // Cool-down
   let cd=[];
   const warnMsgs=[];
-  // Phase D + Cool-Down toggle = recovery section then deeper cool-down
-  const needCd=cdActive||(currentPhase==='D'&&cdActive);
+  // Cool-Down: triggered by toggle (Phase D + toggle = recovery then extra cool-down)
+  const needCd=cdActive;
   if(needCd){
     const maxWodBpm=wod.length?Math.max(...wod.map(t=>t.bpm)):100;
     const cdBpmMax=currentPhase==='D'?Math.floor(maxWodBpm*0.85):Math.floor(maxWodBpm*0.7);
