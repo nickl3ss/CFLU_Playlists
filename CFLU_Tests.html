@@ -52,17 +52,17 @@ function it(name,fn){
 function expect(actual){
   const fail=msg=>{throw new Error(msg);};
   return{
-    toBe(exp){if(actual!==exp)fail(`ожид. ${JSON.stringify(exp)}, получено ${JSON.stringify(actual)}`);},
-    toEqual(exp){if(JSON.stringify(actual)!==JSON.stringify(exp))fail(`ожид. ${JSON.stringify(exp)}, получено ${JSON.stringify(actual)}`);},
-    toBeNull(){if(actual!==null)fail(`ожид. null, получено ${JSON.stringify(actual)}`);},
-    toBeGreaterThan(n){if(!(actual>n))fail(`ожид. > ${n}, получено ${actual}`);},
-    toBeLessThanOrEqual(n){if(!(actual<=n))fail(`ожид. <= ${n}, получено ${actual}`);},
-    toBeGreaterThanOrEqual(n){if(!(actual>=n))fail(`ожид. >= ${n}, получено ${actual}`);},
-    toBeTruthy(){if(!actual)fail(`ожид. truthy, получено ${JSON.stringify(actual)}`);},
-    toBeFalsy(){if(actual)fail(`ожид. falsy, получено ${JSON.stringify(actual)}`);},
-    toHaveLength(n){if((actual||[]).length!==n)fail(`ожид. Länge ${n}, получено ${(actual||[]).length}`);},
-    toContain(item){if(!(actual||[]).includes(item))fail(`ожид. enthält ${JSON.stringify(item)}`);},
-    toMatch(re){if(!re.test(actual))fail(`ожид. match ${re}, получено ${actual}`);},
+    toBe(exp){if(actual!==exp)fail(`Erwartet ${JSON.stringify(exp)}, erhalten ${JSON.stringify(actual)}`);},
+    toEqual(exp){if(JSON.stringify(actual)!==JSON.stringify(exp))fail(`Erwartet ${JSON.stringify(exp)}, erhalten ${JSON.stringify(actual)}`);},
+    toBeNull(){if(actual!==null)fail(`Erwartet null, erhalten ${JSON.stringify(actual)}`);},
+    toBeGreaterThan(n){if(!(actual>n))fail(`Erwartet > ${n}, erhalten ${actual}`);},
+    toBeLessThanOrEqual(n){if(!(actual<=n))fail(`Erwartet <= ${n}, erhalten ${actual}`);},
+    toBeGreaterThanOrEqual(n){if(!(actual>=n))fail(`Erwartet >= ${n}, erhalten ${actual}`);},
+    toBeTruthy(){if(!actual)fail(`Erwartet truthy, erhalten ${JSON.stringify(actual)}`);},
+    toBeFalsy(){if(actual)fail(`Erwartet falsy, erhalten ${JSON.stringify(actual)}`);},
+    toHaveLength(n){if((actual||[]).length!==n)fail(`Erwartet Länge ${n}, erhalten ${(actual||[]).length}`);},
+    toContain(item){if(!(actual||[]).includes(item))fail(`Erwartet enthält ${JSON.stringify(item)}`);},
+    toMatch(re){if(!re.test(actual))fail(`Erwartet match ${re}, erhalten ${actual}`);},
   };
 }
 
@@ -247,8 +247,10 @@ const T = {
   // === Für Duplikat-Tests ===
   d1:{id:'d1',song:'Dup Song',              artist:'Band I',bpm:126,camelot:'9B',energy:70,dur:200,genre:'Rock',bpmg:'D'},
   d2:{id:'d2',song:'Dup Song (Radio Edit)', artist:'Band I',bpm:126,camelot:'9B',energy:68,dur:195,genre:'Rock',bpmg:'D'},
-  // === BPM-Sprung zu groß (> maxJump=10 von 120 aus) ===
+  // === BPM-Sprung zu groß (> maxJump=10 von 120 aus), aber Phase 4 erreichbar ===
   far:{id:'far',song:'Far Jump',  artist:'Band J',bpm:145,camelot:'9B', energy:80,dur:200,genre:'Rock',bpmg:'F'},
+  // === Absolut unerreichbar: Sprung 52 > maxJump+40=50, selbst Phase 4 scheitert ===
+  unr:{id:'unr',song:'Unreachable',artist:'Band X',bpm:172,camelot:'9B',energy:80,dur:200,genre:'Rock',bpmg:'H'},
   // === BPM tiefer als Start ===
   low:{id:'low',song:'Low BPM',   artist:'Band K',bpm:110,camelot:'9B', energy:72,dur:200,genre:'Rock',bpmg:'C'},
   // === Nur für buildDown ===
@@ -430,8 +432,16 @@ describe('pickNext — nächsten Track auswählen', ()=>{
     const next=pickNext(pool,T.a1,new Set(),new Set(),new Map(),10); // a1=120
     expect(next.bpm-T.a1.bpm).toBeLessThanOrEqual(maxJump);
   });
-  it('Zu großer BPM-Sprung (>10 von 120) → nicht ausgewählt', ()=>{
-    const pool=[T.far]; // far=145, Sprung=25 > 10
+  it('Phase 4 Fallback: BPM-Sprung > maxJump wird durch Eskalation überbrückt', ()=>{
+    // T.far: Sprung 25 > maxJump=10 — Phase 1-3 filtern, Phase 4 akzeptiert ab extra=15 (25 ≤ 10+15)
+    const pool=[T.far];
+    const next=pickNext(pool,T.a1,new Set(),new Set(),new Map(),10);
+    expect(next).toBeTruthy();
+    expect(next.id).toBe('far');
+  });
+  it('Absolut unerreichbarer Sprung (>50 BPM) → null auch in Phase 4', ()=>{
+    // T.unr: Sprung 52 > maxJump+40=50 — alle Phase-4-Stufen scheitern
+    const pool=[T.unr];
     const next=pickNext(pool,T.a1,new Set(),new Set(),new Map(),10);
     expect(next).toBeNull();
   });
@@ -446,10 +456,19 @@ describe('pickNext — nächsten Track auswählen', ()=>{
     const next=pickNext(pool,T.a1,used,new Set(),new Map(),10);
     expect(next).toBeNull();
   });
-  it('Energie außerhalb Bereich (hoch) → nicht ausgewählt', ()=>{
-    const pool=[T.hi]; // energy=92 > wodEnergyMax=85
+  it('Energy-Filter (hoch): in-range Track wird gegenüber out-of-range bevorzugt', ()=>{
+    // Phase 1-3 bevorzugen Energy-korrekte Tracks; Phase 4 würde T.hi als Fallback nehmen
+    const inRange={id:'ir',song:'In Range',artist:'Band Z',bpm:125,camelot:'9B',energy:76,dur:200,genre:'Rock',bpmg:'D'};
+    const pool=[T.hi, inRange]; // T.hi energy=92 außerhalb, inRange energy=76 im Bereich
     const next=pickNext(pool,T.a1,new Set(),new Set(),new Map(),10);
-    expect(next).toBeNull();
+    expect(next.id).toBe('ir'); // Phase 1/2 wählt den Energy-korrekten Track
+  });
+  it('Phase 4 ignoriert Energy-Filter (single-track Fallback)', ()=>{
+    // Wenn nur ein Track vorhanden und er außerhalb der Energy-Range liegt, wählt Phase 4 ihn trotzdem
+    const pool=[T.hi]; // energy=92 > wodEnergyMax=85, bpm=125 für Phase 4 erreichbar
+    const next=pickNext(pool,T.a1,new Set(),new Set(),new Map(),10);
+    expect(next).toBeTruthy(); // Phase 4 Fallback ignoriert Energy
+    expect(next.id).toBe('hi');
   });
   it('Energie außerhalb Bereich (niedrig) → nicht ausgewählt', ()=>{
     const pool=[T.lo]; // energy=25 < wodEnergyMin=50
@@ -475,9 +494,16 @@ describe('pickNext — nächsten Track auswählen', ()=>{
     const next=pickNext([],T.a1,new Set(),new Set(),new Map(),10);
     expect(next).toBeNull();
   });
-  it('BPM-Gruppen-Sprung zu groß (±2 Gruppen) → nicht ausgewählt', ()=>{
-    // a1=D(120), far=F(145) — 2 Gruppen Abstand
+  it('BPM-Gruppen-Sprung ±2: Phase 1-3 filtern, Phase 4 überbrückt als Fallback', ()=>{
+    // a1=D(120), far=F(145) — 2 Gruppen Abstand → Phase 1-3 lehnen ab, Phase 4 akzeptiert
     const pool=[T.far];
+    const next=pickNext(pool,T.a1,new Set(),new Set(),new Map(),10);
+    expect(next).toBeTruthy();
+    expect(next.id).toBe('far');
+  });
+  it('Absolut unerreichbare BPM-Gruppe (H, Sprung >50) → null', ()=>{
+    // a1=D(120), unr=H(172) — Sprung 52 > 50 (max Phase-4-Eskalation), wirklich unerreichbar
+    const pool=[T.unr];
     const next=pickNext(pool,T.a1,new Set(),new Set(),new Map(),10);
     expect(next).toBeNull();
   });
