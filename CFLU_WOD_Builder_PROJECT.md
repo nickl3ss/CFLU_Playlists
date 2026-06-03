@@ -7,29 +7,30 @@
 
 ## Projektübersicht
 
-Ein lokal laufender, vollständig in einer HTML-Datei implementierter WOD Playlist Builder für CrossFit Ludwigshafen. Der Builder erstellt auf Basis einer bereinigten Spotify-Trackliste (3.314 Songs) regelbasierte WOD-Playlists mit Energy-Filterung nach WOD-Typ, Camelot-Kompatibilität, BPM-Steuerung und direktem Spotify-Export.
+Ein lokal laufender WOD Playlist Builder für CrossFit Ludwigshafen. Auf Basis einer bereinigten Spotify-Trackliste (3.313 Songs, 17 Felder) erstellt der Builder phasenbasierte WOD-Playlists mit Camelot-Kompatibilität, BPM-Steuerung, Audio-Preview und direktem Spotify-Export.
 
 ### Technologie-Stack
 
 | Komponente | Technologie |
 |---|---|
-| Frontend | Vanilla HTML / CSS / JavaScript (Single File) |
-| Datenbasis | JSON eingebettet in HTML (~547 KB) |
+| Frontend | Vanilla HTML / CSS / JavaScript (Single File, ~70 KB) |
+| Datenbasis | Externe JS-Datei `cflu_tracks.js` (~874 KB, 3.313 Tracks) |
 | Charts | Canvas 2D (eigene Implementierung) |
 | Fonts | Google Fonts (IBM Plex Mono, Barlow Condensed) |
 | Server | Python `http.server` (lokal) |
 | Auth | Spotify PKCE OAuth 2.0 (kein Backend) |
 | Datenbuild | Python 3 (pandas, json) |
-| Tests | Standalone HTML (`CFLU_Tests.html`, ~80 Tests, keine Abhängigkeiten) |
+| Tests | Standalone HTML (`CFLU_Tests.html`, ~100 Tests, keine Abhängigkeiten) |
 
 ### Dateien
 
 ```
-CFLU_WOD_Builder.html       ← Hauptanwendung (alles eingebettet)
-CFLU_Tests.html             ← Browser-Test-Suite (~80 Tests)
-CFLU_Start.bat              ← Windows Starter (Server + Browser)
-CFLU_Pool_Build.py          ← Datenbasis-Generator (aus Spotify_Source.xlsx)
-Spotify_Source.xlsx         ← Quelldaten (nicht im Repo — lokal ablegen)
+CFLU_WOD_Builder.html       ← Hauptanwendung (~70 KB, ohne eingebettete Daten)
+cflu_tracks.js              ← Datenbasis (auto-generiert, ~874 KB)
+CFLU_Tests.html             ← Browser-Test-Suite (~100 Tests)
+CFLU_Start.bat              ← Windows Starter (Pool-Build + Server + Browser)
+CFLU_Pool_Build.py          ← Datenbasis-Generator (aus Spotify Source.xlsx)
+Spotify Source.xlsx         ← Quelldaten (nicht im Repo — lokal ablegen)
 CFLU_WOD_Builder_PROJECT.md ← Diese Datei
 README.md                   ← Kurzanleitung
 ```
@@ -95,9 +96,10 @@ python -m http.server 8888
 
 ### Quelle
 
-`Spotify_Source.xlsx` — exportiert aus Spotify via Exportify + Tunebat/Chosic
+`Spotify Source.xlsx` (auch `Spotify_Source.xlsx`) — exportiert aus Spotify via Exportify + Tunebat/Chosic.  
+`CFLU_Start.bat` führt `CFLU_Pool_Build.py` automatisch aus, falls die Quelldatei vorhanden ist.
 
-### Felder pro Track
+### Felder pro Track (v4 — 17 Felder)
 
 | Feld | Typ | Beschreibung |
 |---|---|---|
@@ -110,13 +112,23 @@ python -m http.server 8888
 | `dur` | int | Dauer in Sekunden |
 | `genre` | string | Genre-Gruppe (klassifiziert) |
 | `bpmg` | string | BPM-Gruppe A–I |
+| `dance` | int | Spotify Danceability 0–100 |
+| `valence` | int | Spotify Valence (Positivität) 0–100 |
+| `acoustic` | int | Spotify Acousticness 0–100 |
+| `instrumental` | int | Spotify Instrumentalness 0–100 |
+| `speech` | int | Spotify Speechiness 0–100 |
+| `live` | int | Spotify Liveness 0–100 |
+| `loud` | int | Spotify Loudness (dB, typisch –26 bis 0) |
+| `popularity` | int | Spotify Popularity 0–100 |
 
 ### Bereinigung (CFLU_Pool_Build.py)
 
+- Akzeptiert beide Dateinamen: `Spotify Source.xlsx` und `Spotify_Source.xlsx`
+- Ausgabe: `cflu_tracks.js` mit `const TRACK_DATA={...};` (kein manuelles Einbetten mehr)
 - Duplikate entfernen: gleicher Artist + normalisierter 15-Zeichen-Titelkey + BPM ±1 + gleicher Camelot
 - Suffix-Strip vor Titelvergleich: `Radio Edit`, `Single Edit`, `Extended Mix`, `Remix`, `Remastered`, `Live`, `Acoustic` u.ä.
 - Bei Duplikat: höhere Energy behalten, bei Gleichstand längere Duration
-- Ergebnis: **3.314 unique Tracks** (Stand aktueller Build)
+- Ergebnis: **3.313 unique Tracks** (Stand aktueller Build)
 
 ### Genre-Gruppen
 
@@ -161,46 +173,59 @@ python -m http.server 8888
 ### Workflow (4 Schritte)
 
 ```
-Schritt 0: WOD-Typ festlegen
-    └── Slider: Skill / Strength ←→ Intensity WOD
-               ↓
-        Energy-Bereich wird berechnet:
-        Skill (0)   → E: 28–70
-        Mixed (50)  → E: 50–85  [Standard]
-        Intensity (100) → E: 72–100
-        → Gilt als globaler Filter für alle Schritte (außer Cool-Down)
+Klassen-Phase wählen (Schritt 0)
+    ├── A: Whiteboard & Prep  → Plateau, BPM 90–110, ruhig, instrumental
+    ├── B: Skill & Strength   → sanft aufsteigend, BPM 80–130, moderat
+    ├── C: WOD — Intensiv     → aufsteigend BPM, max. Performance [Standard]
+    └── D: Cool-Down          → absteigend/plateau, BPM 60–100, Erholung
+    → Setzt Energy-Bereich, BPM-Slider, Toleranz und maxJump automatisch vor
+    → Zeigt Phase-Match-Score [0-100] neben jedem Track in der Auswahl
 
 Schritt 1: Song wählen
     ├── Weg A: Genre + BPM-Slider + Toleranz ± BPM + Textsuche
-    │          (gefiltert nach aktuellem Energy-Bereich)
-    ├── Weg B: Direktsuche über alle 3.314 Tracks (genreunabhängig)
-    │          (gefiltert nach aktuellem Energy-Bereich)
-    └── Weg C: Spotify-Link → Track ID extrahieren → in Pool suchen
-              └── Nicht gefunden → manuelle BPM/Energy/Camelot Eingabe
+    ├── Weg B: Direktsuche (in aktivem Genre, gefiltert nach Phase)
+    └── Weg C: Spotify-Link → Track ID → Pool suchen / manuelle Eingabe
+    → Alle Suchlisten zeigen Phase-Match-Score und sind danach sortiert
 
-Schritt 2: Position wählen
+Schritt 2: Position wählen (nur für Phase B und C)
     ├── Start       → Song als #1, Playlist steigt aufwärts
-    ├── Ende        → Song als letzter WOD-Track, Playlist baut sich auf
-    ├── Midpoint    → Song bei ~50%, davor aufsteigend, danach weiter aufsteigend
-    └── Mid Plateau → Song bei ~50%, danach konstante Energie
-
-    + Positions-Ampel: BPM-Bewertung + Camelot-Bewertung + Gesamt
+    ├── Ende        → Song als letzter Track, Playlist baut sich auf
+    ├── Midpoint    → Song bei ~50%, davor aufsteigend, danach weiter
+    └── Mid Plateau → Song bei ~50%, danach BPM-Band konstant
+    + Positions-Ampel: BPM · Camelot · Gesamt · Phase Fit
 
 Schritt 3: Einstellungen
-    ├── WOD-Dauer: 5–240 min (5er Schritte, Standard: 20 min)
-    ├── Max. BPM-Sprung: +5–+20 BPM (Standard: +10)
-    └── Cool-Down: Toggle + Dauer 5–60 min (Standard: 15 min)
+    ├── WOD-Dauer: 5–240 min (Standard phase-abhängig)
+    ├── Max. BPM-Sprung: +5–+20 BPM (Standard phase-abhängig)
+    └── Cool-Down: Toggle + Dauer 5–60 min
+        → Phase D + Cool-Down: Recovery-Sektion + nachgelagerter Cool-Down
 ```
 
-### WOD-Typ — Energy-Berechnung
+### Klassen-Phase — Konfiguration
 
-```js
-wodEnergyMin = Math.round(28 + t * 44)   // t = Slider-Wert / 100
-wodEnergyMax = Math.round(70 + t * 30)
+| Phase | BPM | Energy | Valence | Dance | Instrumental | Speech | Acoustic | Loud (dB) | BPM-Verlauf |
+|---|---|---|---|---|---|---|---|---|---|
+| A Whiteboard | 90–110 | 30–55 | 50–80 | 30–60 | ≥40 | ≤20 | ≥30 | ≤–10 | Plateau |
+| B Skill | 80–130 | 55–78 | 35–65 | 35–65 | ≥25 | ≤25 | 5–40 | –10 bis –5 | Sanft aufsteigend |
+| C WOD | 125–195 | 70–100 | 60–90 | 60–80 | ≤25 | — | ≤10 | ≥–8 | Aufsteigend (BPM-Build) |
+| D Cool-Down | 60–100 | 0–50 | 40–70 | ≤45 | ≥50 | — | ≥40 | ≤–10 | Absteigend |
+
+*Bereichsgrenzen sind Scoring-Schwellen (Penalty), keine harten Filter — Phase 4-Fallback ignoriert sie.*
+
+### Genre-Nachbarn (Fallback bei zu kleinem Pool)
+
+```
+Rock              → Pop & New Wave · Metal & Hard Rock · Funk & Disco
+EDM / Electronic  → Synthwave / Electronica · Pop & New Wave
+Punk              → Rock · Metal & Hard Rock · Ska & Reggae
+Ska & Reggae      → Punk · Funk & Disco · Pop & New Wave
+Metal & Hard Rock → Rock · Punk
+Hip Hop & R&B     → Funk & Disco · Pop & New Wave
+Funk & Disco      → Hip Hop & R&B · Pop & New Wave · Rock
+Synthwave         → EDM / Electronic · Pop & New Wave
 ```
 
-Der Energy-Filter gilt für: Songauswahl-Listen (Schritt 1), `pickNext()` Phasen 1–3, `buildDown()`, Plateau-Modus, `beforePool` bei "Ende"-Position.  
-**Nicht** für: Phase 4 (BPM-Eskalations-Fallback), Cool-Down-Selektion.
+Mindest-Poolgröße: **15 Tracks**. Bei Unterschreitung werden Nachbar-Genres hinzugezogen und ein Hinweis angezeigt.
 
 ### Positions-Ampel — BPM-Referenzwerte
 
@@ -240,11 +265,11 @@ Der Energy-Filter gilt für: Songauswahl-Listen (Schritt 1), `pickNext()` Phasen
 1. Basis-Filter (baseOk):
    - Nicht bereits verwendet (usedIds)
    - BPM >= aktueller Track
-   - BPM-Sprung <= maxJump
+   - BPM-Sprung <= maxJump (phase-abhängig)
    - BPM-Gruppe: max ±1 Stufe
    - Titel-Key nicht in usedTitleKeys (15-Zeichen normalisiert, Suffixe entfernt)
    - Interpret max. 10% der Playlist (min. 1)
-   - Energy >= wodEnergyMin UND Energy <= wodEnergyMax
+   - Energy im Phase-Bereich (wodEnergyMin / Max)
 
 2. Kandidaten-Selektion (Phasen):
    Phase 1: Camelot grün + Zone 1/2
@@ -252,20 +277,59 @@ Der Energy-Filter gilt für: Songauswahl-Listen (Schritt 1), `pickNext()` Phasen
    Phase 3: Camelot gelb
    Phase 4: BPM-Eskalation (+5 Schritte bis +40, Camelot lockern, Energy-Filter entfällt)
 
-3. Sortierung der Kandidaten:
-   1. Camelot-Kompatibilität (grün > gelb > rot)
-   2. Energy absteigend
-   3. Kleinster BPM-Sprung
+3. Sortierung — Unified Sort Score (höher = besser):
+   score = camelot_points + phase_score*2 + energy + bpm_efficiency
+   camelot: grün=200, gelb=100, rot=0
+   phase_score: 0–100 × 2 = 0–200 (Ø aller Attribut-Scores für aktive Phase)
+   energy: 0–100 (direkter Wert)
+   bpm_efficiency: –(BPM-Sprung) (kleinere Sprünge bevorzugt)
 ```
+
+### Unified Scoring System
+
+#### Per-Attribut-Score (`attrScore`)
+
+Für jeden Track-Attribut einer Phase wird ein Score 0–100 berechnet:
+- Wert **im Zielbereich** → **100 Punkte**
+- Wert **außerhalb**: `max(0, 100 - Abstand_vom_Bereich × 3)`
+  - 1 Einheit außerhalb → 97 Punkte
+  - 10 Einheiten außerhalb → 70 Punkte
+  - 34+ Einheiten außerhalb → 0 Punkte
+
+#### Phase-Match-Score (`calcPhaseScore`, 0–100)
+
+Durchschnitt aller Per-Attribut-Scores für die gewählte Phase:
+```
+score_A = Ø(bpm, energy, valence, dance, instrumental, speech, acoustic, loud)
+score_B = Ø(bpm, energy, valence, dance, instrumental, speech, acoustic, live, loud)
+score_D = Ø(bpm, energy, valence, dance, instrumental, acoustic, loud)
+score_C = Bonus-System: energy≥82(+20), valence 60-90(+15), dance 60-80(+10), loud≥-8(+10)
+```
+
+Der Phase-Match-Score wird in der **Track-Liste** als farbiger Badge angezeigt (🟢≥80 · 🟡50–79 · 🔴<50) und in der **Such-Dropdown** als `[Score]` Präfix. Er fließt mit Gewicht ×2 in den Sort-Score ein.
+
+#### Algorithmen nach Phase
+
+| Phase | Algorithmus | Position-Wahl |
+|---|---|---|
+| A | `buildPlateau()` — Tracks in ±12 BPM Band, sortiert nach Phase-Score | Nicht angezeigt (Plateau automatisch) |
+| B | `buildUp()` + `buildDown()` — sanfter Aufbau (kleinerer maxJump) | Alle 4 Positionen |
+| C | `buildUp()` + `buildDown()` — normaler Aufbau | Alle 4 Positionen |
+| D | `buildDecreasing()` — BPM sinkt über Playlist | Nicht angezeigt (Start automatisch) |
+
+#### Cool-Down (Phase D + Cool-Down-Toggle)
+
+- Phasen-Pool mit Phase D-Kriterien (energy ≤ 50, bpm 60–100, instrumental ≥ 50, acoustic ≥ 40, loud ≤ –10)
+- Sortierung nach Phase-D-Score
+- Fallback auf Nachbar-Genres wenn Pool < 3 Tracks
+- Bei Phase D + Toggle: Recovery-Sektion (70–85% des Phase-D-BPM) + echter Cool-Down danach
 
 ### Cool-Down
 
-- BPM ≤ 70% des höchsten WOD-BPM
-- Energy < Genre-Durchschnitt
-- Keine bereits verwendeten Tracks
+- Phase-D-Kriterien (energy ≤ 50, bpm ≤ 70–85% des WOD-Peaks)
+- Sortiert nach Phase-D-Score (nicht mehr nach reinem BPM-Aufstieg)
+- Fallback via Genre-Nachbarn wenn Pool zu klein
 - Keine Camelot-Regel
-- **Kein** WOD-Typ-Energy-Filter (eigene Logik)
-- Bei zu wenig Tracks: verwandte Genre-Gruppe als Fallback + Warnung
 
 ### Interpret-Begrenzung
 
@@ -433,10 +497,12 @@ Das Script:
 1. Redirect URI muss exakt 'http://127.0.0.1:8888/CFLU_WOD_Builder.html' sein
 2. Client ID darf NICHT in localStorage/sessionStorage persistent gespeichert werden
 3. Spotify Export: max. 100 Tracks pro Batch (API-Limit) — immer hard cappen
-4. BPM darf in der WOD-Playlist nie rückwärts gehen (< vorheriger Track)
-5. BPM-Gruppen: max. ±1 Stufe pro Schritt (außer bei BPM-Eskalation als Fallback)
-6. Camelot Cool-Down: keine Regel — nur BPM/Energy relevant
-7. Energy-Filter (wodEnergyMin/Max) gilt NICHT für Cool-Down und NICHT für Phase 4
+4. BPM darf in der WOD-Playlist (Phase B/C) nie rückwärts gehen (< vorheriger Track)
+5. BPM-Gruppen: max. ±1 Stufe pro Schritt (außer bei BPM-Eskalation als Fallback Phase 4)
+6. Phase 4 (BPM-Eskalation) ignoriert Energy-Filter und BPM-Gruppen absichtlich
+7. cflu_tracks.js muss VOR dem HTML geladen werden (<script> in <head>)
+8. CFLU_Start.bat startet Pool-Build nur wenn Quelldatei vorhanden — cflu_tracks.js muss existieren
+9. Audio-Preview benötigt Spotify-Token (spToken) — Preview ohne Token → Fehlermeldung
 ```
 
 ### Entwicklungs-Workflow
@@ -477,7 +543,8 @@ cflu_tracks.json       # Generiert — nicht ins Repo
 | v2.1 | Ref/Peak Modi, Suchfunktion alle Genres, Camelot-Priorität |
 | v2.2 | ±BPM Toleranz-Regler, Titeldedup, Camelot-Zonierung |
 | v3.0 | Vollständiger Neuaufbau: Song-zuerst-Workflow, Positions-Ampel, farbige Regler, Hover-Sync Chart↔Liste, Spotify-Link pro Track, Cool-Down Dauer einstellbar, nur Minuten-Modus, 3.314 Tracks nach verbesserter Bereinigung |
-| **v3.1** | **WOD-Typ-Slider (Skill/Strength ↔ Intensity WOD) mit globalem Energy-Filter · BPM-Chart als Stufen-Chart mit zeitbasierter X-Achse (Songbreite = Dauer) · WOD-Ende-Marker (graublau) · Slider-Sichtbarkeit-Fix · Spotify-Setup-Anleitung in Sidebar · Test-Suite (CFLU_Tests.html, ~80 Tests)** |
+| v3.1 | WOD-Typ-Slider · BPM-Chart Stufen-Visualisierung + Zeitachse + WOD-Ende-Marker · Spotify-Setup-Anleitung · Test-Suite |
+| **v4.0** | **Klassen-Phase A/B/C/D mit Unified Scoring System · 8 neue Audio-Feature-Felder (dance, valence, acoustic, instrumental, speech, live, loud, popularity) · Datenbasis extern (cflu_tracks.js, 874 KB) · CFLU_Start.bat auto-rebuildet Pool · Phase-Match-Score Badge in Trackliste · Audio-Preview via Spotify API · Genre-Nachbarn-Fallback · Positions-Ampel +Phase Fit · 3.313 Tracks** |
 
 ---
 

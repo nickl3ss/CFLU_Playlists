@@ -1,8 +1,11 @@
 """
 CFLU_Pool_Build.py
 ==================
-Generiert die Datenbasis (cflu_tracks.json) aus Spotify_Source.xlsx.
-Ausgabe muss manuell als TRACK_DATA in CFLU_WOD_Builder.html eingebettet werden.
+Generiert die Datenbasis (cflu_tracks.js) aus Spotify_Source.xlsx
+oder 'Spotify Source.xlsx'.
+
+Ausgabe: cflu_tracks.js  →  wird via <script src="cflu_tracks.js"> in
+CFLU_WOD_Builder.html geladen (kein manuelles Einbetten mehr nötig).
 
 Verwendung:
     python CFLU_Pool_Build.py
@@ -15,15 +18,26 @@ import pandas as pd
 import json
 import datetime
 import re
+import os
 from collections import defaultdict
 
 # ===== KONFIGURATION =====
-INPUT_FILE = 'Spotify_Source.xlsx'
-OUTPUT_FILE = 'cflu_tracks.json'
+# Akzeptiert beide Dateinamen (mit Leerzeichen und mit Underscore)
+for _name in ['Spotify Source.xlsx', 'Spotify_Source.xlsx']:
+    if os.path.exists(_name):
+        INPUT_FILE = _name
+        break
+else:
+    raise FileNotFoundError(
+        "Quelldatei nicht gefunden. Erwartet: 'Spotify Source.xlsx' "
+        "oder 'Spotify_Source.xlsx' im gleichen Ordner."
+    )
+
+OUTPUT_FILE = 'cflu_tracks.js'
 
 # Suffixe die vor Titelvergleich entfernt werden
 SUFFIX_RE = re.compile(
-    r'[\s\-\u2013(]*(radio\s*edit|single\s*edit|album\s*version|original\s*mix|'
+    r'[\s\-–(]*(radio\s*edit|single\s*edit|album\s*version|original\s*mix|'
     r'club\s*mix|extended\s*(mix|version)?|long\s*version|remaster(ed)?.*|'
     r'feat\..*|ft\..*|live.*|acoustic.*|mono.*|stereo.*|\d{4}\s*remaster.*)'
     r'[^)]*\)?',
@@ -38,10 +52,9 @@ GERMAN_KEYWORDS = [
 
 # ===== DURATION PARSING =====
 def parse_dur(d):
-    """Parse duration from datetime.time or string MM:SS"""
+    """Parse duration: Excel stores MM:SS as datetime.time(hour=MM, minute=SS)."""
     try:
         if isinstance(d, datetime.time):
-            # Excel stores MM:SS as HH:MM in datetime.time
             return d.hour * 60 + d.minute
         s = str(d).strip()
         parts = s.split(':')
@@ -53,10 +66,18 @@ def parse_dur(d):
 
 # ===== TITLE KEY =====
 def title_key(song):
-    """Normalize title for deduplication"""
+    """Normalize title for deduplication."""
     s = SUFFIX_RE.sub('', str(song))
     s = re.sub(r'[^a-z0-9]', '', s.lower())
     return s[:15]
+
+# ===== INT FIELD HELPER =====
+def safe_int(val, default=0):
+    try:
+        v = int(val)
+        return v
+    except Exception:
+        return default
 
 # ===== GENRE CLASSIFICATION =====
 def classify(row):
@@ -162,13 +183,21 @@ def bpm_group(bpm):
 
 # ===== MAIN =====
 def build():
-    print(f'Lese {INPUT_FILE}...')
+    print(f'Lese {INPUT_FILE} ...')
     df = pd.read_excel(INPUT_FILE, sheet_name=0)
 
-    df['BPM'] = pd.to_numeric(df['BPM'], errors='coerce').fillna(0).astype(int)
+    df['BPM']    = pd.to_numeric(df['BPM'],    errors='coerce').fillna(0).astype(int)
     df['Energy'] = pd.to_numeric(df['Energy'], errors='coerce').fillna(0).astype(int)
     df['Album Date'] = pd.to_datetime(df['Album Date'], errors='coerce')
     df['dur_sec'] = df['Duration'].apply(parse_dur)
+
+    # Neue Audio-Feature-Felder
+    for col in ['Dance', 'Acoustic', 'Instrumental', 'Valence', 'Speech', 'Live', 'Loud (Db)', 'Popularity']:
+        if col not in df.columns:
+            print(f'  WARNUNG: Spalte "{col}" nicht gefunden — wird mit 0 gefüllt.')
+            df[col] = 0
+        else:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
 
     # Filter: BPM > 0
     df = df[df['BPM'] > 0].copy()
@@ -178,7 +207,7 @@ def build():
     df = df.sort_values(['Energy', 'dur_sec'], ascending=[False, False])
 
     # Deduplication
-    df['title_key'] = df['Song'].apply(title_key)
+    df['title_key']  = df['Song'].apply(title_key)
     df['artist_key'] = df['Artist'].apply(lambda x: str(x).split(',')[0].strip().lower())
 
     seen = []
@@ -197,28 +226,36 @@ def build():
             keep.append(idx)
 
     df_clean = df.loc[keep].copy()
-    removed = len(df) - len(df_clean)
-    print(f'Doubletten entfernt: {removed}')
+    print(f'Doubletten entfernt: {len(df) - len(df_clean)}')
     print(f'Unique Tracks: {len(df_clean)}')
 
     # Classify
     df_clean['genre'] = df_clean.apply(classify, axis=1)
-    df_clean['bpmg'] = df_clean['BPM'].apply(bpm_group)
+    df_clean['bpmg']  = df_clean['BPM'].apply(bpm_group)
 
     # Build track list
     tracks = []
     for _, row in df_clean.iterrows():
         tid = str(row.get('Spotify Track Id', '')).strip()
         tracks.append({
-            'id': tid if tid and tid != 'nan' else '',
-            'song': str(row['Song']).strip(),
-            'artist': str(row['Artist']).strip(),
-            'bpm': int(row['BPM']),
-            'camelot': str(row['Camelot']).strip(),
-            'energy': int(row['Energy']),
-            'dur': int(row['dur_sec']),
-            'genre': row['genre'],
-            'bpmg': row['bpmg'],
+            'id':           tid if tid and tid != 'nan' else '',
+            'song':         str(row['Song']).strip(),
+            'artist':       str(row['Artist']).strip(),
+            'bpm':          int(row['BPM']),
+            'camelot':      str(row['Camelot']).strip(),
+            'energy':       int(row['Energy']),
+            'dur':          int(row['dur_sec']),
+            'genre':        row['genre'],
+            'bpmg':         row['bpmg'],
+            # New audio feature fields
+            'dance':        int(row['Dance']),
+            'valence':      int(row['Valence']),
+            'acoustic':     int(row['Acoustic']),
+            'instrumental': int(row['Instrumental']),
+            'speech':       int(row['Speech']),
+            'live':         int(row['Live']),
+            'loud':         int(row['Loud (Db)']),
+            'popularity':   int(row['Popularity']),
         })
 
     # Genre stats
@@ -231,34 +268,35 @@ def build():
     for genre, gt in genre_groups.items():
         durs = [t['dur'] for t in gt if t['dur'] > 30]
         stats[genre] = {
-            'count': len(gt),
-            'avg_dur': round(sum(durs) / len(durs)) if durs else 210,
+            'count':      len(gt),
+            'avg_dur':    round(sum(durs) / len(durs)) if durs else 210,
             'avg_energy': round(sum(t['energy'] for t in gt) / len(gt)),
-            'avg_bpm': round(sum(t['bpm'] for t in gt) / len(gt)),
+            'avg_bpm':    round(sum(t['bpm'] for t in gt) / len(gt)),
         }
 
     # Virtual genres
     all_de = [t for t in tracks if t['genre'] in GERMAN_GENRES]
     stats['Alle Deutschen Tracks'] = {
-        'count': len(all_de),
-        'avg_dur': round(sum(t['dur'] for t in all_de) / len(all_de)) if all_de else 210,
+        'count':      len(all_de),
+        'avg_dur':    round(sum(t['dur'] for t in all_de) / len(all_de)) if all_de else 210,
         'avg_energy': round(sum(t['energy'] for t in all_de) / len(all_de)) if all_de else 70,
-        'avg_bpm': round(sum(t['bpm'] for t in all_de) / len(all_de)) if all_de else 120,
+        'avg_bpm':    round(sum(t['bpm'] for t in all_de) / len(all_de)) if all_de else 120,
     }
     stats['Going Wild'] = {
-        'count': len(tracks),
-        'avg_dur': round(sum(t['dur'] for t in tracks) / len(tracks)),
+        'count':      len(tracks),
+        'avg_dur':    round(sum(t['dur'] for t in tracks) / len(tracks)),
         'avg_energy': round(sum(t['energy'] for t in tracks) / len(tracks)),
-        'avg_bpm': round(sum(t['bpm'] for t in tracks) / len(tracks)),
+        'avg_bpm':    round(sum(t['bpm'] for t in tracks) / len(tracks)),
     }
 
-    # Write JSON
+    # Write JS file
     out = {'tracks': tracks, 'stats': stats}
-    js = json.dumps(out, ensure_ascii=False, separators=(',', ':'))
+    js_content = json.dumps(out, ensure_ascii=False, separators=(',', ':'))
     with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
-        f.write(js)
+        f.write(f'const TRACK_DATA={js_content};')
 
-    print(f'\nJSON geschrieben: {OUTPUT_FILE} ({len(js) // 1024} KB)')
+    kb = len(js_content) // 1024
+    print(f'\ncflu_tracks.js geschrieben ({kb} KB, {len(tracks)} Tracks)')
     print('\nGenre-Verteilung:')
     gc = defaultdict(int)
     for t in tracks:
@@ -266,9 +304,8 @@ def build():
     for g in sorted(gc, key=lambda x: -gc[x]):
         print(f'  {g}: {gc[g]}')
 
-    print('\nFertig. JSON manuell in CFLU_WOD_Builder.html einbetten:')
-    print('  Suche nach: const TRACK_DATA=')
-    print('  Ersetze den JSON-Block mit dem Inhalt von', OUTPUT_FILE)
+    print(f'\nFertig. cflu_tracks.js liegt im Ordner.')
+    print('CFLU_Start.bat lädt die Datei automatisch beim nächsten Start.')
 
 
 if __name__ == '__main__':

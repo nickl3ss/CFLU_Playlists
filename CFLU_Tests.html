@@ -69,6 +69,12 @@ function expect(actual){
 // ============================================================
 //  KONSTANTEN (aus CFLU_WOD_Builder.html)
 // ============================================================
+const PHASE_CONFIG={
+  A:{bpm:[90,110],energy:[30,55],valence:[50,80],dance:[30,60],instrumental:{min:40},speech:{max:20},acoustic:{min:30},loud:{max:-10}},
+  B:{bpm:[80,130],energy:[55,78],valence:[35,65],dance:[35,65],instrumental:{min:25},speech:{max:25},acoustic:{min:5,max:40},live:{max:40},loud:{min:-10,max:-5}},
+  C:{bpm:[125,195],energy:[70,100],valence:[60,90],dance:[60,80],instrumental:{max:25},acoustic:{max:10},loud:{min:-8}},
+  D:{bpm:[60,100],energy:[0,50],valence:[40,70],dance:[0,45],instrumental:{min:50},acoustic:{min:40},loud:{max:-10}},
+};
 const BPM_GROUPS=['A','B','C','D','E','F','G','H','I'];
 const BPM_RANGES={A:[0,90],B:[90,110],C:[110,120],D:[120,130],E:[130,140],F:[140,150],G:[150,160],H:[160,175],I:[175,999]};
 const CAM_ZONE1=new Set(['8B','9B','10B','11B','12B','1B']);
@@ -223,38 +229,87 @@ function buildDown(pool,endT,usedIds,usedTitleKeys,usedArtists,count){
   return result;
 }
 
-// WOD-Typ Energy-Berechnung (isoliert aus onWodTypeSlider)
+// WOD-Typ Energy-Berechnung (isoliert aus onWodTypeSlider) — REMOVED in v4, kept for legacy test
 function calcWodEnergy(sliderVal){
   const t=sliderVal/100;
   return{min:Math.round(28+t*44),max:Math.round(70+t*30)};
 }
 
+// ===== PHASE SCORING (kopiert aus Hauptdatei) =====
+function attrScore(val,spec){
+  if(val===undefined||val===null) return 50;
+  let lo=-Infinity,hi=Infinity;
+  if(spec.min!==undefined) lo=spec.min;
+  if(spec.max!==undefined) hi=spec.max;
+  if(val>=lo&&val<=hi) return 100;
+  const dist=val<lo?lo-val:val-hi;
+  return Math.max(0,100-dist*3);
+}
+function calcPhaseCBonus(t){
+  let bonus=0;
+  if(t.energy>=82) bonus+=20;
+  if(t.valence>=60&&t.valence<=90) bonus+=15;
+  if(t.dance>=60&&t.dance<=80) bonus+=10;
+  if(t.loud>=-8) bonus+=10;
+  return Math.min(100,bonus);
+}
+function calcPhaseScore(t,phase){
+  if(!phase||phase==='C') return calcPhaseCBonus(t);
+  const cfg=PHASE_CONFIG[phase];
+  if(!cfg) return 50;
+  const scores=[];
+  scores.push(attrScore(t.bpm,{min:cfg.bpm[0],max:cfg.bpm[1]}));
+  scores.push(attrScore(t.energy,{min:cfg.energy?.[0],max:cfg.energy?.[1]}));
+  if(cfg.valence) scores.push(attrScore(t.valence,{min:cfg.valence[0],max:cfg.valence[1]}));
+  if(cfg.dance)   scores.push(attrScore(t.dance,{min:cfg.dance[0],max:cfg.dance[1]}));
+  if(cfg.instrumental) scores.push(attrScore(t.instrumental,cfg.instrumental));
+  if(cfg.speech)  scores.push(attrScore(t.speech,cfg.speech));
+  if(cfg.acoustic) scores.push(attrScore(t.acoustic,cfg.acoustic));
+  if(cfg.live)    scores.push(attrScore(t.live,cfg.live));
+  if(cfg.loud)    scores.push(attrScore(t.loud,cfg.loud));
+  return Math.round(scores.reduce((a,b)=>a+b,0)/scores.length);
+}
+function calcSortScore(t,cur,phase){
+  const cs={green:200,yellow:100,red:0,unknown:0};
+  const camPoints=cs[camCompat(cur.camelot,t.camelot)]||0;
+  const phasePoints=calcPhaseScore(t,phase)*2;
+  const energyPoints=t.energy;
+  const bpmPenalty=-(t.bpm-cur.bpm);
+  return camPoints+phasePoints+energyPoints+bpmPenalty;
+}
+
 // ============================================================
 //  MOCK TRACK-POOL
 // ============================================================
+// Helper: add default audio fields to all mock tracks
+function mkT(t){return Object.assign({dance:60,valence:65,acoustic:10,instrumental:5,speech:8,live:5,loud:-7,popularity:60},t);}
 const T = {
-  // === Energie im Standard-Bereich (50-85) ===
-  a1:{id:'a1',song:'Alpha One',   artist:'Band A',bpm:120,camelot:'9B', energy:72,dur:210,genre:'Rock',bpmg:'D'},
-  a2:{id:'a2',song:'Alpha Two',   artist:'Band B',bpm:124,camelot:'10B',energy:76,dur:200,genre:'Rock',bpmg:'D'},
-  a3:{id:'a3',song:'Alpha Three', artist:'Band C',bpm:128,camelot:'9A', energy:75,dur:220,genre:'Rock',bpmg:'D'},
-  b1:{id:'b1',song:'Beta One',    artist:'Band D',bpm:130,camelot:'9B', energy:80,dur:215,genre:'Rock',bpmg:'E'},
-  b2:{id:'b2',song:'Beta Two',    artist:'Band E',bpm:135,camelot:'11B',energy:83,dur:195,genre:'Rock',bpmg:'E'},
-  b3:{id:'b3',song:'Beta Three',  artist:'Band A',bpm:132,camelot:'10B',energy:78,dur:205,genre:'Rock',bpmg:'E'},
-  c1:{id:'c1',song:'Gamma One',   artist:'Band F',bpm:138,camelot:'10B',energy:82,dur:200,genre:'Rock',bpmg:'E'},
+  // === Phase C / WOD tracks (energy 70-100) ===
+  a1:mkT({id:'a1',song:'Alpha One',   artist:'Band A',bpm:120,camelot:'9B', energy:72,dur:210,genre:'Rock',bpmg:'D'}),
+  a2:mkT({id:'a2',song:'Alpha Two',   artist:'Band B',bpm:124,camelot:'10B',energy:76,dur:200,genre:'Rock',bpmg:'D'}),
+  a3:mkT({id:'a3',song:'Alpha Three', artist:'Band C',bpm:128,camelot:'9A', energy:75,dur:220,genre:'Rock',bpmg:'D'}),
+  b1:mkT({id:'b1',song:'Beta One',    artist:'Band D',bpm:130,camelot:'9B', energy:80,dur:215,genre:'Rock',bpmg:'E'}),
+  b2:mkT({id:'b2',song:'Beta Two',    artist:'Band E',bpm:135,camelot:'11B',energy:83,dur:195,genre:'Rock',bpmg:'E'}),
+  b3:mkT({id:'b3',song:'Beta Three',  artist:'Band A',bpm:132,camelot:'10B',energy:78,dur:205,genre:'Rock',bpmg:'E'}),
+  c1:mkT({id:'c1',song:'Gamma One',   artist:'Band F',bpm:138,camelot:'10B',energy:82,dur:200,genre:'Rock',bpmg:'E'}),
   // === Energie außerhalb Standard-Bereich ===
-  hi:{id:'hi',song:'High Energy', artist:'Band G',bpm:125,camelot:'9B', energy:92,dur:200,genre:'Punk',bpmg:'D'},
-  lo:{id:'lo',song:'Low Energy',  artist:'Band H',bpm:122,camelot:'9B', energy:25,dur:200,genre:'Rock',bpmg:'D'},
+  hi:mkT({id:'hi',song:'High Energy', artist:'Band G',bpm:125,camelot:'9B', energy:92,dur:200,genre:'Punk',bpmg:'D'}),
+  lo:mkT({id:'lo',song:'Low Energy',  artist:'Band H',bpm:122,camelot:'9B', energy:25,dur:200,genre:'Rock',bpmg:'D'}),
   // === Für Duplikat-Tests ===
-  d1:{id:'d1',song:'Dup Song',              artist:'Band I',bpm:126,camelot:'9B',energy:70,dur:200,genre:'Rock',bpmg:'D'},
-  d2:{id:'d2',song:'Dup Song (Radio Edit)', artist:'Band I',bpm:126,camelot:'9B',energy:68,dur:195,genre:'Rock',bpmg:'D'},
-  // === BPM-Sprung zu groß (> maxJump=10 von 120 aus), aber Phase 4 erreichbar ===
-  far:{id:'far',song:'Far Jump',  artist:'Band J',bpm:145,camelot:'9B', energy:80,dur:200,genre:'Rock',bpmg:'F'},
-  // === Absolut unerreichbar: Sprung 52 > maxJump+40=50, selbst Phase 4 scheitert ===
-  unr:{id:'unr',song:'Unreachable',artist:'Band X',bpm:172,camelot:'9B',energy:80,dur:200,genre:'Rock',bpmg:'H'},
+  d1:mkT({id:'d1',song:'Dup Song',              artist:'Band I',bpm:126,camelot:'9B',energy:70,dur:200,genre:'Rock',bpmg:'D'}),
+  d2:mkT({id:'d2',song:'Dup Song (Radio Edit)', artist:'Band I',bpm:126,camelot:'9B',energy:68,dur:195,genre:'Rock',bpmg:'D'}),
+  // === BPM-Sprung zu groß, Phase 4 erreichbar ===
+  far:mkT({id:'far',song:'Far Jump',  artist:'Band J',bpm:145,camelot:'9B', energy:80,dur:200,genre:'Rock',bpmg:'F'}),
+  // === Absolut unerreichbar ===
+  unr:mkT({id:'unr',song:'Unreachable',artist:'Band X',bpm:172,camelot:'9B',energy:80,dur:200,genre:'Rock',bpmg:'H'}),
   // === BPM tiefer als Start ===
-  low:{id:'low',song:'Low BPM',   artist:'Band K',bpm:110,camelot:'9B', energy:72,dur:200,genre:'Rock',bpmg:'C'},
+  low:mkT({id:'low',song:'Low BPM',   artist:'Band K',bpm:110,camelot:'9B', energy:72,dur:200,genre:'Rock',bpmg:'C'}),
   // === Nur für buildDown ===
-  pre:{id:'pre',song:'Pre Song',  artist:'Band L',bpm:112,camelot:'9B', energy:72,dur:210,genre:'Rock',bpmg:'C'},
+  pre:mkT({id:'pre',song:'Pre Song',  artist:'Band L',bpm:112,camelot:'9B', energy:72,dur:210,genre:'Rock',bpmg:'C'}),
+  // === Phase A ideal track (calm, instrumental, acoustic, low energy) ===
+  calm:mkT({id:'calm',song:'Calm Track',artist:'Band M',bpm:100,camelot:'9B',energy:42,dur:200,genre:'Synthwave / Electronica',bpmg:'B',dance:45,valence:60,acoustic:55,instrumental:70,speech:10,loud:-14}),
+  // === Phase D ideal track (recovery) ===
+  recov:mkT({id:'recov',song:'Recovery',artist:'Band N',bpm:75,camelot:'9B',energy:35,dur:210,genre:'Synthwave / Electronica',bpmg:'A',dance:30,valence:55,acoustic:65,instrumental:80,speech:5,loud:-15}),
 };
 const FULL_POOL=Object.values(T);
 
@@ -612,6 +667,85 @@ describe('calcWodEnergy — Energy-Bereich je WOD-Typ', ()=>{
       expect(e.max).toBeGreaterThanOrEqual(prevMax);
       prevMin=e.min;prevMax=e.max;
     }
+  });
+});
+
+// ------ attrScore ------
+describe('attrScore — Attribut-Score für Phase-Bewertung', ()=>{
+  it('Wert in Range → 100', ()=>expect(attrScore(70,{min:60,max:80})).toBe(100));
+  it('Wert genau auf unterer Grenze → 100', ()=>expect(attrScore(60,{min:60,max:80})).toBe(100));
+  it('Wert genau auf oberer Grenze → 100', ()=>expect(attrScore(80,{min:60,max:80})).toBe(100));
+  it('Wert 1 unter unterer Grenze → 97 (Penalty 3)', ()=>expect(attrScore(59,{min:60,max:80})).toBe(97));
+  it('Wert 10 außerhalb → 70', ()=>expect(attrScore(50,{min:60,max:80})).toBe(70));
+  it('Wert 34+ außerhalb → 0 (gecappt)', ()=>expect(attrScore(20,{min:55,max:80})).toBe(0));
+  it('Nur max-Grenze (loud≤-10): Wert -12 → 100', ()=>expect(attrScore(-12,{max:-10})).toBe(100));
+  it('Nur max-Grenze: Wert -8 → 94 (2 dB über -10)', ()=>expect(attrScore(-8,{max:-10})).toBe(94));
+  it('Nur min-Grenze: Wert 50 → 100', ()=>expect(attrScore(50,{min:40})).toBe(100));
+  it('null-Wert → 50 (Fallback)', ()=>expect(attrScore(null,{min:40,max:80})).toBe(50));
+});
+
+// ------ calcPhaseScore ------
+describe('calcPhaseScore — Phase-Match-Score (0-100)', ()=>{
+  it('Phase A: idealer Track (calm) → hoher Score', ()=>{
+    const s=calcPhaseScore(T.calm,'A');
+    expect(s).toBeGreaterThan(70);
+  });
+  it('Phase A: WOD-Track (b1, energy=80) → niedriger Score', ()=>{
+    const s=calcPhaseScore(T.b1,'A');
+    expect(s).toBeLessThanOrEqual(50);
+  });
+  it('Phase D: Recovery-Track → hoher Score', ()=>{
+    const s=calcPhaseScore(T.recov,'D');
+    expect(s).toBeGreaterThan(70);
+  });
+  it('Phase D: WOD-Track (energy=80) → niedriger Score', ()=>{
+    const s=calcPhaseScore(T.b1,'D');
+    expect(s).toBeLessThanOrEqual(40);
+  });
+  it('Phase C: Track mit energy=85, valence=70, dance=70, loud=-6 → Bonus >0', ()=>{
+    const t=Object.assign({},T.b2,{energy:85,valence:70,dance:70,loud:-6});
+    const s=calcPhaseScore(t,'C');
+    expect(s).toBeGreaterThan(0);
+  });
+  it('Phase C: Track ohne gute Attribute → Score 0', ()=>{
+    const t=Object.assign({},T.lo,{energy:30,valence:30,dance:30,loud:-15});
+    const s=calcPhaseScore(t,'C');
+    expect(s).toBe(0);
+  });
+  it('Score immer im Bereich 0-100', ()=>{
+    Object.values(T).forEach(t=>{
+      ['A','B','C','D'].forEach(p=>{
+        const s=calcPhaseScore(t,p);
+        expect(s).toBeGreaterThanOrEqual(0);
+        expect(s).toBeLessThanOrEqual(100);
+      });
+    });
+  });
+});
+
+// ------ calcSortScore ------
+describe('calcSortScore — Unified Sort Score', ()=>{
+  const cur={bpm:120,camelot:'9B',energy:72};
+  it('Grünes Camelot erhöht Score gegenüber gelbem', ()=>{
+    const greenT=Object.assign({},T.a2,{camelot:'10B'});  // green
+    const yellowT=Object.assign({},T.a2,{camelot:'11B'}); // yellow
+    expect(calcSortScore(greenT,cur,'C')).toBeGreaterThan(calcSortScore(yellowT,cur,'C'));
+  });
+  it('Höhere Energy bei gleichem Camelot → höherer Score', ()=>{
+    const hiE=Object.assign({},T.a2,{energy:90});
+    const loE=Object.assign({},T.a2,{energy:60});
+    expect(calcSortScore(hiE,cur,'C')).toBeGreaterThan(calcSortScore(loE,cur,'C'));
+  });
+  it('Kleinerer BPM-Sprung → höherer Score', ()=>{
+    const small=Object.assign({},T.a2,{bpm:122,camelot:'10B'});
+    const large=Object.assign({},T.a2,{bpm:129,camelot:'10B'});
+    expect(calcSortScore(small,cur,'C')).toBeGreaterThan(calcSortScore(large,cur,'C'));
+  });
+  it('Phase A ideal Track hat höheren Score für Phase A als WOD Track', ()=>{
+    const wodCur={bpm:95,camelot:'9B',energy:50};
+    const scoreCalm=calcSortScore(T.calm,wodCur,'A');
+    const scoreWod=calcSortScore(T.a1,wodCur,'A');
+    expect(scoreCalm).toBeGreaterThan(scoreWod);
   });
 });
 
