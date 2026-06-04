@@ -18,4 +18,6 @@
 | BL-014 | chore: Methodik-Workflow integriert (CLAUDE.md, BACKLOG.md, docs/PROJECT.md, .github/ISSUE_TEMPLATE) | 2026-06-04 | b941e3f |
 | BL-015 | v5.0: Methodik-Workflow aktiviert — .gitignore korrigiert (war ohne Punkt, nie aktiv), README aktualisiert, BACKLOG.md mit BL-001–BL-003 befüllt | 2026-06-04 | 0445470 |
 | BL-021 | UI: Audio-Preview entfernt — Play-Button, tr-play-Spalte, preview-audio-Element und playPreview-Funktion aus Playlist-Darstellung entfernt | 2026-06-04 | d8ce96f |
+| #26 | fix(utils): BPM-Penalty in calcSortScore korrigiert — greift jetzt nur bei BPM-Abstieg (t.bpm < cur.bpm); BPM-Anstiege werden nicht mehr bestraft; 2 Tests aktualisiert | 2026-06-04 | – |
+| #7  | feat(algorithm): Top-5-Zufallsauswahl in pickNext() + Carry-over — carryover[]-Parameter, Injektion nicht-roter Carry-Kandidaten vor Sort, Zufallspick aus top-5, buildUp thread carry; 6 neue Tests | 2026-06-04 | – |
 | BL-020 | C1: CSV-Direktimport — CFLU_Pool_Build.py auf ETL-Pipeline umgestellt (kein pandas/openpyxl); 40 CSVs aus Playlists/, Dedup per Spotify Track Id, 28 Felder inkl. locked; CFLU_Start.bat xlsx-Zweig entfernt; 3868 Tracks | 2026-06-04 | – |

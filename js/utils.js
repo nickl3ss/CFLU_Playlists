@@ -89,6 +89,6 @@ export function calcSortScore(t, cur, phase) {
   const camPoints   = cs[camCompat(cur.camelot, t.camelot)] || 0;
   const phasePoints = calcPhaseScore(t, phase) * 2;
   const energyPoints = t.energy;
-  const bpmPenalty  = -(t.bpm - cur.bpm);
+  const bpmPenalty  = t.bpm < cur.bpm ? t.bpm - cur.bpm : 0;
   return camPoints + phasePoints + energyPoints + bpmPenalty;
 }

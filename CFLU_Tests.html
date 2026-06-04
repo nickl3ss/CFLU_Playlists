@@ -540,13 +540,76 @@ describe('calcSortScore — Unified Sort Score', () => {
     const hi=Object.assign({},T.a2,{energy:90}), lo=Object.assign({},T.a2,{energy:60});
     expect(calcSortScore(hi,cur,'C')).toBeGreaterThan(calcSortScore(lo,cur,'C'));
   });
-  it('Kleinerer BPM-Sprung → höherer Score', () => {
+  it('BPM unter cur-BPM → Score niedriger als BPM über cur-BPM', () => {
+    const below=Object.assign({},T.a2,{bpm:118,camelot:'10B'}), above=Object.assign({},T.a2,{bpm:122,camelot:'10B'});
+    expect(calcSortScore(above,cur,'C')).toBeGreaterThan(calcSortScore(below,cur,'C'));
+  });
+  it('Kein BPM-Abzug für Anstiege — gleicher Score unabhängig vom Sprung', () => {
     const s=Object.assign({},T.a2,{bpm:122,camelot:'10B'}), l=Object.assign({},T.a2,{bpm:129,camelot:'10B'});
-    expect(calcSortScore(s,cur,'C')).toBeGreaterThan(calcSortScore(l,cur,'C'));
+    expect(calcSortScore(s,cur,'C')).toBe(calcSortScore(l,cur,'C'));
   });
   it('Phase A ideal hat höheren Score als WOD-Track', () => {
     const wodCur={bpm:95,camelot:'9B',energy:50};
     expect(calcSortScore(T.calm,wodCur,'A')).toBeGreaterThan(calcSortScore(T.a1,wodCur,'A'));
+  });
+});
+
+describe('pickNext — Top-5 Zufall und Carry-over', () => {
+  const pool = [T.a1,T.a2,T.a3,T.b1,T.b2,T.b3,T.c1];
+  const cur  = {bpm:120, camelot:'9B', energy:72};
+
+  it('Zwei Aufrufe mit gleichem Pool liefern nicht immer dasselbe Ergebnis', () => {
+    const results = new Set();
+    for (let i = 0; i < 20; i++) {
+      const t = pickNext(pool, cur, new Set(), new Set(), new Map(), 10, []);
+      if (t) results.add(t.id);
+    }
+    expect(results.size).toBeGreaterThan(1);
+  });
+
+  it('Alle Hard-Constraints bleiben nach Zufallsauswahl erhalten', () => {
+    for (let i = 0; i < 10; i++) {
+      const t = pickNext(pool, cur, new Set(), new Set(), new Map(), 10, []);
+      if (!t) continue;
+      expect(t.bpm).toBeGreaterThanOrEqual(cur.bpm);
+      expect(t.bpm - cur.bpm).toBeLessThanOrEqual(state.maxJump);
+      expect(t.energy).toBeGreaterThanOrEqual(state.wodEnergyMin);
+      expect(t.energy).toBeLessThanOrEqual(state.wodEnergyMax);
+    }
+  });
+
+  it('Carryover wird nach einem Aufruf befüllt (≤ 2 Einträge)', () => {
+    const co = [];
+    pickNext(pool, cur, new Set(), new Set(), new Map(), 10, co);
+    expect(co.length).toBeGreaterThanOrEqual(0);
+    expect(co.length).toBeLessThanOrEqual(2);
+  });
+
+  it('Carryover-Track ist nicht identisch mit dem gepickten Track', () => {
+    const co = [];
+    const picked = pickNext(pool, cur, new Set(), new Set(), new Map(), 10, co);
+    co.forEach(t => expect(t.id).not.toBe(picked?.id));
+  });
+
+  it('Carryover-Track der rot wäre wird nicht injiziert', () => {
+    // 5A ist Camelot-rot zu 9B (diff=4, andere Letter) — darf nicht als Carryover landen
+    const redTrack = mkT({id:'red1', song:'Red Track', artist:'Band Z', bpm:122, camelot:'5A', energy:75, dur:200, genre:'Rock', bpmg:'D'});
+    const co = [redTrack];
+    const results = [];
+    for (let i = 0; i < 10; i++) {
+      const t = pickNext(pool, cur, new Set(), new Set(), new Map(), 10, co);
+      if (t) results.push(t.id);
+    }
+    expect(results).not.toContain('red1');
+  });
+
+  it('buildUp produziert bei Mehrfachaufruf unterschiedliche Playlists', () => {
+    const fullPool = [T.a1,T.a2,T.a3,T.b1,T.b2,T.b3,T.c1];
+    const ids1 = buildUp(fullPool, T.a1, new Set(), new Set(), new Map(), 0, 5).map(t=>t.id).join(',');
+    const ids2 = buildUp(fullPool, T.a1, new Set(), new Set(), new Map(), 0, 5).map(t=>t.id).join(',');
+    const ids3 = buildUp(fullPool, T.a1, new Set(), new Set(), new Map(), 0, 5).map(t=>t.id).join(',');
+    const unique = new Set([ids1, ids2, ids3]);
+    expect(unique.size).toBeGreaterThan(1);
   });
 });
 

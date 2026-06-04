@@ -51,7 +51,7 @@ export function addTrack(t, result, usedIds, usedTitleKeys, usedArtists) {
   registerTrack(t, usedIds, usedTitleKeys, usedArtists);
 }
 
-export function pickNext(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks) {
+export function pickNext(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carryover = []) {
   const { maxJump, wodEnergyMin, wodEnergyMax, currentPhase } = state;
   const cg = bpmGroup(cur.bpm);
   const maxArtist = Math.max(1, Math.floor(totalTracks * 0.1));
@@ -74,7 +74,7 @@ export function pickNext(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTr
   if (!cands.length) cands = pool.filter(t => baseOk(t) && camStrictOk(cur.camelot, t.camelot));
   // Phase 3: yellow Camelot
   if (!cands.length) cands = pool.filter(t => baseOk(t) && camCompat(cur.camelot, t.camelot) !== 'red');
-  // Phase 4: BPM escalation — ignores energy filter and BPM-group rule
+  // Phase 4: BPM escalation — ignores energy filter and BPM-group rule; no carryover injection
   if (!cands.length) {
     for (let extra = 5; extra <= 40; extra += 5) {
       cands = pool.filter(t => {
@@ -90,8 +90,31 @@ export function pickNext(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTr
     }
   }
   if (!cands.length) return null;
+
+  // Inject carryover candidates from the previous step that still satisfy hard constraints
+  // and are at least Camelot-yellow with the new cur. calcSortScore handles their ranking.
+  if (carryover.length) {
+    const candIds = new Set(cands.map(t => t.id || t.song));
+    for (const t of carryover) {
+      if (candIds.has(t.id || t.song)) continue;
+      if (!baseOk(t)) continue;
+      if (camCompat(cur.camelot, t.camelot) === 'red') continue;
+      cands.push(t);
+    }
+  }
+
   cands.sort((a, b) => calcSortScore(b, cur, currentPhase) - calcSortScore(a, cur, currentPhase));
-  return cands[0];
+
+  // Pick randomly from top-5; update carryover with top-2 unselected from that window
+  const pickIdx = Math.floor(Math.random() * Math.min(5, cands.length));
+  const picked = cands[pickIdx];
+  carryover.length = 0;
+  cands.slice(0, Math.min(5, cands.length))
+    .filter(t => t !== picked)
+    .slice(0, 2)
+    .forEach(t => carryover.push(t));
+
+  return picked;
 }
 
 export function buildUp(pool, startT, usedIds, usedTitleKeys, usedArtists, targetSec, count) {
@@ -100,9 +123,10 @@ export function buildUp(pool, startT, usedIds, usedTitleKeys, usedArtists, targe
   let totalDur = startT.dur;
   let cur = startT;
   const limit = count || 9999;
+  const carryover = [];
   while (result.length < limit) {
     if (targetSec && totalDur >= targetSec) break;
-    const next = pickNext(pool, cur, usedIds, usedTitleKeys, usedArtists, limit || 20);
+    const next = pickNext(pool, cur, usedIds, usedTitleKeys, usedArtists, limit || 20, carryover);
     if (!next) break;
     addTrack(next, result, usedIds, usedTitleKeys, usedArtists);
     totalDur += next.dur;
