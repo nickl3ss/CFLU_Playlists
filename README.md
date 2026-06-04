@@ -165,11 +165,12 @@ Writes `cflu_tracks.js` which is loaded by the HTML as `<script src="cflu_tracks
 CFLU_WOD_Builder.html       ← Markup only (no inline JS, no inline handlers)
 cflu_tracks.js              ← Auto-generated track database (~874 KB, global script)
 cflu_client_id.txt          ← Spotify Client ID (local only, gitignored)
-CFLU_Tests.html             ← Browser test suite (~100 tests, imports real modules)
+CFLU_Tests.html             ← Browser test suite (160 tests, imports real modules)
 CFLU_Start.bat              ← Windows launcher (auto-rebuilds pool, error diagnostics)
 CFLU_Pool_Build.py          ← Track pool builder (writes cflu_tracks.js directly)
-CFLU_WOD_Builder_PROJECT.md ← Full technical specification
 README.md                   ← This file
+CLAUDE.md                   ← Workflow rules & collaboration guidelines for Claude Code
+BACKLOG.md                  ← Feature requests & bugs (source of truth)
 Spotify Source.xlsx         ← Source data (not in repo — place locally)
 
 css/
@@ -183,6 +184,9 @@ js/
   chart.js                  ← BPM step-chart + bidirectional hover sync
   spotify.js                ← PKCE auth, playlist export, audio preview
   app.js                    ← UI handlers, generation, rendering, event wiring
+
+docs/
+  PROJECT.md                ← Architecture, ADR decisions, full changelog
 ```
 
 ### Running the tests
