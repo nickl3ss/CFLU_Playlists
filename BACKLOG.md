@@ -118,6 +118,97 @@ Akzeptanzkriterium: 30-min Funk-&-Disco-WOD generiert ≥ 8 Tracks; Log zeigt er
 
 ---
 
+### BL-020 · CSV-Direktimport aus Playlists/ — Pool aktualisieren/erweitern
+| Feld | Wert |
+|------|------|
+| Komponente | C1 |
+| Priorität | P3 |
+| GitHub Issue | #? |
+| Erstellt | 2026-06-04 |
+
+**Beschreibung:**
+`CFLU_Pool_Build.py` wird vollständig auf CSV-Eingang umgestellt. Die `Spotify_Source.xlsx` entfällt ersatzlos. Der Ablauf folgt einem klassischen **ETL-Muster**:
+
+---
+
+**E — Extract**
+- Alle `Playlists/*.csv` alphabetisch sortiert einlesen (`csv.DictReader`, `encoding='utf-8-sig'` für Chosic-BOM, kein pandas, kein openpyxl).
+- Doublettenkontrolle direkt bei der Extraktion: `Spotify Track Id` ist der eindeutige Schlüssel. Jede ID wird nur einmal übernommen — erster Fund gewinnt (alphabetische Dateireihenfolge). Alle weiteren Vorkommen derselben ID in anderen CSVs werden gefiltert und im Log gezählt.
+- Ergebnis: `extracted = {spotify_id: raw_row}` — Dict mit Spotify Track Id als Schlüssel; Wert ist die vollständige, unberührte CSV-Zeile (alle 26 Spalten als `str`, wie von `csv.DictReader` geliefert).
+
+**T — Transform**
+- Quell-Werte werden **nicht verändert** — keine inhaltliche Korrektur, keine Normalisierung von Messwerten.
+- Ausschließlich Typ-Casting, Format-Konversion und Anreicherung/Ableitung aus App-Anforderungen:
+  - Typ-Casting: `int()` für numerische Felder; `"yes"/"no"` → `bool` für `explicit`
+  - Format-Konversion: `"MM:SS"` → `int` Sekunden für `dur`
+  - `song`: Suffix-Bereinigung (Radio Edit, Remastered, …) — App-Anforderung für Dedup im UI
+  - `genres_raw` / `parent_genres`: Split by `,`, Whitespace strippen → `list[str]`
+  - `genre`: Ableitung aus `genres_raw` via 661-Tag-Tabelle → eine der 12 Genre-Gruppen
+  - `bpmg`: Ableitung aus `bpm` → Buchstabe A–H
+- Pflicht-Validierung: jedes ✓-Feld wird nach Cast auf Leer/Ungültig geprüft. Erster Fehler → Track verwerfen, Feldname im Log ausgeben.
+- Optionale Felder (O): leer → `null` / `[]` / `false` ohne Verwurf.
+
+Pflicht-Klassifikation:
+- **✓ — Pflicht:** Feld leer oder ungültig → Track wird verworfen und im Log gezählt. Gilt für alle Pflicht-, Scoring- und Display-Felder gleichwertig.
+- **O — Optional:** Leer → `null` / `[]` / `false`; App liest das Feld nicht für Playlist-Generierung.
+
+| CSV-Spalte | Track-Feld | Zieltyp | Pflicht | Art | Anmerkung |
+|------------|-----------|---------|---------|-----|-----------|
+| ` #` | — | — | — | **Ausgeschlossen** | Playlist-interne Sequenz |
+| `Spotify Track Id` | `id` | `str` | **✓** | Übernahme | Eindeutiger Schlüssel |
+| `Song` | `song` | `str` | **✓** | Übernahme + Suffix-Bereinigung | |
+| `Artist` | `artist` | `str` | **✓** | Übernahme | |
+| `BPM` | `bpm` | `int` | **✓** | Cast `int()` | |
+| `Camelot` | `camelot` | `str` | **✓** | Übernahme | z.B. `"4A"`, `"11B"` |
+| `Energy` | `energy` | `int` | **✓** | Cast `int()` | 0–100 |
+| `Added At` | `added_at` | `str` | **O** | Übernahme | ISO-Datum; kein Date-Cast; Leer → `null` |
+| `Duration` | `dur` | `int` | **✓** | Format-Konversion | `"MM:SS"` → `int(m)*60 + int(s)` |
+| `Popularity` | `popularity` | `int` | **✓** | Cast `int()` | 0–100 |
+| `Genres` | `genres_raw` | `list[str]` | **✓** | Split `,` + strip | Basis für `genre`-Ableitung |
+| `Parent Genres` | `parent_genres` | `list[str]` | **O** | Split `,` + strip | Leer → `[]` |
+| `Album` | `album` | `str` | **O** | Übernahme | Leer → `null` |
+| `Album Date` | `album_date` | `str` | **O** | Übernahme | Ungültige Daten möglich (`2002-00-00`); Leer → `null` |
+| `Dance` | `dance` | `int` | **✓** | Cast `int()` | 0–100 |
+| `Acoustic` | `acoustic` | `int` | **✓** | Cast `int()` | 0–100 |
+| `Instrumental` | `instrumental` | `int` | **✓** | Cast `int()` | 0–100 |
+| `Valence` | `valence` | `int` | **✓** | Cast `int()` | 0–100 |
+| `Speech` | `speech` | `int` | **✓** | Cast `int()` | 0–100 |
+| `Live` | `live` | `int` | **✓** | Cast `int()` | 0–100 |
+| `Loud (Db)` | `loud` | `int` | **✓** | Cast `int()` | Ganzzahlig in Quelle (−26 bis −3, geprüft) |
+| `Key` | `key` | `str` | **O** | Übernahme | Unicode ♭ ♯ (z.B. `"A#/B♭ minor"`); Leer → `null` |
+| `Time Signature` | `time_sig` | `int` | **O** | Cast `int()` | Werte: 0, 1, 3, 4, 5; Leer → `null` |
+| `Label` | `label` | `str` | **O** | Übernahme | Leer → `null` |
+| `ISRC` | `isrc` | `str` | **O** | Übernahme | Leer → `null` |
+| `Explicit` | `explicit` | `bool` | **✓** | Cast `"yes" → True`, sonst `False` | |
+| _(kein CSV-Pendant)_ | `genre` | `str` | **✓** | Ableitung aus `genres_raw` | 661-Tag-Mapping → eine der 12 Genre-Gruppen; kein Match → Verwurf |
+| _(kein CSV-Pendant)_ | `bpmg` | `str` | **O** | Ableitung aus `bpm` | Buchstabe A–H; nicht von `algorithm.js` gelesen; Leer → `null` |
+
+**L — Load**
+
+**`locked`-Feld:** Neues Feld in `cflu_tracks.js`, Typ `int` (1/0).
+- Alle bestehenden Tracks erhalten beim ersten Ausführen von BL-020 `locked: 0`.
+- Neue Tracks aus CSV erhalten `locked: 0`.
+- `locked: 1` schützt einen Track vor Überschreiben — muss manuell in `cflu_tracks.js` gesetzt werden.
+
+**Ablauf:**
+1. Bestehende `cflu_tracks.js` einlesen → Dict `{id: track}` (O(1)-Lookup). Fehlende `locked`-Felder werden beim Einlesen auf `0` normalisiert.
+2. Pro transformiertem Track aus CSV:
+   - ID neu → anhängen mit `locked: 0`.
+   - ID bekannt, `locked == 1` → überspringen; CSV-Quelle für diese ID wird ignoriert.
+   - ID bekannt, `locked == 0` → **überschreiben** (vollständige Ersetzung durch CSV-Daten; `locked`-Wert aus bestehendem Eintrag beibehalten).
+3. `stats`-Objekt über den vollständigen Dict neu berechnen.
+4. Einmaliger Schreibvorgang: `json.dumps()` → JS-Template → `cflu_tracks.js`.
+
+---
+
+**`CFLU_Start.bat`-Änderung:** xlsx-Zweig entfernen. Wenn `Playlists\*.csv` vorhanden → `python CFLU_Pool_Build.py` ausführen.
+
+**Ausgabe-Log:** CSVs gelesen · Tracks extrahiert · Quelldoubletten gefiltert · Tracks neu (append) · Tracks aktualisiert (overwrite) · Tracks gesperrt (locked, skip) · Tracks verworfen (Pflichtfeld fehlt) · Tracks gesamt.
+
+Akzeptanzkriterium: CSV überschreibt bestehende Tracks (locked=0) vollständig; locked=1 schützt Track vor Änderung; neue Tracks erhalten locked=0; alle bestehenden Tracks erhalten locked=0 bei erstem Run; alle 28 Felder (27 + `locked`) korrekt; `stats` neu berechnet; `CFLU_Start.bat` triggert via CSV-Check; keine xlsx-Abhängigkeit; bestehende Tests grün.
+
+---
+
 ## IN PROGRESS
 
 _Keine Items in Bearbeitung._

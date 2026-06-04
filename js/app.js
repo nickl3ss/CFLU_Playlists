@@ -7,10 +7,7 @@ import { getPool, getPhasePool, getPhasePoolWithNeighbours, getGenreStats,
          registerTrack, addTrack, pickNext, buildUp, buildDown,
          buildPlateau, buildDecreasing } from './algorithm.js';
 import { drawChart, highlightFromRow, clearHighlight } from './chart.js';
-import { spotifyLogin, checkSpotifyCallback, exportPlaylist, playPreview } from './spotify.js';
-
-// Expose playPreview for dynamically generated HTML event handlers in makeRow
-window.playPreview = playPreview;
+import { spotifyLogin, checkSpotifyCallback, exportPlaylist } from './spotify.js';
 
 // ===== SLIDER UI =====
 function updateSliderStyle(slider, stops, minV, maxV) {
@@ -721,9 +718,6 @@ function makeRow(idx, t, num, delta, cc, isCd, isRef) {
     ? `<svg class="sp-icon" onclick="window.open('https://open.spotify.com/track/${t.id}','_blank')" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="11" fill="#1db954"/><path d="M16.5 16.5c-2.5-1.5-5.5-1.8-9-1" stroke="white" stroke-width="1.4" stroke-linecap="round"/><path d="M17.5 13.5c-3-1.8-7-2-10.5-1" stroke="white" stroke-width="1.4" stroke-linecap="round"/><path d="M18 10c-3.5-2-8-2.2-11.5-1" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>` : '';
   const ps = calcPhaseScore(t, state.currentPhase);
   const psCls = ps >= 80 ? 'ps-green' : ps >= 50 ? 'ps-yellow' : 'ps-red';
-  const playId = 'play-' + idx;
-  const playBtn = t.id && t.id !== 'nan' && t.id
-    ? `<button class="play-btn" id="${playId}" onclick="window.playPreview('${t.id}','${playId}')" title="Preview abspielen"><svg viewBox="0 0 8 10" fill="currentColor"><polygon points="0,0 8,5 0,10"/></svg></button>` : '';
   row.innerHTML = `
     <div class="tr-num">${num}${isRef ? '<br><span style="font-size:.55rem;color:var(--acc)">REF</span>' : ''}</div>
     <div><div class="tr-song" title="${t.song}">${song}</div><div class="tr-artist" title="${t.artist}">${artist}</div></div>
@@ -732,8 +726,7 @@ function makeRow(idx, t, num, delta, cc, isCd, isRef) {
     <div class="tr-eng" style="color:${engColor}">${t.energy}</div>
     <div class="tr-phase"><span class="phase-score ${psCls}">${ps}</span></div>
     <div class="tr-dur">${fmtDur(t.dur)}</div>
-    <div class="tr-sp">${spLink}</div>
-    <div class="tr-play">${playBtn}</div>`;
+    <div class="tr-sp">${spLink}</div>`;
   return row;
 }
 
