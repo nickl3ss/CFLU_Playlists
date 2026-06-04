@@ -47,6 +47,77 @@ Der Hover-Tooltip im BPM-Verlauf-Chart kürzt Song-Namen auf 20 Zeichen. Akzepta
 
 ---
 
+### BL-016 · pickNext() Phase 3.5 — Camelot/Energy-Relaxierung vor BPM-Eskalation
+| Feld | Wert |
+|------|------|
+| Komponente | C2 |
+| Priorität | P2 |
+| GitHub Issue | #? |
+| Erstellt | 2026-06-04 |
+
+**Beschreibung:**
+`pickNext()` springt nach Phase 3 (gelbes Camelot) direkt zu Phase 4 (BPM-Eskalation, ignoriert Energy-Filter). Eine neue Phase 3.5 soll zwischen Phase 3 und Phase 4 eingeschoben werden: Camelot-Constraint vollständig aufgehoben, aber Energy-Filter und BPM-Gruppen-Regel bleiben aktiv. Erst wenn auch das keine Kandidaten liefert, greift Phase 4.
+
+Akzeptanzkriterium: `pickNext()` durchläuft Phase 3.5 bevor BPM-Eskalation einsetzt; bestehende Tests bleiben grün.
+
+---
+
+### BL-017 · Dynamisches Nachbar-Genre-Laden bei erschöpftem Pool
+| Feld | Wert |
+|------|------|
+| Komponente | C2 |
+| Priorität | P3 |
+| GitHub Issue | #? |
+| Erstellt | 2026-06-04 |
+
+**Beschreibung:**
+Aktuell werden Nachbar-Genres einmalig beim Pool-Aufbau (`getPhasePoolWithNeighbours`) ergänzt, wenn der Primär-Pool unter `MIN_POOL_SIZE` fällt. Wenn `buildUp()` während der Generierung keinen nächsten Track findet (`pickNext()` → `null`), werden keine weiteren Nachbarn hinzugezogen. BL-017 erweitert `buildUp()` so, dass beim ersten `null`-Ergebnis iterativ Nachbar-Genres nachgeladen werden (jeweils ein Nachbar pro Iteration) und `pickNext()` erneut versucht wird.
+
+Akzeptanzkriterium: WOD-Playlisten mit kleinen Genre-Pools erreichen die Ziel-Dauer häufiger; Log zeigt nachträglich ergänzte Genres.
+
+---
+
+### BL-018 · Top-5-Zufallsauswahl in pickNext() mit Carry-over
+| Feld | Wert |
+|------|------|
+| Komponente | C2 |
+| Priorität | P2 |
+| GitHub Issue | #? |
+| Erstellt | 2026-06-04 |
+
+**Beschreibung:**
+`pickNext()` wählt immer deterministisch den bestbewerteten Kandidaten (`cands[0]`). Um Playlist-Varianz zu erhöhen, soll stattdessen gleichgewichtet zufällig aus den Top-5 Kandidaten gewählt werden (`Math.floor(Math.random() * Math.min(5, cands.length))`). Carry-over: die 2 nächstbesten Kandidaten (Rang 2 + 3) aus dem vorherigen Schritt werden als Bonuskandidaten für den nächsten `pickNext()`-Aufruf vorgezogen, um harmonische Übergänge zu sichern.
+
+Akzeptanzkriterium: Zwei Generierungen mit identischen Einstellungen liefern unterschiedliche Playlisten; bestehende Tests bleiben grün.
+
+---
+
+### BL-019 · Pool-Sufficiency-Check mit BFS-Nachbar-Expansion
+| Feld | Wert |
+|------|------|
+| Komponente | C2 |
+| Priorität | P2 |
+| GitHub Issue | #? |
+| Erstellt | 2026-06-04 |
+
+**Beschreibung:**
+Vor der Generierung soll geprüft werden, ob der verfügbare Pool ausreicht, um die Ziel-Dauer zu füllen. Der Algorithmus ermittelt die relevante BPM-Range automatisch aus dem selektierten Referenz-Song und der gewählten Position (kein neues UI-Element). Wenn der Pool unzureichend ist, werden iterativ Nachbar-Genres per BFS (Breadth-First-Search, Nachbarn-der-Nachbarn) ergänzt — vollautomatisch ohne Popup. Das Generierungslog zeigt welche Genres in welcher Runde ergänzt wurden.
+
+**Algorithmus:**
+1. `deriveBpmRange(phase, refBpm, position)` — leitet BPM-Range ab:
+   - `plateau` → volle Phase-A-Range
+   - `decreasing` → `[lo, refBpm]`
+   - `start` → `[refBpm, hi]`
+   - `end` / `mid` → `[lo, hi]` (volle Range)
+2. `isPoolSufficient(pool, bpmMin, bpmMax, targetSec)` — prüft: `cands.length >= ceil(targetSec / avgDur)`
+3. `expandPoolForSufficiency(genre, phase, refBpm, position, targetSec)` — BFS-Schleife über `GENRE_NEIGHBOURS` bis Pool ausreicht oder alle Nachbarn erschöpft
+
+**Keine Nutzereingabe.** `_gen()` ruft `expandPoolForSufficiency` statt `getPhasePoolWithNeighbours` auf.
+
+Akzeptanzkriterium: 30-min Funk-&-Disco-WOD generiert ≥ 8 Tracks; Log zeigt ergänzte Genre-Runden; bestehende Tests bleiben grün; neue Unit-Tests für alle 3 Hilfsfunktionen.
+
+---
+
 ## IN PROGRESS
 
 _Keine Items in Bearbeitung._

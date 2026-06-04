@@ -72,12 +72,17 @@
 
 ### D · Implementierung (je Item)
 Reihenfolge einhalten:
-1. `js/` – Änderung implementieren (HTML/CSS/Python je nach Scope).
-2. `CFLU_Tests.html` – Testklassen aktualisieren / neu anlegen.
-3. `docs/CHANGELOG.md` – Eintrag hinzufügen (BL-ID, Titel, Datum, Commit).
-4. `BACKLOG.md` – Item als `[x] DONE` flaggen.
-5. GitHub Issue schließen (`gh issue close <id>`).
-6. Vollzug melden: Item-ID, geänderte Dateien, Testergebnis.
+1. Änderung implementieren – Scope bestimmt Datei: `js/` · `css/` · HTML · Python.
+2. `CFLU_Tests.html` öffnen und prüfen ob bestehende Tests noch grün sind.
+   - Falls rot: iterieren bis grün (max. 2 Runden).
+   - Ausnahme: Tests, die durch die gewollte Änderung absichtlich brechen → ignorieren und im Commit-Message dokumentieren.
+   - Nach 2 fehlgeschlagenen Iterationen: stoppen, Nutzer mit Fehlerbeschreibung informieren und auf Commit-Entscheidung warten.
+3. `CFLU_Tests.html` – Testklassen aktualisieren / neu anlegen.
+4. Nutzer zum Test auffordern und abwarten bevor weiter gemacht wird. Sollten fehler gemeldet werden diese als Issues mit Referenz zum BacklogItem erfassen und in der aktuellen Implementierung als subitem bearbeiten. --> zurück zu D 1.
+5. `docs/CHANGELOG.md` – Eintrag hinzufügen (BL-ID, Titel, Datum, Commit).
+6. `BACKLOG.md` – Item als `[x] DONE` flaggen.
+7. GitHub Issue schließen (`gh issue close <id>`).
+8. Vollzug melden: Item-ID, geänderte Dateien, Testergebnis.
 
 ---
 
@@ -85,7 +90,7 @@ Reihenfolge einhalten:
 - Items **niemals löschen** – nur als `DONE` flaggen.
 - IDs sind permanent und eindeutig (`BL-001`, `BL-002`, …).
 - Priorität: `P1` (kritisch) · `P2` (hoch) · `P3` (normal) · `P4` (nice-to-have).
-- DONE-Items wandern in `docs/PROJECT.md`, Abschnitt **Changelog**.
+- DONE-Items wandern in `docs/CHANGELOG.md`, Abschnitt **Changelog**.
 
 ---
 
