@@ -483,7 +483,7 @@ http://127.0.0.1:8888/CFLU_Tests.html
 
 Browser-Test-Suite mit eigenem Mini-Test-Framework (describe/it/expect). Importiert direkt aus den `js/`-Modulen — kein Duplizieren von Funktionen mehr. `cflu_tracks.js` wird **nicht** benötigt (Tests verwenden einen eigenen Mock-Pool). Erfordert den lokalen HTTP-Server (ES-Module benötigen `http://`, nicht `file://`).
 
-### Abgedeckte Funktionen (129 Tests)
+### Abgedeckte Funktionen (160 Tests, 21 Suiten)
 
 | Suite | Getestete Funktion | Kernfälle |
 |---|---|---|
@@ -502,6 +502,10 @@ Browser-Test-Suite mit eigenem Mini-Test-Framework (describe/it/expect). Importi
 | calcWodEnergy | Energy-Bereich je WOD-Typ (v3 Legacy) | Alle Slider-Stufen, Monotonie, Min < Max |
 | attrScore | Per-Attribut-Score | Im Bereich → 100, außerhalb → Penalty, clamp auf 0 |
 | calcPhaseScore | Phase-Match-Score | Alle Phasen A/B/C/D, Phase-C-Bonus-System |
+| camStrictOk | Strikter Camelot-Check | green → true, yellow/red/null → false, Wrap-around |
+| toHex / toRgb | Farb-Konvertierung | Schwarz/Weiß/Spotify-Grün, führende Nullen |
+| buildPlateau | Phase-A-Algorithmus | ±12 BPM-Band, außerhalb ausgeschlossen, targetSec, Duplikate, leerer Pool |
+| buildDecreasing | Phase-D-Algorithmus | BPM sinkt, nie über startBpm, targetSec, Duplikate, leerer Pool |
 | calcSortScore | Unified Sort Score | Camelot-Gewichtung, Phase-Score ×2, BPM-Penalty |
 | Integration | buildUp + buildDown | Zusammenhängende Kette, keine Duplikate, Energy-Wechsel |
 

@@ -39,9 +39,11 @@ h1{font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:900;te
 <div id="output"></div>
 
 <script type="module">
-import { bpmGroup, groupIdx, neighbour, fmtDur, fmtMin, titleKey, camCompat, lerpColor,
+import { bpmGroup, groupIdx, neighbour, fmtDur, fmtMin, titleKey,
+         camCompat, camStrictOk, lerpColor, toHex, toRgb,
          attrScore, calcPhaseScore, calcSortScore } from './js/utils.js';
-import { addTrack, registerTrack, pickNext, buildUp, buildDown } from './js/algorithm.js';
+import { addTrack, registerTrack, pickNext,
+         buildUp, buildDown, buildPlateau, buildDecreasing } from './js/algorithm.js';
 import { state } from './js/state.js';
 
 // ============================================================
@@ -98,8 +100,17 @@ const T = {
   unr:  mkT({id:'unr', song:'Unreachable',  artist:'Band X', bpm:172, camelot:'9B',  energy:80, dur:200, genre:'Rock', bpmg:'H'}),
   low:  mkT({id:'low', song:'Low BPM',      artist:'Band K', bpm:110, camelot:'9B',  energy:72, dur:200, genre:'Rock', bpmg:'C'}),
   pre:  mkT({id:'pre', song:'Pre Song',     artist:'Band L', bpm:112, camelot:'9B',  energy:72, dur:210, genre:'Rock', bpmg:'C'}),
-  calm: mkT({id:'calm',song:'Calm Track',   artist:'Band M', bpm:100, camelot:'9B',  energy:42, dur:200, genre:'Synthwave / Electronica', bpmg:'B', dance:45, valence:60, acoustic:55, instrumental:70, speech:10, loud:-14}),
-  recov:mkT({id:'recov',song:'Recovery',    artist:'Band N', bpm:75,  camelot:'9B',  energy:35, dur:210, genre:'Synthwave / Electronica', bpmg:'A', dance:30, valence:55, acoustic:65, instrumental:80, speech:5,  loud:-15}),
+  calm: mkT({id:'calm', song:'Calm Track',    artist:'Band M',  bpm:100, camelot:'9B',  energy:42, dur:200, genre:'Synthwave / Electronica', bpmg:'B', dance:45, valence:60, acoustic:55, instrumental:70, speech:10, loud:-14}),
+  recov:mkT({id:'recov',song:'Recovery',     artist:'Band N',  bpm:75,  camelot:'9B',  energy:35, dur:210, genre:'Synthwave / Electronica', bpmg:'A', dance:30, valence:55, acoustic:65, instrumental:80, speech:5,  loud:-15}),
+  // Phase-A Plateau tracks — BPM im Band 88–112 um refBpm=100
+  pa:   mkT({id:'pa',  song:'Plateau Alpha', artist:'Band Pa', bpm:100, camelot:'9B',  energy:40, dur:200, genre:'Rock', bpmg:'B', dance:45, valence:62, acoustic:52, instrumental:68, speech:9,  loud:-13}),
+  pb:   mkT({id:'pb',  song:'Plateau Beta',  artist:'Band Pb', bpm:98,  camelot:'10B', energy:38, dur:210, genre:'Rock', bpmg:'B', dance:42, valence:58, acoustic:58, instrumental:72, speech:7,  loud:-14}),
+  pc:   mkT({id:'pc',  song:'Plateau Gamma', artist:'Band Pc', bpm:106, camelot:'8B',  energy:42, dur:195, genre:'Rock', bpmg:'B', dance:44, valence:65, acoustic:50, instrumental:66, speech:8,  loud:-12}),
+  pout: mkT({id:'pout',song:'Out of Band',   artist:'Band Po', bpm:85,  camelot:'9B',  energy:40, dur:200, genre:'Rock', bpmg:'A', dance:40, valence:60, acoustic:55, instrumental:70, speech:8,  loud:-13}),
+  // Phase-D Decreasing tracks
+  da:   mkT({id:'da',  song:'Decrease Alpha',artist:'Band Da', bpm:98,  camelot:'9B',  energy:40, dur:200, genre:'Rock', bpmg:'B', dance:40, valence:55, acoustic:55, instrumental:65, speech:8,  loud:-13}),
+  db:   mkT({id:'db',  song:'Decrease Beta', artist:'Band Db', bpm:90,  camelot:'9B',  energy:35, dur:200, genre:'Rock', bpmg:'B', dance:35, valence:55, acoustic:60, instrumental:70, speech:5,  loud:-14}),
+  dc:   mkT({id:'dc',  song:'Decrease Gamma',artist:'Band Dc', bpm:80,  camelot:'8B',  energy:30, dur:210, genre:'Rock', bpmg:'A', dance:30, valence:50, acoustic:65, instrumental:75, speech:5,  loud:-15}),
 };
 const FULL_POOL = Object.values(T);
 
@@ -379,11 +390,111 @@ describe('calcPhaseScore — Phase-Match-Score', () => {
     const t=Object.assign({},T.lo,{energy:30,valence:30,dance:30,loud:-15});
     expect(calcPhaseScore(t,'C')).toBe(0);
   });
+  it('Phase B: Skill-Track (b1, 130 BPM, E:80) → > 50', () => {
+    const t = Object.assign({}, T.b1, {valence:50, dance:50, acoustic:20, live:15, loud:-7});
+    expect(calcPhaseScore(t,'B')).toBeGreaterThan(50);
+  });
+  it('Phase B: WOD-Track mit E:92 liegt außerhalb Energy-Range 55-78 → Penalty', () => {
+    expect(calcPhaseScore(T.hi,'B')).toBeLessThan(calcPhaseScore(T.b1,'B'));
+  });
   it('Score immer 0-100',                      () => {
     Object.values(T).forEach(t=>['A','B','C','D'].forEach(p=>{
       const s=calcPhaseScore(t,p);
       expect(s).toBeGreaterThanOrEqual(0); expect(s).toBeLessThanOrEqual(100);
     }));
+  });
+});
+
+describe('camStrictOk — Strikter Camelot-Check', () => {
+  it('Gleicher Key → true',                     () => expect(camStrictOk('9B','9B')).toBeTruthy());
+  it('Gleiche Zahl A↔B → true',                () => expect(camStrictOk('9B','9A')).toBeTruthy());
+  it('+1 gleicher Buchstabe → true',            () => expect(camStrictOk('9B','10B')).toBeTruthy());
+  it('-1 gleicher Buchstabe → true',            () => expect(camStrictOk('9B','8B')).toBeTruthy());
+  it('Wrap-around 12→1 → true',                () => expect(camStrictOk('12B','1B')).toBeTruthy());
+  it('+2 gleicher Buchstabe → false (gelb)',    () => expect(camStrictOk('9B','11B')).toBeFalsy());
+  it('Verschiedene Zahlen+Buchstaben → false',  () => expect(camStrictOk('9B','5A')).toBeFalsy());
+  it('null → false',                            () => expect(camStrictOk(null,'9B')).toBeFalsy());
+});
+
+describe('toHex / toRgb — Farb-Konvertierung', () => {
+  it('toHex Schwarz',       () => expect(toHex({r:0,g:0,b:0})).toBe('#000000'));
+  it('toHex Weiß',          () => expect(toHex({r:255,g:255,b:255})).toBe('#ffffff'));
+  it('toHex Spotify-Grün',  () => expect(toHex({r:29,g:185,b:84})).toBe('#1db954'));
+  it('toHex zweistellig',   () => expect(toHex({r:1,g:2,b:3})).toBe('#010203'));
+  it('toRgb Format',        () => expect(toRgb({r:29,g:185,b:84})).toBe('rgb(29,185,84)'));
+  it('toRgb Schwarz',       () => expect(toRgb({r:0,g:0,b:0})).toBe('rgb(0,0,0)'));
+});
+
+describe('buildPlateau — Phase A Plateau-Algorithmus', () => {
+  const platPool = [T.pa, T.pb, T.pc, T.pout];
+  const refBpm = 100;
+
+  it('Gibt Array zurück', () => {
+    expect(Array.isArray(buildPlateau(platPool, refBpm, new Set(), new Set(), new Map(), 1000))).toBeTruthy();
+  });
+  it('Alle Tracks im ±12 BPM-Band um refBpm', () => {
+    const res = buildPlateau(platPool, refBpm, new Set(), new Set(), new Map(), 10000);
+    res.forEach(t => expect(Math.abs(t.bpm - refBpm)).toBeLessThanOrEqual(12));
+  });
+  it('Track außerhalb des Bandes (pout, bpm=85) wird ausgeschlossen', () => {
+    const res = buildPlateau(platPool, refBpm, new Set(), new Set(), new Map(), 10000);
+    expect(res.find(t => t.id === 'pout')).toBeFalsy();
+  });
+  it('Stoppt wenn targetSec erreicht', () => {
+    const target = 210;
+    const res = buildPlateau(platPool, refBpm, new Set(), new Set(), new Map(), target);
+    expect(res.reduce((s, t) => s + t.dur, 0)).toBeGreaterThanOrEqual(target);
+  });
+  it('Kein Track doppelt', () => {
+    const res = buildPlateau(platPool, refBpm, new Set(), new Set(), new Map(), 10000);
+    const ids = res.map(t => t.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+  it('Bereits verwendeter Track wird übersprungen', () => {
+    const used = new Set([T.pa.id]);
+    const res = buildPlateau(platPool, refBpm, used, new Set(), new Map(), 10000);
+    expect(res.find(t => t.id === 'pa')).toBeFalsy();
+  });
+  it('Leerer Pool → leeres Array', () => {
+    expect(buildPlateau([], refBpm, new Set(), new Set(), new Map(), 1000)).toHaveLength(0);
+  });
+  it('Pool ohne Treffer → leeres Array', () => {
+    expect(buildPlateau([T.pout], refBpm, new Set(), new Set(), new Map(), 1000)).toHaveLength(0);
+  });
+});
+
+describe('buildDecreasing — Phase D Absteigend-Algorithmus', () => {
+  const decPool = [T.da, T.db, T.dc, T.calm, T.recov];
+  const startBpm = 100;
+
+  it('Gibt Array zurück', () => {
+    expect(Array.isArray(buildDecreasing(decPool, startBpm, new Set(), new Set(), new Map(), 400))).toBeTruthy();
+  });
+  it('BPM sinkt oder bleibt gleich', () => {
+    const res = buildDecreasing(decPool, startBpm, new Set(), new Set(), new Map(), 1200);
+    for (let i = 1; i < res.length; i++) expect(res[i].bpm).toBeLessThanOrEqual(res[i-1].bpm);
+  });
+  it('Kein Track mit BPM > startBpm', () => {
+    const res = buildDecreasing(decPool, startBpm, new Set(), new Set(), new Map(), 1200);
+    res.forEach(t => expect(t.bpm).toBeLessThanOrEqual(startBpm));
+  });
+  it('Stoppt wenn targetSec erreicht', () => {
+    const target = 400;
+    const res = buildDecreasing(decPool, startBpm, new Set(), new Set(), new Map(), target);
+    expect(res.reduce((s, t) => s + t.dur, 0)).toBeGreaterThanOrEqual(target);
+  });
+  it('Kein Track doppelt', () => {
+    const res = buildDecreasing(decPool, startBpm, new Set(), new Set(), new Map(), 10000);
+    const ids = res.map(t => t.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+  it('Leerer Pool → leeres Array', () => {
+    expect(buildDecreasing([], startBpm, new Set(), new Set(), new Map(), 400)).toHaveLength(0);
+  });
+  it('Bereits verwendete Tracks werden übersprungen', () => {
+    const used = new Set([T.da.id, T.db.id]);
+    const res = buildDecreasing(decPool, startBpm, used, new Set(), new Map(), 1000);
+    expect(res.find(t => t.id === 'da' || t.id === 'db')).toBeFalsy();
   });
 });
 
