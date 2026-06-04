@@ -74,7 +74,7 @@
 Reihenfolge einhalten:
 1. `js/` – Änderung implementieren (HTML/CSS/Python je nach Scope).
 2. `CFLU_Tests.html` – Testklassen aktualisieren / neu anlegen.
-3. `docs/PROJECT.md` – Abschnitt des Items dokumentieren.
+3. `docs/CHANGELOG.md` – Eintrag hinzufügen (BL-ID, Titel, Datum, Commit).
 4. `BACKLOG.md` – Item als `[x] DONE` flaggen.
 5. GitHub Issue schließen (`gh issue close <id>`).
 6. Vollzug melden: Item-ID, geänderte Dateien, Testergebnis.

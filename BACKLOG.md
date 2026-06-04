@@ -55,6 +55,6 @@ _Keine Items in Bearbeitung._
 
 ## DONE
 
-> Abgeschlossene Items → Details in `docs/PROJECT.md#Changelog`
+> Abgeschlossene Items → Details in `docs/CHANGELOG.md`
 
 _Keine abgeschlossenen Items. Versionsverlauf v1.0–v4.3 siehe `docs/PROJECT.md#Changelog`._
