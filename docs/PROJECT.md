@@ -61,14 +61,12 @@ app.js (importiert alle Module, verdrahtet Events)
 
 ## Changelog
 
-Siehe [`docs/CHANGELOG.md`](CHANGELOG.md)
+Siehe [`docs/CHANGELOG.md`](CHANGELOG.md) · Offene Items → [`BACKLOG.md`](../BACKLOG.md)
 
 ---
 
 ## Offene Punkte / Risiken
 
-- BL-001 · `buildDown()` Dauer-Ziel nicht immer exakt — P3 Mittel
-- BL-002 · Direktsuche Genre-Dropdown nach Auswahl nicht korrekt gesperrt — P4 Niedrig
-- BL-003 · BPM-Chart Tooltip Song-Name vollständig anzeigen — P4 Niedrig
-- Blues & Soul: Genre-Gruppe implementiert, Tracks erscheinen erst nach nächstem Pool-Rebuild (Quelldaten fehlen noch)
-- `GET /audio-features` Spotify API im Development Mode nicht verfügbar — BPM/Camelot kommen ausschließlich aus lokaler Datenbasis
+Offene Items → [`BACKLOG.md`](../BACKLOG.md) (BL-001–BL-003)
+
+Bekannte Einschränkungen: `GET /audio-features` Spotify API im Development Mode nicht verfügbar — BPM/Camelot kommen ausschließlich aus lokaler Datenbasis. Blues & Soul Genre-Gruppe implementiert, Tracks erscheinen erst nach nächstem Pool-Rebuild.
