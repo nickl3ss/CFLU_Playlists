@@ -1,5 +1,9 @@
 # CFLU WOD Playlist Builder
 
+> **[DEPRECATED]** Diese Datei bleibt als Referenz erhalten.  
+> Aktuelle Projektdokumentation: [`docs/PROJECT.md`](docs/PROJECT.md)  
+> Workflow & Regeln: [`CLAUDE.md`](CLAUDE.md)
+
 > CrossFit Ludwigshafen — Lokaler Playlist-Generator für WOD-Begleitung  
 > Standalone HTML-Anwendung · Python HTTP Server · Spotify PKCE Export
 
