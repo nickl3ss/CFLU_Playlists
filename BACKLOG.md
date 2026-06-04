@@ -119,13 +119,14 @@ Akzeptanzkriterium: 30-min Funk-&-Disco-WOD generiert ≥ 8 Tracks; Log zeigt er
 
 ---
 
-### BL-020 · CSV-Direktimport aus Playlists/ — Pool aktualisieren/erweitern
+### [x] BL-020 · CSV-Direktimport aus Playlists/ — Pool aktualisieren/erweitern
 | Feld | Wert |
 |------|------|
 | Komponente | C1 |
 | Priorität | P3 |
 | GitHub Issue | #? |
 | Erstellt | 2026-06-04 |
+| Abgeschlossen | 2026-06-04 |
 
 **Beschreibung:**
 `CFLU_Pool_Build.py` wird vollständig auf CSV-Eingang umgestellt. Die `Spotify_Source.xlsx` entfällt ersatzlos. Der Ablauf folgt einem klassischen **ETL-Muster**:

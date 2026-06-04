@@ -58,17 +58,16 @@ exit /b 1
 echo  [OK] %PY_VER%  ^(Befehl: %PYTHON%^)
 
 :: ---- Track-Pool aktualisieren -------------------------------
-set SOURCE_FOUND=0
-if exist "Spotify Source.xlsx" set SOURCE_FOUND=1
-if exist "Spotify_Source.xlsx" set SOURCE_FOUND=1
+set CSV_FOUND=0
+for %%f in (Playlists\*.csv) do set CSV_FOUND=1
 
-if "%SOURCE_FOUND%"=="1" goto :do_pool_build
-echo  [HINWEIS] Keine Quelldatei - bestehendes %JS_FILE% wird verwendet.
+if "%CSV_FOUND%"=="1" goto :do_pool_build
+echo  [HINWEIS] Keine CSV-Dateien in Playlists\ - bestehendes %JS_FILE% wird verwendet.
 goto :pool_done
 
 :do_pool_build
 echo.
-echo  Aktualisiere Track-Pool aus Quelldatei...
+echo  Aktualisiere Track-Pool aus Playlists\*.csv ...
 %PYTHON% CFLU_Pool_Build.py
 if errorlevel 1 (
     echo  [WARNUNG] Pool-Update fehlgeschlagen. Bestehendes %JS_FILE% wird verwendet.
@@ -82,7 +81,7 @@ if errorlevel 1 (
 if not exist "%JS_FILE%" (
     echo.
     echo  [FEHLER] %JS_FILE% nicht gefunden^^!
-    echo  Bitte Spotify Source.xlsx hinzufuegen und neu starten.
+    echo  Bitte CSV-Dateien in Playlists\ ablegen und neu starten.
     echo.
     pause
     exit /b 1
