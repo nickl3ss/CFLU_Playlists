@@ -2,7 +2,7 @@
 
 > CrossFit Ludwigshafen — Local class-phase playlist generator with Spotify export
 
-Builds rule-based playlists for all four phases of a CrossFit class from a pool of 3,313 tracks across 11 genre groups. Select a class phase, pick a reference song, configure duration — and get a scored, Camelot-compatible playlist with audio preview and direct Spotify export.
+Builds rule-based playlists for all four phases of a CrossFit class from a pool of 3,313 tracks across 12 genre groups. Select a class phase, pick a reference song, configure duration — and get a scored, Camelot-compatible playlist with audio preview and direct Spotify export.
 
 ---
 
@@ -50,7 +50,9 @@ python -m http.server 8888
    ```
 4. Copy your **Client ID**
 
-In the app, paste the Client ID in the *Spotify Export* section and click **Verbinden**. Uses PKCE OAuth — no backend, Client ID never stored.
+**Recommended:** save the Client ID in a file named `cflu_client_id.txt` in the app folder. It will be loaded automatically on startup. The file is gitignored — it never leaves your machine.
+
+Alternatively, paste the Client ID directly in the *Spotify Export* section each session. Uses PKCE OAuth — no backend, Client ID never written to localStorage.
 
 Audio preview (▶ button in track list) also requires a connected Spotify session.
 
@@ -80,6 +82,10 @@ Selecting a phase automatically pre-fills the BPM slider, tolerance, and max-jum
 | **Spotify-Link** | Paste a Spotify URL — found in pool or manual BPM/Camelot entry |
 
 Each track shows a **Phase match score [0–100]** calculated from how well all audio attributes fit the selected phase. Tracks are sorted by score.
+
+**Tonart-Filter (optional)** — narrows results by Camelot key across all three search modes:
+- Letter slider: **A** / **Beide** (both) / **B**
+- Number field: single (`9`), comma-separated (`8,9,10`), or range (`8-11`, wrap-around `11-2`)
 
 ### Step 2 — Position (Phase B and C only)
 
@@ -111,6 +117,7 @@ The **traffic-light Ampel** now shows four indicators: BPM · Camelot · Overall
 | Camelot dot 🟢/🟡/🔴 | Harmonic compatibility with previous track |
 | REF badge | Your chosen reference song |
 | Spotify icon | Opens track in Spotify |
+| Generation Log | Copyable text field below Spotify Export — documents all settings and per-track algorithm decisions |
 
 ---
 
@@ -134,13 +141,19 @@ The **traffic-light Ampel** now shows four indicators: BPM · Camelot · Overall
 
 These power the per-phase scoring system.
 
-### Rebuild the pool
+Genres: Rock · EDM / Electronic · Pop & New Wave · Ska & Reggae · Synthwave / Electronica · Moderne Deutsche Musik · Hip Hop & R&B · Metal & Hard Rock · Punk · Funk & Disco · Deutschrock / NDW / Schlager · Blues & Soul (after next pool rebuild)
 
-Place `Spotify Source.xlsx` in the folder and run:
-```bash
-python CFLU_Pool_Build.py
-```
-Or simply start the app via `CFLU_Start.bat` — it rebuilds automatically.
+Virtual selectors: **Alle Deutschen Tracks** · **Going Wild** (all genres)
+
+### Adding songs / Rebuild the pool
+
+Song metadata comes from the **[Chosic Spotify Playlist Analyzer](https://www.chosic.com//spotify-playlist-analyzer/)**.
+Paste any Spotify playlist URL into Chosic, export the CSV — it matches the column structure `CFLU_Pool_Build.py` expects directly.
+
+To add new tracks:
+1. Export the playlist CSV from Chosic
+2. Paste the rows into `Spotify Source.xlsx` (same column structure)
+3. Run `CFLU_Pool_Build.py` — or just start the app via `CFLU_Start.bat`, which rebuilds automatically
 
 Writes `cflu_tracks.js` which is loaded by the HTML as `<script src="cflu_tracks.js">`.
 
@@ -149,27 +162,43 @@ Writes `cflu_tracks.js` which is loaded by the HTML as `<script src="cflu_tracks
 ## File Overview
 
 ```
-CFLU_WOD_Builder.html       ← Single-file app (~70 KB, no embedded data)
-cflu_tracks.js              ← Auto-generated track database (~874 KB)
-CFLU_Tests.html             ← Browser test suite (~100 tests)
-CFLU_Start.bat              ← Windows launcher (auto-rebuilds pool)
-CFLU_Pool_Build.py          ← Track pool builder
+CFLU_WOD_Builder.html       ← Markup only (no inline JS, no inline handlers)
+cflu_tracks.js              ← Auto-generated track database (~874 KB, global script)
+cflu_client_id.txt          ← Spotify Client ID (local only, gitignored)
+CFLU_Tests.html             ← Browser test suite (~100 tests, imports real modules)
+CFLU_Start.bat              ← Windows launcher (auto-rebuilds pool, error diagnostics)
+CFLU_Pool_Build.py          ← Track pool builder (writes cflu_tracks.js directly)
 CFLU_WOD_Builder_PROJECT.md ← Full technical specification
 README.md                   ← This file
 Spotify Source.xlsx         ← Source data (not in repo — place locally)
+
+css/
+  cflu_style.css            ← All styles
+
+js/
+  config.js                 ← Constants: PHASE_CONFIG, GENRE_NEIGHBOURS, color stops
+  state.js                  ← Shared mutable state object
+  utils.js                  ← Pure helpers: bpmGroup, camCompat, calcPhaseScore …
+  algorithm.js              ← Core: pickNext, buildUp, buildDown, buildPlateau …
+  chart.js                  ← BPM step-chart + bidirectional hover sync
+  spotify.js                ← PKCE auth, playlist export, audio preview
+  app.js                    ← UI handlers, generation, rendering, event wiring
 ```
 
 ### Running the tests
 
+Start the server, then open:
 ```
 http://127.0.0.1:8888/CFLU_Tests.html
 ```
+
+The test suite imports directly from the `js/` modules — no function duplication. It does not require `cflu_tracks.js` (uses its own mock track pool). The local HTTP server is required (ES Modules need `http://`, not `file://`).
 
 ---
 
 ## Built With
 
-- Vanilla HTML / CSS / JavaScript — no framework, no build step
+- Vanilla HTML + CSS (external) + ES Modules JavaScript — no framework, no build step
 - Python `http.server` — local server
 - Spotify Web API — PKCE OAuth 2.0 · preview_url for audio · playlist export
 

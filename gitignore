@@ -1,5 +1,8 @@
 # CFLU WOD Playlist Builder — .gitignore
 
+# Spotify Client ID (lokal, nicht ins Repo)
+cflu_client_id.txt
+
 # Quelldaten (Datenschutz — nicht ins Repo)
 Spotify_Source.xlsx
 *.xlsx
@@ -24,6 +27,12 @@ desktop.ini
 # VS Code
 .vscode/settings.json
 .vscode/launch.json
+
+# Generierte Playlist-Exports
+Playlists/
+
+# Interne Entwicklungs-Prompts
+claude_code_prompt_playlist_generator.md
 
 # Logs
 *.log

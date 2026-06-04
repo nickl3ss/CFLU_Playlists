@@ -4,205 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>CFLU WOD Playlist Builder</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=Barlow+Condensed:wght@300;500;700;900&display=swap');
-*{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#0d0d0d;--bg2:#141414;--bg3:#1a1a1a;--bg4:#222;--bg5:#2a2a2a;
-  --acc:#1db954;--acc2:#1ed760;
-  --text:#fff;--text2:#b3b3b3;--text3:#535353;
-  --border:#282828;
-  --red:#f15e6c;--yellow:#f7c948;--green:#1db954;--purple:#a855f7;
-}
-body{font-family:'Barlow Condensed',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow:hidden}
-/* LAYOUT */
-.app{display:grid;grid-template-columns:360px 1fr;height:100vh;overflow:hidden}
-.sidebar{background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;height:100vh}
-.sb-scroll{flex:1;overflow-y:auto;padding-bottom:16px}
-.sb-scroll::-webkit-scrollbar{width:4px}
-.sb-scroll::-webkit-scrollbar-track{background:transparent}
-.sb-scroll::-webkit-scrollbar-thumb{background:var(--bg5);border-radius:2px}
-.main{display:flex;flex-direction:column;overflow:hidden;height:100vh}
-
-/* SIDEBAR HEADER */
-.sb-header{padding:16px 20px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
-.sb-logo{font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:var(--acc);letter-spacing:.15em;text-transform:uppercase;margin-bottom:3px}
-.sb-title{font-size:1.4rem;font-weight:900;letter-spacing:.05em;text-transform:uppercase}
-.sb-section{padding:14px 20px;border-bottom:1px solid var(--border)}
-.sb-label{font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text2);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
-.sb-label .badge{color:var(--acc);font-weight:700}
-
-/* FORM ELEMENTS */
-select,input[type=text],input[type=number]{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:.95rem;padding:8px 12px;outline:none;transition:border-color .15s;-webkit-appearance:none}
-select:focus,input:focus{border-color:var(--acc)}
-select:disabled,input:disabled{opacity:.45;cursor:not-allowed}
-select option{background:#1a1a1a}
-
-/* COLORED RANGE SLIDER */
-.range-wrap{position:relative;padding:2px 0}
-input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:6px;border-radius:3px;cursor:pointer;outline:none;border:none;padding:0;background:var(--bg5)}
-input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:inherit}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;margin-top:-5px;cursor:pointer;border:2px solid var(--bg2);transition:background .1s;background:var(--text3)}
-input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:var(--bg5)}
-input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cursor:pointer;border:2px solid var(--bg2);background:var(--text3)}
-.range-row{display:flex;justify-content:space-between;margin-top:4px}
-.range-lbl{font-size:.68rem;color:var(--text3)}
-.range-val{font-family:'IBM Plex Mono',monospace;font-size:.8rem;font-weight:700;text-align:center;margin-top:3px}
-.range-hint{font-size:.68rem;color:var(--text3);text-align:center;margin-top:1px;min-height:14px}
-
-/* TOGGLE */
-.toggle-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.toggle-label{font-size:.9rem;font-weight:500}
-.toggle-sub{font-size:.72rem;color:var(--text2);margin-top:1px}
-.toggle{position:relative;display:inline-block;width:40px;height:22px;flex-shrink:0}
-.toggle input{opacity:0;width:0;height:0}
-.toggle-slider{position:absolute;inset:0;background:var(--bg4);border-radius:22px;cursor:pointer;transition:.2s}
-.toggle-slider:before{content:"";position:absolute;height:16px;width:16px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
-.toggle input:checked+.toggle-slider{background:var(--acc)}
-.toggle input:checked+.toggle-slider:before{transform:translateX(18px)}
-
-/* CHIP BUTTONS */
-.chips{display:flex;gap:6px;flex-wrap:wrap}
-.chip{background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:.78rem;font-weight:600;cursor:pointer;transition:all .15s;color:var(--text2);white-space:nowrap}
-.chip.active{background:var(--acc);color:#000;border-color:var(--acc)}
-.chip:hover:not(.active){border-color:var(--acc);color:var(--acc)}
-
-/* SEARCH BOX */
-.search-box{position:relative}
-.search-box input{padding-right:32px}
-.search-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:1.1rem;line-height:1;padding:0}
-.search-clear:hover{color:var(--text)}
-
-/* TRACK SELECT LIST */
-.track-select{width:100%;height:130px;margin-top:6px;font-size:.78rem;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);overflow-y:auto}
-.track-select option{padding:5px 10px;cursor:pointer}
-.track-select option:checked{background:var(--acc);color:#000}
-.track-count{font-family:'IBM Plex Mono',monospace;font-size:.65rem;color:var(--text3);margin-top:4px}
-
-/* SELECTED SONG DISPLAY */
-.selected-song{background:var(--bg3);border:1px solid var(--acc);border-radius:8px;padding:12px 14px;margin-top:10px}
-.sel-title{font-weight:700;font-size:1rem;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sel-artist{font-size:.8rem;color:var(--text2);margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sel-meta{display:flex;gap:8px;flex-wrap:wrap}
-.sel-badge{font-family:'IBM Plex Mono',monospace;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:4px;background:var(--bg4)}
-
-/* CLASS PHASE SELECTOR */
-.phase-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:6px}
-.phase-tile{background:var(--bg3);border:2px solid var(--border);border-radius:10px;padding:9px 11px;cursor:pointer;transition:all .15s;position:relative;overflow:hidden}
-.phase-tile::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--pt-color,var(--text3))}
-.phase-tile:hover{border-color:var(--pt-color,var(--text3));background:var(--bg4)}
-.phase-tile.active{border-color:var(--pt-color,var(--text3));background:rgba(var(--pt-rgb,83,83,83),.1)}
-.pt-letter{font-family:'IBM Plex Mono',monospace;font-size:1rem;font-weight:700;color:var(--pt-color);margin-bottom:2px}
-.pt-name{font-weight:700;font-size:.82rem;text-transform:uppercase;letter-spacing:.05em;line-height:1.2}
-.pt-desc{font-size:.65rem;color:var(--text2);margin-top:3px;line-height:1.4}
-.pt-bpm{font-family:'IBM Plex Mono',monospace;font-size:.65rem;color:var(--pt-color);margin-top:4px;opacity:.8}
-
-/* POSITION AMPEL */
-.ampel{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-top:10px}
-.ampel-item{background:var(--bg4);border-radius:6px;padding:6px 8px;text-align:center}
-.ampel-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-bottom:3px}
-.ampel-label{font-size:.6rem;color:var(--text2);text-transform:uppercase;letter-spacing:.08em;font-family:'IBM Plex Mono',monospace;display:block}
-.ampel-val{font-size:.75rem;font-weight:700;display:block;margin-top:1px}
-.ampel-hint{font-size:.68rem;color:var(--text2);margin-top:6px;line-height:1.4;font-style:italic}
-
-/* POSITION CHIPS */
-.pos-chips{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.pos-chip{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px;text-align:center;cursor:pointer;transition:all .15s}
-.pos-chip .pc-title{font-weight:700;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em}
-.pos-chip .pc-sub{font-size:.68rem;color:var(--text2);margin-top:2px}
-.pos-chip.active{border-color:var(--acc);background:rgba(29,185,84,.1)}
-.pos-chip.active .pc-title{color:var(--acc)}
-.pos-chip:hover:not(.active){border-color:var(--border);background:var(--bg4)}
-
-/* GENERATE BUTTON */
-.gen-btn{width:100%;background:var(--acc);border:none;border-radius:8px;color:#000;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:1.1rem;letter-spacing:.1em;text-transform:uppercase;padding:13px;cursor:pointer;transition:all .15s;margin-top:2px}
-.gen-btn:hover{background:var(--acc2);transform:translateY(-1px)}
-.gen-btn:disabled{background:var(--bg4);color:var(--text3);cursor:not-allowed;transform:none}
-
-/* MAIN AREA */
-.main-top{padding:20px 24px 0;flex-shrink:0}
-.main-scroll{flex:1;overflow-y:auto;padding:0 24px 24px}
-.main-scroll::-webkit-scrollbar{width:6px}
-.main-scroll::-webkit-scrollbar-thumb{background:var(--bg5);border-radius:3px}
-
-.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text3);text-align:center;padding:40px}
-.empty-state .icon{font-size:3rem;margin-bottom:16px;opacity:.5}
-.empty-state h2{font-size:1.3rem;font-weight:700;text-transform:uppercase;margin-bottom:8px}
-.empty-state p{font-size:.85rem;line-height:1.6;max-width:320px}
-
-/* RESULT */
-.result-name-row{display:flex;align-items:center;gap:12px;margin-bottom:16px}
-.result-name{flex:1;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;font-weight:900;text-transform:uppercase;letter-spacing:.05em;outline:none;padding:4px 0}
-.result-name:focus{border-bottom-color:var(--acc)}
-
-.stats-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
-.stat{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px 14px;text-align:center;min-width:72px}
-.stat-val{font-family:'IBM Plex Mono',monospace;font-size:1rem;font-weight:700;color:var(--acc)}
-.stat-lbl{font-size:.6rem;color:var(--text2);text-transform:uppercase;letter-spacing:.08em;margin-top:2px}
-
-.chart-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:12px;position:relative;height:10vh;min-height:70px;display:flex;flex-direction:column;overflow:hidden}
-.chart-title{font-family:'IBM Plex Mono',monospace;font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text2);margin-bottom:6px;flex-shrink:0}
-#bpm-canvas{display:block;width:100%;cursor:crosshair;flex:1;min-height:0}
-
-/* TRACK LIST */
-.track-list-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px;display:flex;flex-direction:column}
-.tl-header{display:grid;grid-template-columns:32px 1fr 72px 56px 44px 34px 48px 20px 26px;gap:0 6px;padding:8px 14px;background:var(--bg3);font-family:'IBM Plex Mono',monospace;font-size:.58rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);flex-shrink:0}
-.tl-scroll{overflow-y:auto;max-height:360px}
-.tl-scroll::-webkit-scrollbar{width:4px}
-.tl-scroll::-webkit-scrollbar-thumb{background:var(--bg5);border-radius:2px}
-.tr{display:grid;grid-template-columns:32px 1fr 72px 56px 44px 34px 48px 20px 26px;gap:0 6px;padding:8px 14px;border-bottom:1px solid var(--border);align-items:center;transition:background .1s;cursor:default}
-.tr:last-child{border-bottom:none}
-.tr:hover,.tr.hovered{background:rgba(255,255,255,.04)}
-.tr.hovered{outline:1px solid rgba(255,255,255,.3);outline-offset:-1px}
-.tr.ref-track{background:rgba(29,185,84,.06)}
-.tr.cooldown{background:rgba(168,85,247,.05)}
-.tr-num{font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:var(--text3);text-align:right}
-.tr-song{font-weight:600;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tr-artist{font-size:.72rem;color:var(--text2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tr-bpm{font-family:'IBM Plex Mono',monospace;font-size:.8rem;font-weight:700;text-align:center}
-.tr-bpm-delta{font-size:.6rem;color:var(--acc);display:block;text-align:center}
-.tr-cam{display:flex;align-items:center;gap:4px;font-family:'IBM Plex Mono',monospace;font-size:.72rem;font-weight:700}
-.cam-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.tr-eng{font-family:'IBM Plex Mono',monospace;font-size:.78rem;text-align:center}
-.tr-dur{font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:var(--text2);text-align:center}
-.tr-sp{display:flex;align-items:center;justify-content:center}
-.sp-icon{width:16px;height:16px;cursor:pointer;opacity:.5;transition:opacity .15s;flex-shrink:0}
-.sp-icon:hover{opacity:1}
-.cd-sep{background:rgba(168,85,247,.12);border-top:2px solid var(--purple);padding:6px 14px;font-family:'IBM Plex Mono',monospace;font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--purple)}
-.tr-play{display:flex;align-items:center;justify-content:center}
-.play-btn{width:18px;height:18px;background:none;border:1px solid var(--text3);border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:all .15s;flex-shrink:0;color:var(--text3)}
-.play-btn:hover{border-color:var(--acc);color:var(--acc)}
-.play-btn.playing{border-color:var(--acc);color:var(--acc);background:rgba(29,185,84,.15)}
-.play-btn svg{width:7px;height:8px;pointer-events:none}
-.tr-phase{display:flex;align-items:center;justify-content:center}
-.phase-score{font-family:'IBM Plex Mono',monospace;font-size:.65rem;font-weight:700;padding:1px 4px;border-radius:3px}
-.phase-score.ps-green{color:#1db954;background:rgba(29,185,84,.12)}
-.phase-score.ps-yellow{color:#f7c948;background:rgba(247,201,72,.12)}
-.phase-score.ps-red{color:#f15e6c;background:rgba(241,94,108,.12)}
-.pool-warn{background:rgba(247,201,72,.08);border:1px solid rgba(247,201,72,.3);border-radius:6px;padding:7px 12px;font-size:.75rem;color:var(--yellow);margin-top:8px;display:none}
-
-/* SPOTIFY SECTION */
-.sp-section{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:16px}
-.sp-section-title{font-size:.95rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;display:flex;align-items:center;gap:8px;color:var(--acc)}
-.sp-row{display:flex;gap:8px;margin-bottom:10px;align-items:center}
-.sp-row input{flex:1;font-family:'IBM Plex Mono',monospace;font-size:.78rem}
-.sp-btn{background:var(--acc);border:none;border-radius:6px;color:#000;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;letter-spacing:.06em;text-transform:uppercase;padding:9px 18px;cursor:pointer;white-space:nowrap;transition:all .15s}
-.sp-btn:hover{background:var(--acc2)}
-.sp-btn:disabled{background:var(--bg4);color:var(--text3);cursor:not-allowed}
-.sp-status{font-family:'IBM Plex Mono',monospace;font-size:.72rem;padding:8px 12px;border-radius:6px;margin-top:8px;display:none;line-height:1.5}
-.sp-status.info{background:rgba(29,185,84,.1);color:var(--acc);border:1px solid rgba(29,185,84,.3)}
-.sp-status.error{background:rgba(241,94,108,.1);color:var(--red);border:1px solid rgba(241,94,108,.3)}
-.sp-status.warn{background:rgba(247,201,72,.1);color:var(--yellow);border:1px solid rgba(247,201,72,.3)}
-.sp-connected{font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:var(--acc);margin-bottom:8px;display:none}
-.sp-instructions{font-size:.72rem;color:var(--text2);line-height:1.7;margin-bottom:12px}
-.sp-instructions code{background:var(--bg3);padding:1px 5px;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:.68rem;color:var(--acc)}
-.limit-warn{background:rgba(247,201,72,.08);border:1px solid rgba(247,201,72,.3);border-radius:8px;padding:8px 12px;font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:var(--yellow);margin-bottom:10px;display:none}
-.warn-msg{background:rgba(247,201,72,.08);border:1px solid rgba(247,201,72,.3);border-radius:6px;padding:7px 12px;font-size:.78rem;color:var(--yellow);margin-bottom:10px;display:none}
-
-.hidden{display:none!important}
-.section-hidden{display:none}
-</style>
+<link rel="stylesheet" href="css/cflu_style.css">
 <script src="cflu_tracks.js"></script>
+<script type="module" src="js/app.js"></script>
 </head>
 <body>
 <div class="app">
@@ -218,25 +22,25 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
     <div class="sb-section">
       <div class="sb-label">Klassen-Phase</div>
       <div class="phase-grid">
-        <div class="phase-tile" id="phase-A" style="--pt-color:#5b8fd6;--pt-rgb:91,143,214" onclick="onPhaseSelect('A')">
+        <div class="phase-tile" id="phase-A" style="--pt-color:#5b8fd6;--pt-rgb:91,143,214">
           <div class="pt-letter">A</div>
           <div class="pt-name">Whiteboard &amp; Prep</div>
           <div class="pt-desc">Ruhige Hintergrundmusik, Coach muss zu hören sein</div>
           <div class="pt-bpm">90–110 BPM · Plateau</div>
         </div>
-        <div class="phase-tile" id="phase-B" style="--pt-color:#f7c948;--pt-rgb:247,201,72" onclick="onPhaseSelect('B')">
+        <div class="phase-tile" id="phase-B" style="--pt-color:#f7c948;--pt-rgb:247,201,72">
           <div class="pt-letter">B</div>
           <div class="pt-name">Skill &amp; Strength</div>
           <div class="pt-desc">Fokussiert, moderate Intensität, technische Arbeit</div>
           <div class="pt-bpm">80–130 BPM · sanft aufbauend</div>
         </div>
-        <div class="phase-tile active" id="phase-C" style="--pt-color:#1db954;--pt-rgb:29,185,84" onclick="onPhaseSelect('C')">
+        <div class="phase-tile active" id="phase-C" style="--pt-color:#1db954;--pt-rgb:29,185,84">
           <div class="pt-letter">C</div>
           <div class="pt-name">WOD — Intensiv</div>
           <div class="pt-desc">Maximale Performance, BPM-Aufbau gegen die Ermüdung</div>
           <div class="pt-bpm">125–195 BPM · aufsteigend</div>
         </div>
-        <div class="phase-tile" id="phase-D" style="--pt-color:#a855f7;--pt-rgb:168,85,247" onclick="onPhaseSelect('D')">
+        <div class="phase-tile" id="phase-D" style="--pt-color:#a855f7;--pt-rgb:168,85,247">
           <div class="pt-letter">D</div>
           <div class="pt-name">Cool-Down</div>
           <div class="pt-desc">Parasympathisch, langsam, Erholung</div>
@@ -249,34 +53,57 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
     <!-- STEP 1: SONG SELECTION -->
     <div class="sb-section">
       <div class="sb-label">Schritt 1 — Song wählen</div>
-      <!-- Selection mode tabs -->
       <div class="chips" style="margin-bottom:10px">
-        <div class="chip active" id="tab-filter" onclick="setSelMode('filter')">Genre & BPM</div>
-        <div class="chip" id="tab-direct" onclick="setSelMode('direct')">Direktsuche</div>
-        <div class="chip" id="tab-link" onclick="setSelMode('link')">Spotify-Link</div>
+        <div class="chip active" id="tab-filter">Genre &amp; BPM</div>
+        <div class="chip" id="tab-direct">Direktsuche</div>
+        <div class="chip" id="tab-link">Spotify-Link</div>
+      </div>
+
+      <!-- CAMELOT FILTER — wirkt auf alle Suchmodi -->
+      <div id="cam-filter-wrap" style="margin-bottom:8px;padding-top:8px;border-top:1px solid var(--border)">
+        <div class="sb-label">Tonart-Filter <span class="badge" id="cam-filter-badge" style="display:none"></span></div>
+        <!-- 3-Stufen-Slider: A / Beide / B -->
+        <div class="range-wrap" style="margin-bottom:2px">
+          <input type="range" id="cam-letter-slider" min="0" max="2" step="1" value="1">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;margin-bottom:8px">
+          <span class="range-lbl">A</span>
+          <span class="range-lbl" style="text-align:center">Beide Tonarten</span>
+          <span class="range-lbl" style="text-align:right">B</span>
+        </div>
+        <!-- Camelot-Zahlen: Einzeln, kommagetrennt oder Bereiche mit wrap-around -->
+        <div class="search-box">
+          <input type="text" id="cam-numbers"
+                 placeholder="Zahlen: 8 9 10  oder  11-2  (wrap-around)"
+                 autocomplete="off"
+                 style="font-family:'IBM Plex Mono',monospace;font-size:.72rem">
+          <button class="search-clear" id="clear-cam-numbers" style="display:none">×</button>
+        </div>
+        <div class="track-count" id="cam-hint" style="min-height:14px"></div>
       </div>
 
       <!-- MODE: Genre & BPM Filter -->
       <div id="sel-filter">
         <div class="sb-label">Genre <span class="badge" id="genre-count-badge"></span></div>
-        <select id="genre-sel" onchange="onGenreChange()" style="margin-bottom:10px">
+        <select id="genre-sel" style="margin-bottom:10px">
           <option value="EDM / Electronic">EDM / Electronic</option>
           <option value="Rock">Rock</option>
-          <option value="Pop & New Wave">Pop & New Wave</option>
+          <option value="Pop & New Wave">Pop &amp; New Wave</option>
           <option value="Punk">Punk</option>
-          <option value="Ska & Reggae">Ska & Reggae</option>
-          <option value="Metal & Hard Rock">Metal & Hard Rock</option>
+          <option value="Ska & Reggae">Ska &amp; Reggae</option>
+          <option value="Metal & Hard Rock">Metal &amp; Hard Rock</option>
           <option value="Moderne Deutsche Musik">Moderne Deutsche Musik (ab 2000)</option>
           <option value="Deutschrock / NDW / Schlager">Deutschrock / NDW / Schlager</option>
           <option value="Alle Deutschen Tracks">Alle Deutschen Tracks</option>
-          <option value="Hip Hop & R&B">Hip Hop & R&amp;B</option>
+          <option value="Hip Hop & R&B">Hip Hop &amp; R&amp;B</option>
           <option value="Synthwave / Electronica">Synthwave / Electronica</option>
           <option value="Funk & Disco">Funk &amp; Disco</option>
+          <option value="Blues & Soul">Blues &amp; Soul</option>
           <option value="Going Wild">Going Wild (alle Genres)</option>
         </select>
         <div class="sb-label">Ziel-BPM</div>
         <div class="range-wrap">
-          <input type="range" id="bpm-slider" min="60" max="220" value="128" oninput="onBpmSlider(this)">
+          <input type="range" id="bpm-slider" min="60" max="220" value="128">
         </div>
         <div class="range-val" id="bpm-val-display" style="color:var(--acc)">128 BPM</div>
         <div class="range-hint" id="bpm-hint-display">WOD-Idealbereich</div>
@@ -284,33 +111,33 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
 
         <div class="sb-label" style="margin-top:10px">±BPM Toleranz <span class="badge" id="bpm-tol-badge">±5</span></div>
         <div class="range-wrap">
-          <input type="range" id="bpm-tol" min="1" max="30" value="5" oninput="onBpmTol(this)">
+          <input type="range" id="bpm-tol" min="1" max="40" value="5">
         </div>
         <div class="range-row"><span class="range-lbl">±1</span><span class="range-lbl">±30</span></div>
         <div class="track-count" id="filter-count">— Tracks</div>
 
         <div style="margin-top:8px">
           <div class="search-box">
-            <input type="text" id="filter-search" placeholder="Suche Titel oder Interpret..." oninput="updateFilterList()">
-            <button class="search-clear" onclick="clearSearch('filter-search')">×</button>
+            <input type="text" id="filter-search" placeholder="Suche Titel oder Interpret...">
+            <button class="search-clear" id="clear-filter-search">×</button>
           </div>
-          <select id="filter-list" class="track-select" size="6" onchange="onTrackSelect(this,'filter')"></select>
+          <select id="filter-list" class="track-select" size="6"></select>
         </div>
       </div>
 
       <!-- MODE: Direktsuche -->
       <div id="sel-direct" class="section-hidden">
         <div class="search-box">
-          <input type="text" id="direct-search" placeholder="Alle 3.314 Tracks durchsuchen..." oninput="onDirectSearch()">
-          <button class="search-clear" onclick="clearSearch('direct-search')">×</button>
+          <input type="text" id="direct-search" placeholder="Alle 3.314 Tracks durchsuchen...">
+          <button class="search-clear" id="clear-direct-search">×</button>
         </div>
         <div class="track-count" id="direct-count">Mind. 2 Zeichen eingeben</div>
-        <select id="direct-list" class="track-select" size="6" onchange="onTrackSelect(this,'direct')"></select>
+        <select id="direct-list" class="track-select" size="6"></select>
       </div>
 
       <!-- MODE: Spotify-Link -->
       <div id="sel-link" class="section-hidden">
-        <input type="text" id="link-input" placeholder="https://open.spotify.com/track/..." oninput="onLinkInput()" autocomplete="off">
+        <input type="text" id="link-input" placeholder="https://open.spotify.com/track/..." autocomplete="off">
         <div class="track-count" id="link-status" style="margin-top:6px"></div>
         <div id="link-manual" class="section-hidden" style="margin-top:10px">
           <div class="sb-label" style="color:var(--yellow)">⚠ Nicht in Liste — manuelle Eingabe</div>
@@ -346,24 +173,23 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
     <div class="sb-section" id="step2" style="opacity:.4;pointer-events:none">
       <div class="sb-label">Schritt 2 — Position in Playlist</div>
       <div class="pos-chips">
-        <div class="pos-chip active" id="pos-start" onclick="setPosition('start')">
+        <div class="pos-chip active" id="pos-start">
           <div class="pc-title">Start</div>
           <div class="pc-sub">Song als #1, dann aufwärts</div>
         </div>
-        <div class="pos-chip" id="pos-end" onclick="setPosition('end')">
+        <div class="pos-chip" id="pos-end">
           <div class="pc-title">Ende</div>
           <div class="pc-sub">Playlist baut sich bis zum Song auf</div>
         </div>
-        <div class="pos-chip" id="pos-mid" onclick="setPosition('mid')">
+        <div class="pos-chip" id="pos-mid">
           <div class="pc-title">Midpoint</div>
           <div class="pc-sub">Song bei ~50%, danach weiter aufwärts</div>
         </div>
-        <div class="pos-chip" id="pos-plateau" onclick="setPosition('plateau')">
+        <div class="pos-chip" id="pos-plateau">
           <div class="pc-title">Mid Plateau</div>
           <div class="pc-sub">Song bei ~50%, danach Energie konstant</div>
         </div>
       </div>
-      <!-- Ampel -->
       <div class="ampel" id="ampel" style="margin-top:10px">
         <div class="ampel-item">
           <span class="ampel-dot" id="amp-bpm-dot" style="background:var(--text3)"></span>
@@ -393,36 +219,33 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
     <div class="sb-section" id="step3" style="opacity:.4;pointer-events:none">
       <div class="sb-label">Schritt 3 — Einstellungen</div>
 
-      <!-- Duration -->
       <div class="sb-label">WOD-Dauer <span class="badge" id="dur-badge">20 min</span></div>
       <div class="range-wrap">
-        <input type="range" id="dur-slider" min="5" max="240" value="20" step="5" oninput="onDurSlider(this)">
+        <input type="range" id="dur-slider" min="5" max="240" value="20" step="5">
       </div>
       <div class="range-row"><span class="range-lbl">5 min</span><span class="range-lbl">240 min</span></div>
       <div class="track-count" id="est-tracks" style="margin-bottom:8px"></div>
 
-      <!-- Max BPM Jump -->
       <div class="sb-label" style="margin-top:8px">Max. BPM-Sprung <span class="badge" id="jump-badge">+10</span></div>
       <div class="range-wrap">
-        <input type="range" id="jump-slider" min="5" max="20" value="10" oninput="onJumpSlider(this)">
+        <input type="range" id="jump-slider" min="5" max="20" value="10">
       </div>
       <div class="range-val" id="jump-val-display" style="color:var(--acc)">+10 BPM</div>
       <div class="range-hint" id="jump-hint-display">Idealbereich</div>
       <div class="range-row"><span class="range-lbl">+5</span><span class="range-lbl">+20</span></div>
 
-      <!-- Cool-Down -->
       <div style="margin-top:12px">
         <div class="toggle-row">
           <div>
             <div class="toggle-label">Cool-Down</div>
             <div class="toggle-sub">Ruhigere Tracks nach WOD</div>
           </div>
-          <label class="toggle"><input type="checkbox" id="cd-toggle" onchange="onCdToggle()"><span class="toggle-slider"></span></label>
+          <label class="toggle"><input type="checkbox" id="cd-toggle"><span class="toggle-slider"></span></label>
         </div>
         <div id="cd-dur-wrap" class="section-hidden" style="margin-top:10px">
           <div class="sb-label">Dauer Cool-Down <span class="badge" id="cd-dur-badge">15 min</span></div>
           <div class="range-wrap">
-            <input type="range" id="cd-dur-slider" min="5" max="60" value="15" step="5" oninput="onCdDurSlider(this)">
+            <input type="range" id="cd-dur-slider" min="5" max="60" value="15" step="5">
           </div>
           <div class="range-row"><span class="range-lbl">5 min</span><span class="range-lbl">60 min</span></div>
         </div>
@@ -431,7 +254,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
 
     <!-- GENERATE -->
     <div class="sb-section">
-      <button class="gen-btn" id="gen-btn" onclick="generatePlaylist()" disabled>▶ Playlist generieren</button>
+      <button class="gen-btn" id="gen-btn" disabled>▶ Playlist generieren</button>
     </div>
 
     <!-- SPOTIFY -->
@@ -450,10 +273,10 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
       </div>
       <div class="sp-row">
         <input type="text" id="sp-cid" placeholder="Client ID..." autocomplete="off" style="font-family:'IBM Plex Mono',monospace;font-size:.72rem">
-        <button class="sp-btn" onclick="spotifyLogin()">Verbinden</button>
+        <button class="sp-btn" id="sp-connect-btn">Verbinden</button>
       </div>
       <div class="sp-connected" id="sp-connected">✓ Verbunden: <span id="sp-user"></span></div>
-      <button class="sp-btn" id="sp-export-btn" onclick="exportPlaylist()" style="width:100%;display:none">Playlist exportieren →</button>
+      <button class="sp-btn" id="sp-export-btn" style="width:100%;display:none">Playlist exportieren →</button>
       <div class="sp-status" id="sp-status"></div>
     </div>
   </div><!-- end sb-scroll -->
@@ -465,7 +288,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
     <div class="icon">🎵</div>
     <h2>Playlist Builder</h2>
     <p>Song wählen, Position bestimmen, Einstellungen konfigurieren und auf Generieren klicken.</p>
-    <p style="margin-top:10px;font-family:'IBM Plex Mono',monospace;font-size:.68rem;color:var(--text3)">3.314 Tracks · 13 Genre-Gruppen · v3.0</p>
+    <p style="margin-top:10px;font-family:'IBM Plex Mono',monospace;font-size:.68rem;color:var(--text3)">3.314 Tracks · 13 Genre-Gruppen · v4.0</p>
   </div>
 
   <div id="result-area" class="hidden" style="display:flex;flex-direction:column;height:100%;overflow:hidden">
@@ -494,1271 +317,44 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
 
       <div class="sp-section">
         <div class="sp-section-title">● Spotify Export</div>
-        <button class="sp-btn" id="sp-export-btn2" onclick="exportPlaylist()" style="display:none;width:100%;margin-bottom:10px">Playlist zu Spotify exportieren →</button>
+        <button class="sp-btn" id="sp-export-btn2" style="display:none;width:100%;margin-bottom:10px">Playlist zu Spotify exportieren →</button>
         <div class="sp-status" id="sp-status2"></div>
         <div class="hidden" id="sp-link-wrap" style="margin-top:8px;font-family:'IBM Plex Mono',monospace;font-size:.75rem">
           ✓ <a id="sp-pl-link" href="#" target="_blank" style="color:var(--acc)">Playlist in Spotify öffnen</a>
+        </div>
+      </div>
+
+      <div class="sp-section" id="gen-log-section" style="display:none">
+        <div class="sp-section-title">● Generierungs-Log</div>
+        <textarea id="gen-log" class="gen-log-area" readonly spellcheck="false"></textarea>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
+          <button class="gen-log-copy" id="gen-log-copy-btn">Kopieren</button>
+          <span id="gen-log-copy-ok" style="display:none;font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:var(--acc)">✓ In Zwischenablage</span>
         </div>
       </div>
     </div>
   </div>
 </main>
 </div>
-
-<script>
-const ALL_TRACKS=TRACK_DATA.tracks;
-const GENRE_STATS=TRACK_DATA.stats;
-const GERMAN_GENRES=['Moderne Deutsche Musik','Deutschrock / NDW / Schlager'];
-const BPM_GROUPS=['A','B','C','D','E','F','G','H','I'];
-const BPM_RANGES={A:[0,90],B:[90,110],C:[110,120],D:[120,130],E:[130,140],F:[140,150],G:[150,160],H:[160,175],I:[175,999]};
-// Camelot zone 1
-const CAM_ZONE1=new Set(['8B','9B','10B','11B','12B','1B']);
-const CAM_ZONE2=new Set(['8A','9A','10A','11A','12A','1A']);
-// Suffix strip regex
-const SUFFIX_RE=/[\s\-–(]*(radio\s*edit|single\s*edit|album\s*version|original\s*mix|club\s*mix|extended\s*(mix|version)?|long\s*version|remaster(ed)?.*|feat\..*|ft\..*|live.*|acoustic.*|mono.*|stereo.*)[^)]*\)?/gi;
-
-// ===== PHASE CONFIGURATION =====
-const PHASE_CONFIG={
-  A:{
-    label:'Whiteboard & Prep',color:'#5b8fd6',
-    bpm:[90,110],energy:[30,55],valence:[50,80],dance:[30,60],
-    instrumental:{min:40},speech:{max:20},acoustic:{min:30},loud:{max:-10},
-    bpmDefault:100,tolDefault:10,
-    maxJumpDefault:5,
-    progression:'plateau',
-    positionVisible:false,
-  },
-  B:{
-    label:'Skill & Strength',color:'#f7c948',
-    bpm:[80,130],energy:[55,78],valence:[35,65],dance:[35,65],
-    instrumental:{min:25},speech:{max:25},acoustic:{min:5,max:40},live:{max:40},loud:{min:-10,max:-5},
-    bpmDefault:105,tolDefault:25,
-    maxJumpDefault:7,
-    progression:'gentle',
-    positionVisible:true,
-  },
-  C:{
-    label:'WOD — Intensiv',color:'#1db954',
-    bpm:[125,195],energy:[70,100],valence:[60,90],dance:[60,80],
-    instrumental:{max:25},acoustic:{max:10},loud:{min:-8},
-    bpmDefault:145,tolDefault:35,
-    maxJumpDefault:10,
-    progression:'ascending',
-    positionVisible:true,
-  },
-  D:{
-    label:'Cool-Down',color:'#a855f7',
-    bpm:[60,100],energy:[0,50],valence:[40,70],dance:[0,45],
-    instrumental:{min:50},acoustic:{min:40},loud:{max:-10},
-    bpmDefault:80,tolDefault:20,
-    maxJumpDefault:8,
-    progression:'decreasing',
-    positionVisible:false,
-  },
-};
-
-// ===== GENRE NEIGHBOURS =====
-const GENRE_NEIGHBOURS={
-  'Rock':['Pop & New Wave','Metal & Hard Rock','Funk & Disco'],
-  'EDM / Electronic':['Synthwave / Electronica','Pop & New Wave'],
-  'Pop & New Wave':['Rock','Synthwave / Electronica','Funk & Disco'],
-  'Punk':['Rock','Metal & Hard Rock','Ska & Reggae'],
-  'Ska & Reggae':['Punk','Funk & Disco','Pop & New Wave'],
-  'Metal & Hard Rock':['Rock','Punk'],
-  'Moderne Deutsche Musik':['Deutschrock / NDW / Schlager','Pop & New Wave','Rock'],
-  'Deutschrock / NDW / Schlager':['Moderne Deutsche Musik','Rock','Pop & New Wave'],
-  'Hip Hop & R&B':['Funk & Disco','Pop & New Wave'],
-  'Synthwave / Electronica':['EDM / Electronic','Pop & New Wave'],
-  'Funk & Disco':['Hip Hop & R&B','Pop & New Wave','Rock'],
-  'Alle Deutschen Tracks':['Rock','Pop & New Wave'],
-  'Going Wild':[],
-};
-
-const MIN_POOL_SIZE=15;
-
-// STATE
-let currentPhase='C';
-let selMode='filter';
-let selectedTrack=null;
-let position='start';
-let maxJump=10;
-let wodMinutes=20;
-let cdActive=false;
-let cdMinutes=15;
-let wodEnergyMin=70;
-let wodEnergyMax=100;
-let generatedWod=[];
-let generatedCd=[];
-let spToken=null;
-let spUserId=null;
-let hoveredTrackIdx=null;
-let bpmChartData=[];
-let chartCanvas=null, chartCtx=null;
-let previewCache=new Map();
-let currentAudio=null;
-
-// ===== UTILS =====
-function getPool(genre){
-  if(genre==='Alle Deutschen Tracks') return ALL_TRACKS.filter(t=>GERMAN_GENRES.includes(t.genre));
-  if(genre==='Going Wild') return ALL_TRACKS;
-  return ALL_TRACKS.filter(t=>t.genre===genre);
-}
-function bpmGroup(bpm){for(const[g,[lo,hi]]of Object.entries(BPM_RANGES))if(bpm>=lo&&bpm<hi)return g;return'I';}
-function groupIdx(g){return BPM_GROUPS.indexOf(g);}
-function neighbour(g1,g2){return Math.abs(groupIdx(g1)-groupIdx(g2))<=1;}
-function fmtDur(s){if(!s)return'—';const m=Math.floor(s/60),sec=s%60;return m+'m'+String(sec).padStart(2,'0')+'s';}
-function fmtMin(s){return Math.round(s/60)+'min';}
-
-// Color interpolation
-function lerpColor(t,stops){
-  // stops: [{p,r,g,b}]
-  if(t<=stops[0].p) return stops[0];
-  if(t>=stops[stops.length-1].p) return stops[stops.length-1];
-  for(let i=0;i<stops.length-1;i++){
-    const a=stops[i],b=stops[i+1];
-    if(t>=a.p&&t<=b.p){
-      const f=(t-a.p)/(b.p-a.p);
-      return{r:Math.round(a.r+(b.r-a.r)*f),g:Math.round(a.g+(b.g-a.g)*f),b:Math.round(a.b+(b.b-a.b)*f)};
-    }
-  }
-  return stops[stops.length-1];
-}
-const RED={r:241,g:94,b:108},YEL={r:247,g:201,b:72},GRN={r:29,g:185,b:84};
-function toRgb(c){return`rgb(${c.r},${c.g},${c.b})`;}
-function toHex(c){return'#'+[c.r,c.g,c.b].map(x=>x.toString(16).padStart(2,'0')).join('');}
-
-// BPM slider color stops (0-1 mapped from 60-220)
-const BPM_STOPS=[
-  {p:0,...RED},{p:.19,...RED},{p:.31,...YEL},{p:.38,...GRN},{p:.69,...GRN},{p:.78,...YEL},{p:.88,...YEL},{p:1,...RED}
-];
-// Jump slider color stops (0-1 mapped from 5-20)
-const JUMP_STOPS=[
-  {p:0,...RED},{p:.13,...YEL},{p:.2,...GRN},{p:.67,...GRN},{p:.73,...YEL},{p:1,...RED}
-];
-// WOD type slider: Skill/Strength (steel-blue) → Mixed (green) → Intensity (red)
-// WOD_TYPE_STOPS removed — replaced by PHASE_CONFIG
-
-function updateSliderStyle(slider,stops,minV,maxV){
-  const t=(+slider.value-minV)/(maxV-minV);
-  const c=lerpColor(t,stops);
-  const hex=toHex(c);
-  // Build gradient
-  const gradStops=stops.map(s=>toHex(s)+' '+Math.round(s.p*100)+'%').join(',');
-  slider.style.setProperty('--grad',`linear-gradient(90deg,${gradStops})`);
-  slider.style.background=`linear-gradient(90deg,${gradStops})`;
-  slider.style.setProperty('--thumb-color',hex);
-  // Thumb color via inline style hack
-  const styleId='thumb-style-'+slider.id;
-  let sEl=document.getElementById(styleId);
-  if(!sEl){sEl=document.createElement('style');sEl.id=styleId;document.head.appendChild(sEl);}
-  sEl.textContent=`#${slider.id}::-webkit-slider-thumb{background:${hex}!important}#${slider.id}::-moz-range-thumb{background:${hex}!important}`;
-  return c;
-}
-
-function bpmHint(v){
-  if(v<90) return'Zu langsam für WOD';
-  if(v<110) return'Warm-Up Zone';
-  if(v<120) return'Moderat';
-  if(v<=170) return'WOD-Idealbereich ✓';
-  if(v<=185) return'Hoch — gut für Finisher';
-  if(v<=199) return'Sehr hoch';
-  return'Grenzbereich';
-}
-function jumpHint(v){
-  if(v<=7) return'Eng — langsamer Aufbau';
-  if(v<=15) return'Idealbereich ✓';
-  if(v<=18) return'Etwas sprunghaft';
-  return'Harte Sprünge möglich';
-}
-
-// ===== PHASE SCORING =====
-// Per-attribute score: 100 if in range, penalised by distance otherwise
-function attrScore(val, spec){
-  if(val===undefined||val===null) return 50;
-  let lo=-Infinity, hi=Infinity;
-  if(spec.min!==undefined) lo=spec.min;
-  if(spec.max!==undefined) hi=spec.max;
-  if(val>=lo&&val<=hi) return 100;
-  const dist=val<lo?lo-val:val-hi;
-  return Math.max(0,100-dist*3);
-}
-
-// Phase match score 0-100 (display + sort)
-function calcPhaseScore(t, phase){
-  if(!phase||phase==='C') return calcPhaseCBonus(t);
-  const cfg=PHASE_CONFIG[phase];
-  if(!cfg) return 50;
-  const scores=[];
-  const bpmMid=(cfg.bpm[0]+cfg.bpm[1])/2;
-  scores.push(attrScore(t.bpm,{min:cfg.bpm[0],max:cfg.bpm[1]}));
-  scores.push(attrScore(t.energy,{min:cfg.energy?.[0],max:cfg.energy?.[1]}));
-  if(cfg.valence) scores.push(attrScore(t.valence,{min:cfg.valence[0],max:cfg.valence[1]}));
-  if(cfg.dance)   scores.push(attrScore(t.dance,{min:cfg.dance[0],max:cfg.dance[1]}));
-  if(cfg.instrumental) scores.push(attrScore(t.instrumental,cfg.instrumental));
-  if(cfg.speech)  scores.push(attrScore(t.speech,cfg.speech));
-  if(cfg.acoustic) scores.push(attrScore(t.acoustic,cfg.acoustic));
-  if(cfg.live)    scores.push(attrScore(t.live,cfg.live));
-  if(cfg.loud)    scores.push(attrScore(t.loud,cfg.loud));
-  return Math.round(scores.reduce((a,b)=>a+b,0)/scores.length);
-}
-
-// Phase C bonus points added on top of base sort score
-function calcPhaseCBonus(t){
-  let bonus=0;
-  if(t.energy>=82) bonus+=20;
-  if(t.valence>=60&&t.valence<=90) bonus+=15;
-  if(t.dance>=60&&t.dance<=80) bonus+=10;
-  if(t.loud>=-8) bonus+=10;
-  return Math.min(100,bonus);
-}
-
-// Unified sort score for pickNext candidates (higher = better)
-// Camelot: green=200, yellow=100, red=0
-// Phase score: 0-100 * 2 = 0-200
-// Energy: 0-100
-// BPM efficiency: -(jump) so smaller jumps rank better
-function calcSortScore(t, cur, phase){
-  const cs={green:200,yellow:100,red:0,unknown:0};
-  const camPoints=cs[camCompat(cur.camelot,t.camelot)]||0;
-  const phasePoints=calcPhaseScore(t,phase)*2;  // 0-200
-  const energyPoints=t.energy;                  // 0-100
-  const bpmPenalty=-(t.bpm-cur.bpm);            // prefer smaller jumps
-  return camPoints+phasePoints+energyPoints+bpmPenalty;
-}
-
-// ===== PHASE SELECT =====
-function onPhaseSelect(phase){
-  currentPhase=phase;
-  // Update tile highlight
-  ['A','B','C','D'].forEach(p=>{
-    document.getElementById('phase-'+p).classList.toggle('active',p===phase);
-  });
-  const cfg=PHASE_CONFIG[phase];
-  // Set energy range from phase config
-  wodEnergyMin=cfg.energy?cfg.energy[0]:0;
-  wodEnergyMax=cfg.energy?cfg.energy[1]:100;
-  maxJump=cfg.maxJumpDefault;
-  // Pre-fill BPM slider
-  const bpmEl=document.getElementById('bpm-slider');
-  bpmEl.value=cfg.bpmDefault;
-  onBpmSlider(bpmEl);
-  // Pre-fill BPM tolerance
-  const tolEl=document.getElementById('bpm-tol');
-  tolEl.value=cfg.tolDefault;
-  document.getElementById('bpm-tol-badge').textContent='±'+cfg.tolDefault;
-  bpmTol=cfg.tolDefault;
-  // Pre-fill maxJump slider
-  const jumpEl=document.getElementById('jump-slider');
-  jumpEl.value=cfg.maxJumpDefault;
-  onJumpSlider(jumpEl);
-  // Show/hide Step 2 (position) depending on phase
-  const step2=document.getElementById('step2');
-  if(cfg.positionVisible){
-    step2.style.display='';
-  } else {
-    step2.style.display='none';
-    // Force appropriate position
-    if(phase==='A') setPosition('plateau');
-    if(phase==='D') setPosition('start');
-  }
-  // Cool-Down toggle default for Phase D
-  if(phase==='D'){
-    wodMinutes=15;
-    document.getElementById('dur-slider').value=15;
-    document.getElementById('dur-badge').textContent='15 min';
-  }
-  updateFilterList();
-  updateAmpel();
-  checkPoolAndWarn();
-}
-
-function checkPoolAndWarn(){
-  const genre=document.getElementById('genre-sel').value;
-  const pool=getPhasePool(genre,currentPhase);
-  const warn=document.getElementById('pool-warn');
-  if(pool.length<MIN_POOL_SIZE){
-    const neighbours=GENRE_NEIGHBOURS[genre]||[];
-    warn.textContent=`Nur ${pool.length} Tracks für Phase ${currentPhase} in "${genre}".`
-      +(neighbours.length?` Fallback auf: ${neighbours.slice(0,2).join(', ')} möglich.`:'');
-    warn.style.display='block';
-  } else {
-    warn.style.display='none';
-  }
-}
-
-// Pool filtered by phase energy range (with neighbour expansion if too small)
-function getPhasePool(genre,phase){
-  const base=getPool(genre);
-  const cfg=PHASE_CONFIG[phase]||{};
-  const eMin=cfg.energy?cfg.energy[0]:0;
-  const eMax=cfg.energy?cfg.energy[1]:100;
-  return base.filter(t=>t.energy>=eMin&&t.energy<=eMax);
-}
-
-// Phase pool with neighbour fallback
-function getPhasePoolWithNeighbours(genre,phase){
-  let pool=getPhasePool(genre,phase);
-  if(pool.length<MIN_POOL_SIZE){
-    const neighbours=GENRE_NEIGHBOURS[genre]||[];
-    for(const nb of neighbours){
-      const extra=getPhasePool(nb,phase);
-      pool=[...pool,...extra];
-      if(pool.length>=MIN_POOL_SIZE) break;
-    }
-  }
-  return pool;
-}
-
-// ===== SELECTION MODE =====
-function setSelMode(m){
-  selMode=m;
-  ['filter','direct','link'].forEach(x=>{
-    document.getElementById('tab-'+x).classList.toggle('active',x===m);
-    document.getElementById('sel-'+x).classList.toggle('section-hidden',x!==m);
-  });
-}
-
-// ===== GENRE & BPM FILTER =====
-let bpmTol=5;
-function onGenreChange(){updateFilterList();}
-function onBpmSlider(el){
-  const c=updateSliderStyle(el,BPM_STOPS,60,220);
-  const v=+el.value;
-  document.getElementById('bpm-val-display').textContent=v+' BPM';
-  document.getElementById('bpm-val-display').style.color=toHex(c);
-  document.getElementById('bpm-hint-display').textContent=bpmHint(v);
-  updateFilterList();
-}
-function onBpmTol(el){
-  bpmTol=+el.value;
-  document.getElementById('bpm-tol-badge').textContent='±'+bpmTol;
-  updateFilterList();
-}
-function updateFilterList(){
-  const genre=document.getElementById('genre-sel').value;
-  const bpmTarget=+document.getElementById('bpm-slider').value;
-  const q=document.getElementById('filter-search').value.toLowerCase();
-  const pool=getPool(genre);
-  let filtered=pool.filter(t=>Math.abs(t.bpm-bpmTarget)<=bpmTol&&t.energy>=wodEnergyMin&&t.energy<=wodEnergyMax);
-  if(q) filtered=filtered.filter(t=>t.song.toLowerCase().includes(q)||t.artist.toLowerCase().includes(q));
-  // Sort by phase score desc then BPM
-  filtered.sort((a,b)=>{
-    const ps=calcPhaseScore(b,currentPhase)-calcPhaseScore(a,currentPhase);
-    return ps||a.bpm-b.bpm;
-  });
-  const sel=document.getElementById('filter-list');
-  sel.innerHTML='';
-  filtered.forEach(t=>{
-    const ps=calcPhaseScore(t,currentPhase);
-    const o=document.createElement('option');
-    o.value=t.id||t.song;
-    o.textContent=`[${ps}] ${t.artist} — ${t.song} — ${t.bpm} BPM — ${t.camelot} — E:${t.energy}`;
-    o._track=t;
-    sel.appendChild(o);
-  });
-  document.getElementById('filter-count').textContent=filtered.length+' Tracks';
-  document.getElementById('genre-count-badge').textContent=pool.length;
-  onLenChange();
-  checkPoolAndWarn();
-}
-
-// ===== DIRECT SEARCH =====
-function onDirectSearch(){
-  const q=document.getElementById('direct-search').value.toLowerCase().trim();
-  const sel=document.getElementById('direct-list');
-  sel.innerHTML='';
-  if(q.length<2){document.getElementById('direct-count').textContent='Mind. 2 Zeichen eingeben';return;}
-  const activeGenre=document.getElementById('genre-sel').value;
-  const genrePool=activeGenre==='Going Wild'?ALL_TRACKS:getPool(activeGenre);
-  const res=genrePool.filter(t=>(t.song.toLowerCase().includes(q)||t.artist.toLowerCase().includes(q))&&t.energy>=wodEnergyMin&&t.energy<=wodEnergyMax)
-    .sort((a,b)=>{
-      const aS=a.artist.toLowerCase().startsWith(q)?0:1,bS=b.artist.toLowerCase().startsWith(q)?0:1;
-      const ps=calcPhaseScore(b,currentPhase)-calcPhaseScore(a,currentPhase);
-      return aS-bS||ps||a.bpm-b.bpm;
-    }).slice(0,80);
-  res.forEach(t=>{
-    const ps=calcPhaseScore(t,currentPhase);
-    const o=document.createElement('option');
-    o.value=t.id||t.song;
-    o.textContent=`[${ps}] ${t.artist} — ${t.song} — ${t.bpm} BPM — ${t.camelot} — E:${t.energy}`;
-    o._track=t;
-    sel.appendChild(o);
-  });
-  document.getElementById('direct-count').textContent=res.length+' Ergebnisse';
-}
-
-// ===== LINK INPUT =====
-function onLinkInput(){
-  const url=document.getElementById('link-input').value.trim();
-  const m=url.match(/track\/([a-zA-Z0-9]+)/);
-  if(!m){document.getElementById('link-status').textContent='';return;}
-  const tid=m[1];
-  const found=ALL_TRACKS.find(t=>t.id===tid);
-  if(found){
-    document.getElementById('link-status').textContent=`✓ ${found.artist} — ${found.song}`;
-    document.getElementById('link-manual').classList.add('section-hidden');
-    selectTrack(found);
-  } else {
-    document.getElementById('link-status').textContent='Nicht in Pool — bitte Daten eingeben';
-    document.getElementById('link-manual').classList.remove('section-hidden');
-    // External track placeholder
-    const ext={id:tid,song:'[Externer Track]',artist:'',bpm:0,camelot:'',energy:0,dur:210,genre:'Going Wild',bpmg:'D',external:true};
-    selectTrack(ext,true);
-  }
-}
-
-// ===== TRACK SELECT =====
-function onTrackSelect(sel,mode){
-  const opt=sel.options[sel.selectedIndex];
-  if(!opt) return;
-  const t=opt._track||ALL_TRACKS.find(x=>(x.id&&x.id===opt.value)||x.song===opt.value);
-  if(t) selectTrack(t);
-}
-
-function selectTrack(t, external=false){
-  selectedTrack={...t};
-  if(external){
-    selectedTrack.bpm=+document.getElementById('manual-bpm').value||128;
-    selectedTrack.energy=+document.getElementById('manual-energy').value||75;
-    selectedTrack.camelot=document.getElementById('manual-camelot').value||'';
-  }
-  // Update display
-  document.getElementById('sel-title').textContent=selectedTrack.song;
-  document.getElementById('sel-artist').textContent=selectedTrack.artist;
-  document.getElementById('sel-bpm').textContent=selectedTrack.bpm+' BPM';
-  document.getElementById('sel-cam').textContent=selectedTrack.camelot||'—';
-  document.getElementById('sel-eng').textContent='E:'+selectedTrack.energy;
-  document.getElementById('sel-genre').textContent=selectedTrack.genre;
-  const spLink=document.getElementById('sel-sp-link');
-  const embed=document.getElementById('sel-sp-embed');
-  const hasId=selectedTrack.id&&selectedTrack.id!==''&&selectedTrack.id!=='nan';
-  spLink.href=hasId?'https://open.spotify.com/track/'+selectedTrack.id:'#';
-  spLink.style.display=hasId?'inline-flex':'none';
-  embed.src=hasId?'https://open.spotify.com/embed/track/'+selectedTrack.id+'?utm_source=generator&theme=0':'';
-  embed.style.display=hasId?'block':'none';
-  document.getElementById('selected-display').classList.remove('section-hidden');
-
-  // Auto-set genre if from direct/link
-  if(selMode==='direct'||selMode==='link'){
-    const gs=document.getElementById('genre-sel');
-    const match=[...gs.options].find(o=>o.value===t.genre);
-    if(match){
-      gs.value=t.genre;
-      gs.disabled=!external;
-    }
-  }
-
-  // Enable step 2+3
-  enableSteps();
-  updateAmpel();
-  updateGenBtn();
-}
-
-function enableSteps(){
-  document.getElementById('step2').style.opacity='1';
-  document.getElementById('step2').style.pointerEvents='auto';
-  document.getElementById('step3').style.opacity='1';
-  document.getElementById('step3').style.pointerEvents='auto';
-}
-
-// ===== POSITION =====
-function setPosition(p){
-  position=p;
-  ['start','end','mid','plateau'].forEach(x=>document.getElementById('pos-'+x).classList.toggle('active',x===p));
-  updateAmpel();
-  updateGenBtn();
-}
-
-// ===== AMPEL =====
-const POS_BPM={
-  start:{green:[110,145],yellow:[[90,109],[146,160]]},
-  end:{green:[155,190],yellow:[[145,154],[191,205]]},
-  mid:{green:[130,165],yellow:[[115,129],[166,180]]},
-  plateau:{green:[130,165],yellow:[[115,129],[166,180]]},
-};
-function rateColor(val,ranges){
-  const{green,yellow}=ranges;
-  if(val>=green[0]&&val<=green[1]) return 'green';
-  for(const[lo,hi] of yellow) if(val>=lo&&val<=hi) return 'yellow';
-  return 'red';
-}
-function updateAmpel(){
-  if(!selectedTrack) return;
-  const bpm=selectedTrack.bpm;
-  const cam=selectedTrack.camelot||'';
-  const pos=position;
-  const bpmRating=rateColor(bpm,POS_BPM[pos]||POS_BPM.start);
-  const camZone=CAM_ZONE1.has(cam)?'green':CAM_ZONE2.has(cam)?'yellow':'red';
-  const overall=bpmRating==='green'&&camZone==='green'?'green':
-                bpmRating==='red'||camZone==='red'?'red':'yellow';
-  const ps=calcPhaseScore(selectedTrack,currentPhase);
-  const phaseRating=ps>=80?'green':ps>=50?'yellow':'red';
-  const colorMap={green:'#1db954',yellow:'#f7c948',red:'#f15e6c'};
-  document.getElementById('amp-bpm-dot').style.background=colorMap[bpmRating];
-  document.getElementById('amp-cam-dot').style.background=colorMap[camZone];
-  document.getElementById('amp-ges-dot').style.background=colorMap[overall];
-  document.getElementById('amp-phase-dot').style.background=colorMap[phaseRating];
-  document.getElementById('amp-bpm-val').textContent=bpm+' BPM';
-  document.getElementById('amp-cam-val').textContent=cam||'—';
-  document.getElementById('amp-ges-val').textContent=overall==='green'?'Gut':overall==='yellow'?'Ok':'Prüfen';
-  document.getElementById('amp-phase-val').textContent=ps+'%';
-  const hints=[];
-  if(bpmRating==='red') hints.push('BPM für '+pos+'-Position ungeeignet');
-  if(camZone==='red') hints.push('Camelot in schwacher Zone');
-  if(phaseRating==='red') hints.push('Phase '+currentPhase+' Fit niedrig ('+ps+'%)');
-  if(!hints.length) hints.push('Gute Wahl für Phase '+currentPhase+' ✓');
-  document.getElementById('ampel-hint').textContent=hints.join(' · ');
-}
-
-// ===== SETTINGS =====
-function onDurSlider(el){
-  wodMinutes=+el.value;
-  document.getElementById('dur-badge').textContent=el.value+' min';
-  onLenChange();
-}
-function onLenChange(){
-  const genre=document.getElementById('genre-sel').value;
-  const stats=GENRE_STATS[genre]||{avg_dur:210};
-  const est=Math.round((wodMinutes*60)/Math.max(stats.avg_dur,60));
-  document.getElementById('est-tracks').textContent='≈ '+est+' Tracks geschätzt';
-}
-function onJumpSlider(el){
-  const c=updateSliderStyle(el,JUMP_STOPS,5,20);
-  maxJump=+el.value;
-  document.getElementById('jump-badge').textContent='+'+el.value;
-  document.getElementById('jump-val-display').textContent='+'+el.value+' BPM';
-  document.getElementById('jump-val-display').style.color=toHex(c);
-  document.getElementById('jump-hint-display').textContent=jumpHint(+el.value);
-}
-function onCdToggle(){
-  cdActive=document.getElementById('cd-toggle').checked;
-  document.getElementById('cd-dur-wrap').classList.toggle('section-hidden',!cdActive);
-}
-function onCdDurSlider(el){
-  cdMinutes=+el.value;
-  document.getElementById('cd-dur-badge').textContent=el.value+' min';
-}
-// onWodTypeSlider removed — replaced by onPhaseSelect
-function updateGenBtn(){
-  const ok=selectedTrack&&selectedTrack.bpm>0;
-  document.getElementById('gen-btn').disabled=!ok;
-}
-
-// ===== SEARCH UTILS =====
-function clearSearch(id){
-  document.getElementById(id).value='';
-  if(id==='filter-search') updateFilterList();
-  else if(id==='direct-search'){document.getElementById('direct-list').innerHTML='';document.getElementById('direct-count').textContent='Mind. 2 Zeichen eingeben';}
-}
-
-// ===== CAMELOT =====
-function camCompat(c1,c2){
-  if(!c1||!c2||c1==='nan'||c2==='nan') return 'unknown';
-  try{
-    const n1=parseInt(c1),l1=c1.slice(-1).toUpperCase();
-    const n2=parseInt(c2),l2=c2.slice(-1).toUpperCase();
-    if(n1===n2) return 'green'; // same number (A<->B or same)
-    const diff=Math.min(Math.abs(n1-n2),12-Math.abs(n1-n2));
-    if(diff===1&&l1===l2) return 'green';
-    if(diff===2&&l1===l2) return 'yellow';
-    return 'red';
-  }catch(e){return 'unknown';}
-}
-function camStrictOk(c1,c2){return camCompat(c1,c2)==='green';}
-const CAM_COLOR={green:'#1db954',yellow:'#f7c948',red:'#f15e6c',unknown:'#535353'};
-
-// Title dedup key
-function titleKey(s){
-  return s.replace(SUFFIX_RE,'').toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,15);
-}
-
-// ===== ALGORITHM =====
-function pickNext(pool,cur,usedIds,usedTitleKeys,usedArtists,totalTracks){
-  const cg=bpmGroup(cur.bpm);
-  const maxArtist=Math.max(1,Math.floor(totalTracks*0.1));
-
-  const baseOk=t=>{
-    if(usedIds.has(t.id||t.song)) return false;
-    if(t.bpm<cur.bpm) return false;
-    if(t.bpm-cur.bpm>maxJump) return false;
-    if(!neighbour(cg,bpmGroup(t.bpm))) return false;
-    if(titleKey(t.song)&&usedTitleKeys.has(titleKey(t.song))) return false;
-    const ak=t.artist.split(',')[0].trim().toLowerCase();
-    if((usedArtists.get(ak)||0)>=maxArtist) return false;
-    if(t.energy<wodEnergyMin||t.energy>wodEnergyMax) return false;
-    return true;
-  };
-
-  // Phase 1: strict camelot + zone 1/2
-  let cands=pool.filter(t=>baseOk(t)&&camStrictOk(cur.camelot,t.camelot)&&(CAM_ZONE1.has(t.camelot)||CAM_ZONE2.has(t.camelot)));
-  // Phase 2: relax zone
-  if(!cands.length) cands=pool.filter(t=>baseOk(t)&&camStrictOk(cur.camelot,t.camelot));
-  // Phase 3: yellow camelot
-  if(!cands.length) cands=pool.filter(t=>baseOk(t)&&camCompat(cur.camelot,t.camelot)!=='red');
-  // Phase 4: BPM escalation
-  if(!cands.length){
-    for(let extra=5;extra<=40;extra+=5){
-      cands=pool.filter(t=>{
-        if(usedIds.has(t.id||t.song)) return false;
-        if(t.bpm<cur.bpm+extra) return false;
-        if(t.bpm-cur.bpm>maxJump+extra) return false;
-        if(titleKey(t.song)&&usedTitleKeys.has(titleKey(t.song))) return false;
-        const ak=t.artist.split(',')[0].trim().toLowerCase();
-        if((usedArtists.get(ak)||0)>=maxArtist) return false;
-        return true;
-      });
-      if(cands.length) break;
-    }
-  }
-  if(!cands.length) return null;
-
-  // Unified sort: higher calcSortScore = better candidate
-  cands.sort((a,b)=>calcSortScore(b,cur,currentPhase)-calcSortScore(a,cur,currentPhase));
-  return cands[0];
-}
-
-// Phase A: plateau — picks tracks within narrow BPM band, sorted by phase score
-function buildPlateau(pool,refBpm,usedIds,usedTitleKeys,usedArtists,targetSec){
-  const result=[];
-  const band=12; // ±12 BPM around ref
-  let totalDur=0;
-  const cands=pool.filter(t=>{
-    if(usedIds.has(t.id||t.song)) return false;
-    if(Math.abs(t.bpm-refBpm)>band) return false;
-    if(titleKey(t.song)&&usedTitleKeys.has(titleKey(t.song))) return false;
-    return true;
-  }).sort((a,b)=>calcPhaseScore(b,'A')-calcPhaseScore(a,'A'));
-  for(const t of cands){
-    if(totalDur>=targetSec) break;
-    result.push(t);
-    usedIds.add(t.id||t.song);
-    const tk=titleKey(t.song);if(tk)usedTitleKeys.add(tk);
-    const ak=t.artist.split(',')[0].trim().toLowerCase();
-    usedArtists.set(ak,(usedArtists.get(ak)||0)+1);
-    totalDur+=t.dur;
-  }
-  return result;
-}
-
-// Phase D (and cool-down descending): BPM decreases over playlist
-function buildDecreasing(pool,startBpm,usedIds,usedTitleKeys,usedArtists,targetSec){
-  const result=[];
-  let cur={bpm:startBpm,camelot:'',energy:100};
-  let totalDur=0;
-  while(totalDur<targetSec){
-    const cands=pool.filter(t=>{
-      if(usedIds.has(t.id||t.song)) return false;
-      if(t.bpm>cur.bpm) return false;
-      if(cur.bpm-t.bpm>maxJump*2) return false;  // allow larger drops for Phase D
-      if(titleKey(t.song)&&usedTitleKeys.has(titleKey(t.song))) return false;
-      return true;
-    }).sort((a,b)=>calcPhaseScore(b,'D')-calcPhaseScore(a,'D'));
-    if(!cands.length) break;
-    const pick=cands[0];
-    result.push(pick);
-    usedIds.add(pick.id||pick.song);
-    const tk=titleKey(pick.song);if(tk)usedTitleKeys.add(tk);
-    const ak=pick.artist.split(',')[0].trim().toLowerCase();
-    usedArtists.set(ak,(usedArtists.get(ak)||0)+1);
-    totalDur+=pick.dur;
-    cur=pick;
-  }
-  return result;
-}
-
-function addTrack(t,result,usedIds,usedTitleKeys,usedArtists){
-  result.push(t);
-  usedIds.add(t.id||t.song);
-  const tk=titleKey(t.song);if(tk) usedTitleKeys.add(tk);
-  const ak=t.artist.split(',')[0].trim().toLowerCase();
-  usedArtists.set(ak,(usedArtists.get(ak)||0)+1);
-}
-
-function buildUp(pool,startT,usedIds,usedTitleKeys,usedArtists,targetSec,count){
-  const result=[startT];
-  usedIds.add(startT.id||startT.song);
-  const tk=titleKey(startT.song);if(tk)usedTitleKeys.add(tk);
-  const ak=startT.artist.split(',')[0].trim().toLowerCase();
-  usedArtists.set(ak,(usedArtists.get(ak)||0)+1);
-
-  let totalDur=startT.dur;
-  let cur=startT;
-  const limit=count||9999;
-  while(result.length<limit){
-    if(targetSec&&totalDur>=targetSec) break;
-    const next=pickNext(pool,cur,usedIds,usedTitleKeys,usedArtists,limit||20);
-    if(!next) break;
-    result.push(next);
-    usedIds.add(next.id||next.song);
-    const ntk=titleKey(next.song);if(ntk)usedTitleKeys.add(ntk);
-    const nak=next.artist.split(',')[0].trim().toLowerCase();
-    usedArtists.set(nak,(usedArtists.get(nak)||0)+1);
-    totalDur+=next.dur;
-    cur=next;
-  }
-  return result;
-}
-
-function buildDown(pool,endT,usedIds,usedTitleKeys,usedArtists,count){
-  const result=[];
-  let cur=endT;
-  for(let i=0;i<count;i++){
-    const cg=bpmGroup(cur.bpm);
-    let cands=pool.filter(t=>{
-      if(usedIds.has(t.id||t.song)) return false;
-      if(t.bpm>cur.bpm) return false;
-      if(cur.bpm-t.bpm>maxJump) return false;
-      if(!neighbour(cg,bpmGroup(t.bpm))) return false;
-      if(titleKey(t.song)&&usedTitleKeys.has(titleKey(t.song))) return false;
-      if(t.energy<wodEnergyMin||t.energy>wodEnergyMax) return false;
-      return true;
-    });
-    if(!cands.length) break;
-    cands.sort((a,b)=>calcSortScore(b,cur,currentPhase)-calcSortScore(a,cur,currentPhase));
-    const pick=cands[0];
-    result.unshift(pick);
-    usedIds.add(pick.id||pick.song);
-    const tk=titleKey(pick.song);if(tk)usedTitleKeys.add(tk);
-    cur=pick;
-  }
-  return result;
-}
-
-// ===== GENERATE =====
-function generatePlaylist(){
-  const btn=document.getElementById('gen-btn');
-  btn.disabled=true;btn.textContent='Generiere...';
-  setTimeout(()=>{try{_gen();}catch(e){console.error(e);alert('Fehler: '+e.message);}finally{btn.disabled=false;btn.textContent='▶ Playlist generieren';}},50);
-}
-
-function _gen(){
-  if(!selectedTrack||selectedTrack.bpm<=0){alert('Bitte Song wählen.');return;}
-  const genre=document.getElementById('genre-sel').value;
-  const pool=getPhasePoolWithNeighbours(genre,currentPhase);
-  const targetSec=wodMinutes*60;
-  const usedIds=new Set();
-  const usedTitleKeys=new Set();
-  const usedArtists=new Map();
-  let wod=[];
-  const ref=selectedTrack;
-
-  if(currentPhase==='A'){
-    // Phase A: plateau — constant BPM band, sorted by phase score
-    wod=buildPlateau(pool,ref.bpm,usedIds,usedTitleKeys,usedArtists,targetSec);
-    // Ensure ref track is first
-    if(!usedIds.has(ref.id||ref.song)) wod.unshift(ref);
-
-  } else if(currentPhase==='D'){
-    // Phase D: descending BPM from ref down
-    usedIds.add(ref.id||ref.song);
-    const tk=titleKey(ref.song);if(tk)usedTitleKeys.add(tk);
-    wod=[ref,...buildDecreasing(pool,ref.bpm,usedIds,usedTitleKeys,usedArtists,targetSec-ref.dur)];
-
-  } else {
-    // Phase B or C: use ascending BPM algorithm with position modes
-    if(position==='start'){
-      wod=buildUp(pool,ref,usedIds,usedTitleKeys,usedArtists,targetSec,0);
-    } else if(position==='end'){
-      const half=Math.round((targetSec/2)/(ref.dur||210));
-      const before=buildDown(pool,ref,usedIds,usedTitleKeys,usedArtists,half+5);
-      before.forEach(t=>{usedIds.add(t.id||t.song);const tk=titleKey(t.song);if(tk)usedTitleKeys.add(tk);});
-      usedIds.add(ref.id||ref.song);
-      const tk=titleKey(ref.song);if(tk)usedTitleKeys.add(tk);
-      const beforePool=pool.filter(t=>!usedIds.has(t.id||t.song)&&t.bpm<=ref.bpm&&t.energy>=wodEnergyMin&&t.energy<=wodEnergyMax);
-      const totalBefore=targetSec-ref.dur;
-      let durSoFar=before.reduce((s,t)=>s+t.dur,0);
-      let cur=before.length?before[before.length-1]:null;
-      if(cur){
-        while(durSoFar<totalBefore-60){
-          const next=pickNext(beforePool,cur,usedIds,usedTitleKeys,usedArtists,30);
-          if(!next) break;
-          before.push(next);usedIds.add(next.id||next.song);
-          const ntk=titleKey(next.song);if(ntk)usedTitleKeys.add(ntk);
-          durSoFar+=next.dur;cur=next;
-        }
-      }
-      wod=[...before,ref];
-    } else if(position==='mid'||position==='plateau'){
-      const halfSec=Math.floor(targetSec/2);
-      usedIds.add(ref.id||ref.song);
-      const tk=titleKey(ref.song);if(tk)usedTitleKeys.add(tk);
-      const ak=ref.artist.split(',')[0].trim().toLowerCase();
-      usedArtists.set(ak,(usedArtists.get(ak)||0)+1);
-      const before=buildDown(pool,ref,usedIds,usedTitleKeys,usedArtists,Math.ceil(halfSec/(ref.dur||210)));
-      before.forEach(t=>{usedIds.add(t.id||t.song);const ntk=titleKey(t.song);if(ntk)usedTitleKeys.add(ntk);const nak=t.artist.split(',')[0].trim().toLowerCase();usedArtists.set(nak,(usedArtists.get(nak)||0)+1);});
-      let after=[];
-      if(position==='mid'){
-        after=buildUp(pool,ref,usedIds,usedTitleKeys,usedArtists,halfSec,0);
-        after.shift();
-      } else {
-        const refGrp=bpmGroup(ref.bpm);
-        const platCands=pool.filter(t=>!usedIds.has(t.id||t.song)&&neighbour(bpmGroup(t.bpm),refGrp)&&(!titleKey(t.song)||!usedTitleKeys.has(titleKey(t.song)))&&t.energy>=wodEnergyMin&&t.energy<=wodEnergyMax)
-          .sort((a,b)=>calcPhaseScore(b,currentPhase)-calcPhaseScore(a,currentPhase));
-        let platDur=0;
-        for(const t of platCands){
-          if(platDur>=halfSec) break;
-          after.push(t);usedIds.add(t.id||t.song);platDur+=t.dur;
-        }
-      }
-      wod=[...before,ref,...after];
-    }
-  }
-
-  // Cool-down
-  let cd=[];
-  const warnMsgs=[];
-  // Cool-Down: triggered by toggle (Phase D + toggle = recovery then extra cool-down)
-  const needCd=cdActive;
-  if(needCd){
-    const maxWodBpm=wod.length?Math.max(...wod.map(t=>t.bpm)):100;
-    const cdBpmMax=currentPhase==='D'?Math.floor(maxWodBpm*0.85):Math.floor(maxWodBpm*0.7);
-    const cdEnergyMax=currentPhase==='D'?40:((GENRE_STATS[genre]||{avg_energy:70}).avg_energy);
-    // Use Phase D criteria for cool-down pool regardless of active phase
-    let cdPool=getPhasePoolWithNeighbours(genre,'D').filter(t=>!usedIds.has(t.id||t.song)&&t.bpm<=cdBpmMax&&t.energy<=cdEnergyMax);
-    if(cdPool.length<3){
-      const neighbours=GENRE_NEIGHBOURS[genre]||[];
-      for(const nb of neighbours){
-        cdPool=[...cdPool,...getPhasePool(nb,'D').filter(t=>!usedIds.has(t.id||t.song)&&t.bpm<=cdBpmMax&&t.energy<=cdEnergyMax)];
-        if(cdPool.length>=3){warnMsgs.push(`Cool-Down: Nachbar-Genre "${nb}" ergänzt`);break;}
-      }
-    }
-    cdPool.sort((a,b)=>calcPhaseScore(b,'D')-calcPhaseScore(a,'D')||a.bpm-b.bpm);
-    let cdSec=0;
-    for(const t of cdPool){
-      if(cdSec>=cdMinutes*60) break;
-      cd.push(t);usedIds.add(t.id||t.song);cdSec+=t.dur;
-    }
-  }
-
-  // Artist limit warnings
-  usedArtists.forEach((cnt,ak)=>{
-    if(cnt>Math.max(1,Math.floor(wod.length*0.1))+1) warnMsgs.push(`"${ak}" mehrfach in Playlist (${cnt}×)`);
-  });
-
-  generatedWod=wod;
-  generatedCd=cd;
-  renderResult(genre,wod,cd,warnMsgs);
-}
-
-// ===== RENDER =====
-function renderResult(genre,wod,cd,warns){
-  const all=[...wod,...cd];
-  const wodSec=wod.reduce((s,t)=>s+t.dur,0);
-  const cdSec=cd.reduce((s,t)=>s+t.dur,0);
-  const bpms=wod.map(t=>t.bpm);
-  const avgEng=wod.length?Math.round(wod.reduce((s,t)=>s+t.energy,0)/wod.length):0;
-  let camG=0,camY=0,camR=0;
-  for(let i=1;i<wod.length;i++){const c=camCompat(wod[i-1].camelot,wod[i].camelot);if(c==='green')camG++;else if(c==='yellow')camY++;else if(c==='red')camR++;}
-
-  // Playlist name
-  const phaseLbl=PHASE_CONFIG[currentPhase]?.label||currentPhase;
-  const cdTag=cd.length?' · CD':'';
-  document.getElementById('pl-name').value=`CFLU ${phaseLbl} · ${genre} · ${wodMinutes} min${cdTag}`;
-
-  // Stats
-  document.getElementById('stats-bar').innerHTML=`
-    <div class="stat"><div class="stat-val">${wod.length}</div><div class="stat-lbl">Tracks</div></div>
-    <div class="stat"><div class="stat-val">${fmtMin(wodSec)}</div><div class="stat-lbl">WOD</div></div>
-    ${cd.length?`<div class="stat"><div class="stat-val" style="color:var(--purple)">${fmtMin(cdSec)}</div><div class="stat-lbl">Cool-Down</div></div>`:''}
-    <div class="stat"><div class="stat-val">${bpms[0]||0}→${bpms[bpms.length-1]||0}</div><div class="stat-lbl">BPM</div></div>
-    <div class="stat"><div class="stat-val">${avgEng}</div><div class="stat-lbl">Ø Energy</div></div>
-    <div class="stat"><div class="stat-val" style="color:var(--green)">${camG}</div><div class="stat-lbl">Cam✓</div></div>
-    <div class="stat"><div class="stat-val" style="color:var(--yellow)">${camY}</div><div class="stat-lbl">Cam~</div></div>
-    <div class="stat"><div class="stat-val" style="color:var(--red)">${camR}</div><div class="stat-lbl">Cam✗</div></div>
-  `;
-
-  // Warnings
-  const wm=document.getElementById('warn-msg');
-  if(warns.length){wm.textContent=warns.join(' · ');wm.style.display='block';}else{wm.style.display='none';}
-  document.getElementById('limit-warn').style.display=all.length>100?'block':'none';
-
-  // Track rows
-  const rows=document.getElementById('track-rows');
-  rows.innerHTML='';
-  const refId=selectedTrack?(selectedTrack.id||selectedTrack.song):null;
-
-  wod.forEach((t,i)=>{
-    const prev=i>0?wod[i-1]:null;
-    const delta=prev?t.bpm-prev.bpm:0;
-    const cc=prev?camCompat(prev.camelot,t.camelot):'green';
-    const isRef=(t.id&&t.id===refId)||(t.song===selectedTrack?.song&&t.artist===selectedTrack?.artist);
-    rows.appendChild(makeRow(i,t,i+1,delta,cc,false,isRef));
-  });
-
-  if(cd.length){
-    const sep=document.createElement('div');
-    sep.className='cd-sep';
-    sep.textContent='⬇ Cool-Down — '+fmtDur(cdSec);
-    rows.appendChild(sep);
-    cd.forEach((t,i)=>rows.appendChild(makeRow(wod.length+i,t,wod.length+i+1,0,'unknown',true,false)));
-  }
-
-  // Hover events
-  rows.querySelectorAll('.tr').forEach((row,i)=>{
-    row.addEventListener('mouseenter',()=>{highlightFromRow(i);});
-    row.addEventListener('mouseleave',()=>{clearHighlight();});
-  });
-
-  // Spotify export button
-  if(spToken){document.getElementById('sp-export-btn2').style.display='block';}
-
-  bpmChartData=[...wod,...cd];
-  document.getElementById('empty-state').classList.add('hidden');
-  document.getElementById('result-area').classList.remove('hidden');
-  // Draw chart after layout is visible so offsetHeight is correct
-  requestAnimationFrame(()=>drawChart(wod.length));
-}
-
-function makeRow(idx,t,num,delta,cc,isCd,isRef){
-  const row=document.createElement('div');
-  row.className='tr'+(isCd?' cooldown':'')+(isRef?' ref-track':'');
-  row.dataset.idx=idx;
-  const engColor=t.energy>=90?'#1db954':t.energy>=75?'#a855f7':t.energy>=60?'#f7c948':'#535353';
-  const song=t.song.length>32?t.song.slice(0,30)+'…':t.song;
-  const artist=t.artist.length>28?t.artist.slice(0,26)+'…':t.artist;
-  const spLink=t.id&&t.id!=='nan'&&t.id?`<svg class="sp-icon" onclick="window.open('https://open.spotify.com/track/${t.id}','_blank')" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="11" fill="#1db954"/><path d="M16.5 16.5c-2.5-1.5-5.5-1.8-9-1" stroke="white" stroke-width="1.4" stroke-linecap="round"/><path d="M17.5 13.5c-3-1.8-7-2-10.5-1" stroke="white" stroke-width="1.4" stroke-linecap="round"/><path d="M18 10c-3.5-2-8-2.2-11.5-1" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>`:'';
-  const ps=calcPhaseScore(t,currentPhase);
-  const psCls=ps>=80?'ps-green':ps>=50?'ps-yellow':'ps-red';
-  const playId='play-'+idx;
-  const playBtn=t.id&&t.id!=='nan'&&t.id
-    ?`<button class="play-btn" id="${playId}" onclick="playPreview('${t.id}','${playId}')" title="Preview abspielen"><svg viewBox="0 0 8 10" fill="currentColor"><polygon points="0,0 8,5 0,10"/></svg></button>`
-    :'';
-  row.innerHTML=`
-    <div class="tr-num">${num}${isRef?'<br><span style="font-size:.55rem;color:var(--acc)">REF</span>':''}</div>
-    <div><div class="tr-song" title="${t.song}">${song}</div><div class="tr-artist" title="${t.artist}">${artist}</div></div>
-    <div><div class="tr-bpm">${t.bpm}</div>${delta>0?`<div class="tr-bpm-delta">+${delta}</div>`:''}</div>
-    <div class="tr-cam"><span class="cam-dot" style="background:${CAM_COLOR[cc]}"></span>${t.camelot||'—'}</div>
-    <div class="tr-eng" style="color:${engColor}">${t.energy}</div>
-    <div class="tr-phase"><span class="phase-score ${psCls}">${ps}</span></div>
-    <div class="tr-dur">${fmtDur(t.dur)}</div>
-    <div class="tr-sp">${spLink}</div>
-    <div class="tr-play">${playBtn}</div>
-  `;
-  return row;
-}
-
-// ===== CHART =====
-function drawChart(wodCount){
-  const canvas=document.getElementById('bpm-canvas');
-  if(!canvas) return;
-  const dpr=window.devicePixelRatio||1;
-  const W=canvas.offsetWidth||800;
-  const H=canvas.offsetHeight||80;
-  canvas.width=W*dpr; canvas.height=H*dpr;
-  chartCtx=canvas.getContext('2d');
-  chartCtx.scale(dpr,dpr);
-  _drawChart(wodCount,-1);
-
-  canvas.onmousemove=e=>{
-    const rect=canvas.getBoundingClientRect();
-    const mx=(e.clientX-rect.left);
-    if(!bpmChartData.length) return;
-    const pad={l:36,r:12,t:8,b:22};
-    const w=W-pad.l-pad.r;
-    const totalD=bpmChartData.reduce((s,t)=>s+(t.dur||210),0);
-    const tRatio=Math.max(0,Math.min(1,(mx-pad.l)/w));
-    let cumA=0,clamped=bpmChartData.length-1;
-    for(let i=0;i<bpmChartData.length;i++){cumA+=(bpmChartData[i].dur||210);if(cumA/totalD>=tRatio){clamped=i;break;}}
-    if(clamped!==hoveredTrackIdx){
-      hoveredTrackIdx=clamped;
-      _drawChart(wodCount,clamped);
-      highlightFromChart(clamped);
-    }
-  };
-  canvas.onmouseleave=()=>{hoveredTrackIdx=-1;_drawChart(wodCount,-1);clearHighlight();};
-}
-
-function _drawChart(wodCount,hoverIdx){
-  const canvas=document.getElementById('bpm-canvas');
-  if(!canvas||!chartCtx||!bpmChartData.length) return;
-  const dpr=window.devicePixelRatio||1;
-  const W=canvas.offsetWidth||800;
-  const H=canvas.offsetHeight||80;
-  const bpms=bpmChartData.map(t=>t.bpm);
-  const minB=Math.min(...bpms)-5,maxB=Math.max(...bpms)+5;
-  const pad={l:36,r:12,t:8,b:22};
-  const w=W-pad.l-pad.r,h=H-pad.t-pad.b;
-  chartCtx.clearRect(0,0,W*dpr,H*dpr);
-  chartCtx.save();
-
-  // Cumulative time positions
-  const cumDur=[];let cumAcc=0;
-  bpmChartData.forEach(t=>{cumDur.push(cumAcc);cumAcc+=(t.dur||210);});
-  const totalDur=cumAcc||1;
-  const wodDur=bpmChartData.slice(0,wodCount).reduce((s,t)=>s+(t.dur||210),0);
-
-  // Y-axis BPM grid
-  [.25,.5,.75,1].forEach(f=>{
-    const y=pad.t+h*(1-f);
-    chartCtx.strokeStyle='rgba(255,255,255,.05)';chartCtx.lineWidth=1;
-    chartCtx.beginPath();chartCtx.moveTo(pad.l,y);chartCtx.lineTo(W-pad.r,y);chartCtx.stroke();
-    chartCtx.fillStyle='rgba(255,255,255,.25)';chartCtx.font='8px IBM Plex Mono,monospace';chartCtx.textAlign='left';
-    chartCtx.fillText(Math.round(minB+(maxB-minB)*f),2,y+3);
-  });
-
-  // X-axis time grid + minute labels
-  const totalMin=totalDur/60;
-  const stepMin=totalMin<10?1:totalMin<20?2:totalMin<50?5:10;
-  const stepSec=stepMin*60;
-  chartCtx.font='8px IBM Plex Mono,monospace';chartCtx.textAlign='center';
-  for(let ts=stepSec;ts<totalDur;ts+=stepSec){
-    const x=pad.l+(ts/totalDur)*w;
-    chartCtx.strokeStyle='rgba(255,255,255,.07)';chartCtx.lineWidth=1;
-    chartCtx.beginPath();chartCtx.moveTo(x,pad.t);chartCtx.lineTo(x,H-pad.b);chartCtx.stroke();
-    chartCtx.fillStyle='rgba(255,255,255,.3)';
-    chartCtx.fillText(Math.floor(ts/60)+':00',x,H-pad.b+11);
-  }
-
-  // Track points — X proportional to cumulative duration (song length)
-  const pts=bpmChartData.map((t,i)=>({
-    x:pad.l+(cumDur[i]/totalDur)*w,
-    y:pad.t+h*(1-(t.bpm-minB)/(maxB-minB)),
-    cd:i>=wodCount
-  }));
-
-  // Step path helper — waagerecht bis nächster Song, dann senkrechter Sprung
-  function stepPath(ctx,close){
-    ctx.moveTo(pts[0].x, close ? H-pad.b : pts[0].y);
-    if(close) ctx.lineTo(pts[0].x, pts[0].y);
-    for(let i=0;i<pts.length;i++){
-      const ex=i<pts.length-1?pts[i+1].x:pad.l+w;
-      ctx.lineTo(ex, pts[i].y);                          // waagerecht bis Song-Ende
-      if(i<pts.length-1) ctx.lineTo(ex, pts[i+1].y);   // senkrechter BPM-Sprung
-    }
-    if(close){ctx.lineTo(pad.l+w, H-pad.b); ctx.closePath();}
-  }
-
-  // Fill — split at WOD/Cool-Down boundary by time
-  const grad=chartCtx.createLinearGradient(pad.l,0,W-pad.r,0);
-  const sp=wodDur/totalDur;
-  grad.addColorStop(0,'rgba(29,185,84,.12)');
-  grad.addColorStop(Math.min(sp,.99),'rgba(29,185,84,.12)');
-  if(wodCount<bpmChartData.length){grad.addColorStop(Math.min(sp+.001,1),'rgba(168,85,247,.08)');grad.addColorStop(1,'rgba(168,85,247,.08)');}
-  chartCtx.beginPath(); stepPath(chartCtx,true);
-  chartCtx.fillStyle=grad; chartCtx.fill();
-
-  // Step line
-  chartCtx.beginPath(); stepPath(chartCtx,false);
-  chartCtx.strokeStyle='#1db954'; chartCtx.lineWidth=2; chartCtx.stroke();
-
-  // WOD Ende Marker — konfigurierte WOD-Dauer
-  const wodTargetSec=Math.min(wodMinutes*60,totalDur);
-  const wx=pad.l+(wodTargetSec/totalDur)*w;
-  chartCtx.strokeStyle='rgba(100,140,175,.75)';chartCtx.lineWidth=1.5;
-  chartCtx.beginPath();chartCtx.moveTo(wx,pad.t);chartCtx.lineTo(wx,H-pad.b);chartCtx.stroke();
-
-  // Dots
-  pts.forEach((p,i)=>{
-    chartCtx.beginPath();chartCtx.arc(p.x,p.y,i===hoverIdx?5:3,0,Math.PI*2);
-    chartCtx.fillStyle=i===hoverIdx?'#fff':p.cd?'#a855f7':'#1db954';chartCtx.fill();
-    if(i===hoverIdx){chartCtx.strokeStyle='#fff';chartCtx.lineWidth=2;chartCtx.stroke();}
-  });
-
-  // Hover vertical line
-  if(hoverIdx>=0&&hoverIdx<pts.length){
-    const p=pts[hoverIdx];
-    chartCtx.strokeStyle='rgba(255,255,255,.4)';chartCtx.lineWidth=1;
-    chartCtx.setLineDash([3,3]);
-    chartCtx.beginPath();chartCtx.moveTo(p.x,pad.t);chartCtx.lineTo(p.x,H-pad.b);chartCtx.stroke();
-    chartCtx.setLineDash([]);
-    // Tooltip
-    const t=bpmChartData[hoverIdx];
-    const label=t.bpm+' BPM — '+t.song.slice(0,20);
-    chartCtx.font='bold 9px IBM Plex Mono,monospace';
-    const tw=chartCtx.measureText(label).width;
-    const tx=Math.min(Math.max(p.x-tw/2,pad.l),W-pad.r-tw);
-    const ty=p.y>H/2?p.y-8:p.y+16;
-    chartCtx.fillStyle='rgba(0,0,0,.7)';chartCtx.fillRect(tx-4,ty-10,tw+8,14);
-    chartCtx.fillStyle='#fff';chartCtx.fillText(label,tx,ty);
-  }
-  chartCtx.restore();
-}
-
-// ===== HOVER SYNC =====
-function highlightFromRow(idx){
-  clearHighlight();
-  const rows=document.querySelectorAll('.tr');
-  if(rows[idx]) rows[idx].classList.add('hovered');
-  if(bpmChartData.length){
-    const wodCount=generatedWod.length;
-    _drawChart(wodCount,idx);
-  }
-}
-function highlightFromChart(idx){
-  clearHighlight();
-  const rows=document.querySelectorAll('.tr');
-  if(rows[idx]){
-    rows[idx].classList.add('hovered');
-    rows[idx].scrollIntoView({block:'nearest',behavior:'smooth'});
-  }
-}
-function clearHighlight(){
-  document.querySelectorAll('.tr.hovered').forEach(r=>r.classList.remove('hovered'));
-}
-
-// ===== AUDIO PREVIEW =====
-async function playPreview(trackId, btnId){
-  const audio=document.getElementById('preview-audio');
-  const btn=document.getElementById(btnId);
-
-  // If this track is already playing, stop it
-  if(currentAudio===btnId){
-    audio.pause();audio.src='';
-    btn.classList.remove('playing');
-    btn.innerHTML='<svg viewBox="0 0 8 10" fill="currentColor"><polygon points="0,0 8,5 0,10"/></svg>';
-    currentAudio=null;
-    return;
-  }
-
-  // Stop any currently playing track
-  stopAllPreviews();
-
-  if(!spToken){
-    alert('Spotify-Verbindung erforderlich für Preview.\nBitte zuerst Client ID eingeben und verbinden.');
-    return;
-  }
-
-  // Check cache
-  let previewUrl=previewCache.get(trackId);
-  if(!previewUrl){
-    try{
-      const resp=await fetch(`https://api.spotify.com/v1/tracks/${trackId}`,{
-        headers:{Authorization:'Bearer '+spToken}
-      });
-      if(!resp.ok) throw new Error('API '+resp.status);
-      const data=await resp.json();
-      previewUrl=data.preview_url;
-      previewCache.set(trackId,previewUrl||'null');
-    }catch(e){
-      alert('Preview-Fehler: '+e.message);return;
-    }
-  }
-
-  if(!previewUrl||previewUrl==='null'){
-    btn.title='Kein Preview verfügbar';
-    btn.style.opacity='.3';
-    return;
-  }
-
-  audio.src=previewUrl;
-  audio.volume=0.8;
-  audio.play();
-  currentAudio=btnId;
-  btn.classList.add('playing');
-  btn.innerHTML='<svg viewBox="0 0 8 10" fill="currentColor"><rect x="0" y="0" width="3" height="10"/><rect x="5" y="0" width="3" height="10"/></svg>';
-
-  audio.onended=()=>{
-    btn.classList.remove('playing');
-    btn.innerHTML='<svg viewBox="0 0 8 10" fill="currentColor"><polygon points="0,0 8,5 0,10"/></svg>';
-    currentAudio=null;
-  };
-}
-
-function stopAllPreviews(){
-  const audio=document.getElementById('preview-audio');
-  audio.pause();audio.src='';
-  if(currentAudio){
-    const prevBtn=document.getElementById(currentAudio);
-    if(prevBtn){
-      prevBtn.classList.remove('playing');
-      prevBtn.innerHTML='<svg viewBox="0 0 8 10" fill="currentColor"><polygon points="0,0 8,5 0,10"/></svg>';
-    }
-    currentAudio=null;
-  }
-}
-
-// ===== SPOTIFY =====
-function spotifyLogin(){
-  const cid=document.getElementById('sp-cid').value.trim();
-  if(!cid){showStatus('Bitte Client ID eingeben.','error');return;}
-  const v=generateVerifier();
-  sessionStorage.setItem('pkce_v',v);sessionStorage.setItem('sp_cid',cid);
-  generateChallenge(v).then(ch=>{
-    const p=new URLSearchParams({response_type:'code',client_id:cid,
-      scope:'playlist-modify-public playlist-modify-private',
-      redirect_uri:'http://127.0.0.1:8888/CFLU_WOD_Builder.html',
-      code_challenge_method:'S256',code_challenge:ch});
-    window.location.href='https://accounts.spotify.com/authorize?'+p;
-  });
-}
-function generateVerifier(){const a=new Uint8Array(64);crypto.getRandomValues(a);return btoa(String.fromCharCode(...a)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');}
-async function generateChallenge(v){const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v));return btoa(String.fromCharCode(...new Uint8Array(d))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');}
-
-async function checkSpotifyCallback(){
-  const p=new URLSearchParams(window.location.search);
-  const code=p.get('code');if(!code) return;
-  const v=sessionStorage.getItem('pkce_v'),cid=sessionStorage.getItem('sp_cid');
-  if(!v||!cid) return;
-  window.history.replaceState({},'',window.location.pathname);
-  showStatus('Verbinde...','info');
-  try{
-    const r=await fetch('https://accounts.spotify.com/api/token',{method:'POST',
-      headers:{'Content-Type':'application/x-www-form-urlencoded'},
-      body:new URLSearchParams({grant_type:'authorization_code',code,client_id:cid,
-        redirect_uri:'http://127.0.0.1:8888/CFLU_WOD_Builder.html',code_verifier:v})});
-    const d=await r.json();
-    if(d.access_token){
-      spToken=d.access_token;
-      const me=await(await fetch('https://api.spotify.com/v1/me',{headers:{Authorization:'Bearer '+spToken}})).json();
-      spUserId=me.id;
-      document.getElementById('sp-user').textContent=me.display_name||me.id;
-      document.getElementById('sp-connected').style.display='block';
-      document.getElementById('sp-export-btn').style.display='block';
-      if(generatedWod.length) document.getElementById('sp-export-btn2').style.display='block';
-      showStatus('✓ Verbunden!','info');
-      sessionStorage.removeItem('pkce_v');
-    } else {showStatus('Fehler: '+JSON.stringify(d),'error');}
-  }catch(e){showStatus('Fehler: '+e.message,'error');}
-}
-
-async function exportPlaylist(){
-  if(!spToken){showStatus('Zuerst verbinden.','error');return;}
-  const all=[...generatedWod,...generatedCd].slice(0,100);
-  if(!all.length){showStatus('Keine Playlist.','error');return;}
-  const name=document.getElementById('pl-name').value||'CFLU WOD';
-  showStatus('Erstelle Playlist...','info');
-  try{
-    const pl=await(await fetch('https://api.spotify.com/v1/me/playlists',{method:'POST',
-      headers:{Authorization:'Bearer '+spToken,'Content-Type':'application/json'},
-      body:JSON.stringify({name,description:'CFLU WOD Playlist Builder',public:false})})).json();
-    if(!pl.id){showStatus('Fehler: '+JSON.stringify(pl),'error');return;}
-    showStatus('Füge Tracks hinzu...','info');
-    const uris=all.filter(t=>t.id&&t.id!=='nan').map(t=>'spotify:track:'+t.id);
-    for(let i=0;i<uris.length;i+=100){
-      await fetch(`https://api.spotify.com/v1/playlists/${pl.id}/items`,{method:'POST',
-        headers:{Authorization:'Bearer '+spToken,'Content-Type':'application/json'},
-        body:JSON.stringify({uris:uris.slice(i,i+100)})});
-    }
-    showStatus('✓ Exportiert!','info');
-    document.getElementById('sp-link-wrap').classList.remove('hidden');
-    document.getElementById('sp-pl-link').href=pl.external_urls?.spotify||'#';
-  }catch(e){showStatus('Export-Fehler: '+e.message,'error');}
-}
-
-function showStatus(msg,type){
-  ['sp-status','sp-status2'].forEach(id=>{
-    const el=document.getElementById(id);
-    if(el){el.textContent=msg;el.className='sp-status '+type;el.style.display='block';}
-  });
-}
-
-// ===== INIT =====
-window.addEventListener('load',()=>{
-  // Init sliders
-  const bpmEl=document.getElementById('bpm-slider');
-  updateSliderStyle(bpmEl,BPM_STOPS,60,220);
-  const jumpEl=document.getElementById('jump-slider');
-  updateSliderStyle(jumpEl,JUMP_STOPS,5,20);
-  // Init phase selector — default Phase C (WOD Intensiv)
-  onPhaseSelect('C');
-  // Check spotify callback
-  checkSpotifyCallback();
-  // Window resize redraw
-  window.addEventListener('resize',()=>{
-    if(bpmChartData.length) drawChart(generatedWod.length);
-  });
-});
-</script>
 <audio id="preview-audio" style="display:none"></audio>
+
+<!-- ===== STARTUP LOGIN MODAL ===== -->
+<div id="login-modal" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">Mit Spotify verbinden</div>
+      <button class="modal-close" id="modal-close-btn" aria-label="Schließen">✕</button>
+    </div>
+    <p class="modal-desc">Verbinde jetzt mit Spotify, um Audio-Previews zu hören und die fertige Playlist direkt zu exportieren.<br>Die Verbindung kann auch später jederzeit über den Spotify-Bereich in der Seitenleiste hergestellt werden.</p>
+    <div class="sp-row" style="margin-bottom:6px">
+      <input type="text" id="modal-sp-cid" placeholder="Spotify Client ID..." autocomplete="off" style="font-family:'IBM Plex Mono',monospace;font-size:.78rem">
+    </div>
+    <div id="modal-sp-status" class="sp-status"></div>
+    <div class="modal-actions">
+      <button class="sp-btn" id="modal-connect-btn" style="flex:2">Verbinden</button>
+      <button class="modal-skip-btn" id="modal-skip-btn">Später</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
