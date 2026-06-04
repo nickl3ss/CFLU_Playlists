@@ -93,6 +93,7 @@ function expect(actual) {
     toEqual(exp)            { if (JSON.stringify(actual) !== JSON.stringify(exp)) fail(`Erwartet ${JSON.stringify(exp)}, erhalten ${JSON.stringify(actual)}`); },
     toBeNull()              { if (actual !== null) fail(`Erwartet null, erhalten ${JSON.stringify(actual)}`); },
     toBeGreaterThan(n)      { if (!(actual > n)) fail(`Erwartet > ${n}, erhalten ${actual}`); },
+    toBeLessThan(n)         { if (!(actual < n)) fail(`Erwartet < ${n}, erhalten ${actual}`); },
     toBeLessThanOrEqual(n)  { if (!(actual <= n)) fail(`Erwartet <= ${n}, erhalten ${actual}`); },
     toBeGreaterThanOrEqual(n){ if (!(actual >= n)) fail(`Erwartet >= ${n}, erhalten ${actual}`); },
     toBeTruthy()            { if (!actual) fail(`Erwartet truthy, erhalten ${JSON.stringify(actual)}`); },
