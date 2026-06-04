@@ -38,6 +38,20 @@ h1{font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:900;te
 <div id="summary"></div>
 <div id="output"></div>
 
+<script>
+// Surface any module-load or runtime errors that would otherwise leave the page blank
+window.addEventListener('unhandledrejection', e => {
+  document.getElementById('output').innerHTML =
+    '<pre style="color:#f15e6c;padding:20px;background:#1a0005;border-radius:6px">' +
+    'Module-Fehler:\n' + (e.reason?.stack || String(e.reason)) + '</pre>';
+});
+window.onerror = (msg, src, line, col, err) => {
+  document.getElementById('output').innerHTML =
+    '<pre style="color:#f15e6c;padding:20px;background:#1a0005;border-radius:6px">' +
+    (err?.stack || msg) + '</pre>';
+};
+</script>
+
 <script type="module">
 import { bpmGroup, groupIdx, neighbour, fmtDur, fmtMin, titleKey,
          camCompat, camStrictOk, lerpColor, toHex, toRgb,
