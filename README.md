@@ -2,7 +2,7 @@
 
 > CrossFit Ludwigshafen — Local class-phase playlist generator with Spotify export
 
-Builds rule-based playlists for all four phases of a CrossFit class from a pool of 3,313 tracks across 12 genre groups. Select a class phase, pick a reference song, configure duration — and get a scored, Camelot-compatible playlist with audio preview and direct Spotify export.
+Builds rule-based playlists for all four phases of a CrossFit class from the track pool across 12 genre groups. Select a class phase, pick a reference song, configure duration — and get a scored, Camelot-compatible playlist with audio preview and direct Spotify export.
 
 Architecture, algorithm details and ADR decisions → [`docs/PROJECT.md`](docs/PROJECT.md)
 
@@ -11,7 +11,6 @@ Architecture, algorithm details and ADR decisions → [`docs/PROJECT.md`](docs/P
 ## Requirements
 
 - **Python 3.x** (in PATH) — runs the local server and auto-rebuilds the track pool
-- `pandas` + `openpyxl`: `pip install pandas openpyxl`
 - A modern browser (Chrome, Firefox, Edge)
 - A Spotify account + Developer App (for export and audio preview — one-time setup)
 
@@ -23,7 +22,7 @@ Double-click **`CFLU_Start.bat`**.
 
 What it does automatically:
 1. Checks Python is installed
-2. If `Spotify Source.xlsx` is present — rebuilds `cflu_tracks.js` from scratch
+2. If CSVs are present in `Playlists/` — rebuilds `cflu_tracks.js` from scratch
 3. Starts `python -m http.server 8888`
 4. Opens `http://127.0.0.1:8888/CFLU_WOD_Builder.html` in the default browser
 
@@ -33,7 +32,7 @@ Keep the terminal window open while using the app. Closing it stops the server.
 
 ```bash
 cd path/to/CFLUPlaylist
-python CFLU_Pool_Build.py   # optional: only needed after updating the xlsx
+python CFLU_Pool_Build.py   # optional: only needed after adding/updating CSVs
 python -m http.server 8888
 # open: http://127.0.0.1:8888/CFLU_WOD_Builder.html
 ```
@@ -77,22 +76,32 @@ Uses PKCE OAuth — no backend, Client ID never written to localStorage.
 
 ## Adding Songs / Rebuilding the Pool
 
-Song metadata comes from **[Chosic Spotify Playlist Analyzer](https://www.chosic.com//spotify-playlist-analyzer/)** — export CSV, paste into `Spotify Source.xlsx`, run `CFLU_Pool_Build.py` (or restart via `CFLU_Start.bat`).
+Song metadata comes from **[Chosic Spotify Playlist Analyzer](https://www.chosic.com//spotify-playlist-analyzer/)** — export CSV and place it in the `Playlists/` subfolder.
+
+`CFLU_Start.bat` (or `CFLU_Pool_Build.py` manually) picks up all CSVs in `Playlists/`, deduplicates by Spotify Track ID, and regenerates `cflu_tracks.js` automatically on every start.
 
 ---
+
+## Components
+
+| Kürzel | Name | Pfad | Beschreibung |
+|--------|------|------|--------------|
+| **PLB** | Pool Builder | `CFLU_Pool_Build.py` | Python ETL-Pipeline: liest `Playlists/*.csv`, generiert `cflu_tracks.js` |
+| **WOD** | WOD Generator | `CFLU_WOD_Builder.html` + `js/` | Haupt-App: Playlist-Logik, Scoring, UI, Spotify-Export |
+| **TRK** | Track Store | `cflu_tracks.js` | Auto-generierter Track-Pool (nicht manuell editieren) |
+| **TST** | Test Suite | `CFLU_Tests.html` | Browser-Test-Suite (160 Tests / 21 Suiten) |
 
 ## File Overview
 
 ```
-CFLU_WOD_Builder.html   ← Main UI (markup only)
-cflu_tracks.js          ← Auto-generated track pool (~874 KB, gitignored after rebuild)
-CFLU_Tests.html         ← Browser test suite (160 tests)
+CFLU_WOD_Builder.html   ← [WOD] Main UI (markup only)
+cflu_tracks.js          ← [TRK] Auto-generated track pool (gitignored after rebuild)
+CFLU_Tests.html         ← [TST] Browser test suite (160 tests)
 CFLU_Start.bat          ← Windows launcher
-CFLU_Pool_Build.py      ← Pool builder (xlsx → cflu_tracks.js)
+CFLU_Pool_Build.py      ← [PLB] Pool builder (Playlists/*.csv → cflu_tracks.js)
 CLAUDE.md               ← Workflow rules for Claude Code sessions
-BACKLOG.md              ← Feature requests & bugs
 css/cflu_style.css
-js/                     ← ES modules: config · state · utils · algorithm · chart · spotify · app
+js/                     ← [WOD] ES modules: config · state · utils · algorithm · chart · spotify · app
 docs/PROJECT.md         ← Architecture & ADR decisions
 docs/CHANGELOG.md       ← Version history
 ```

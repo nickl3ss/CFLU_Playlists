@@ -20,16 +20,17 @@
 ```
 /
 ├── CLAUDE.md                   # Diese Datei – Regeln & Workflow
-├── BACKLOG.md                  # Feature Requests & Bugs (Source of Truth)
 ├── docs/
-│   └── PROJECT.md              # Projektdokumentation & umgesetzte Items
+│   ├── PROJECT.md              # Projektdokumentation & umgesetzte Items
+│   ├── CHANGELOG.md            # Versionshistorie
+│   └── BACKLOG_archive.md      # Archiviertes Backlog (nicht mehr aktiv)
 ├── .github/
 │   └── ISSUE_TEMPLATE/
 │       └── backlog-item.md
-├── CFLU_WOD_Builder.html       # Haupt-UI (Markup only)
-├── CFLU_Tests.html             # Browser-Test-Suite (manuell öffnen)
-├── cflu_tracks.js              # Auto-generierter Track-Pool (nicht manuell editieren)
-├── CFLU_Pool_Build.py          # Pool-Builder (liest xlsx, schreibt cflu_tracks.js)
+├── CFLU_WOD_Builder.html       # [WOD] Haupt-UI (Markup only)
+├── CFLU_Tests.html             # [TST] Browser-Test-Suite (manuell öffnen)
+├── cflu_tracks.js              # [TRK] Auto-generierter Track-Pool (nicht manuell editieren)
+├── CFLU_Pool_Build.py          # [PLB] Pool-Builder (liest Playlists/*.csv, schreibt cflu_tracks.js)
 ├── CFLU_Start.bat              # Windows Launcher
 ├── css/
 │   └── cflu_style.css
@@ -45,16 +46,42 @@
 
 ### Komponenten
 
-| ID | Name | Pfad | Beschreibung |
-|----|------|------|--------------|
-| C1 | Pool Builder | `CFLU_Pool_Build.py` | Liest Excel, generiert cflu_tracks.js |
-| C2 | WOD Builder UI | `CFLU_WOD_Builder.html` | Haupt-UI, Playlist-Logik, Spotify-Export |
-| C3 | Track Data | `cflu_tracks.js` | Generierter Track-Pool (nicht manuell editieren) |
-| C4 | Tests | `CFLU_Tests.html` | Manuelle Testseite |
+| Kürzel | Name | Pfad | Beschreibung |
+|--------|------|------|--------------|
+| **PLB** | Pool Builder | `CFLU_Pool_Build.py` | Python ETL-Pipeline: liest `Playlists/*.csv`, generiert `cflu_tracks.js` |
+| **WOD** | WOD Generator | `CFLU_WOD_Builder.html` + `js/` | Haupt-App: Playlist-Logik, Scoring, UI, Spotify-Export |
+| **TRK** | Track Store | `cflu_tracks.js` | Auto-generierter Track-Pool (nicht manuell editieren) |
+| **TST** | Test Suite | `CFLU_Tests.html` | Browser-Test-Suite (160 Tests / 21 Suiten) |
 
 ---
 
 ## Workflow
+
+> **Source of Truth: GitHub Issues** (https://github.com/nickl3ss/CFLU_Playlists/issues)
+> `BACKLOG.md` ist archiviert — nicht mehr verwenden.
+
+### Issue-Format
+
+**Titel:** `[KÜRZEL] Kurzbeschreibung` — z.B. `[WOD] pickNext() Phase 3.5`
+**Labels:** Typ-Label (`bug` / `enhancement` / `documentation`) + Priorität (`P1`–`P4`)
+**Komponenten-Kürzel:** `PLB` · `WOD` · `TRK` · `TST` (mehrere: `[WOD, TST]`)
+
+**Body-Template:**
+```
+| Feld | Wert |
+|------|------|
+| Komponente | WOD |
+| Priorität | P2 |
+| Erstellt | YYYY-MM-DD |
+
+**Beschreibung:**
+...
+
+**Algorithmus:** (optional)
+1. ...
+
+Akzeptanzkriterium: ...
+```
 
 ### A · Neue Anfrage
 1. Anfrage analysieren.
@@ -63,22 +90,20 @@
 4. Nach Antwort → Schritt B.
 
 #### A3-Quick · Sofortiger Einstieg für kleine Änderungen
-1. **Grund erfragen:** Eine kurze Frage nach der Motivation stellen — z.B. "Warum wird das entfernt / geändert?" — und Antwort abwarten.
-2. BL-Item vom Typ `Issue` anlegen (kein Vorschau-Schritt, keine weitere Bestätigung nötig):
-   - Minimales Format: Titel, Typ, Priorität, Datum, **Grund** als einzeiliger `Beschreibung`-Eintrag.
-3. GitHub Issue anlegen (`gh issue create`).
-4. Direkt zu **Schritt D** (Implementierung).
+1. **Grund erfragen:** Eine kurze Frage nach der Motivation stellen und Antwort abwarten.
+2. GitHub Issue anlegen (`gh issue create`) mit minimalem Body: Komponente, Priorität, Datum, Grund als einzeiliger Beschreibung.
+3. Direkt zu **Schritt D** (Implementierung).
 
-### B · Backlog-Segmentierung
-1. Anfrage in atomare Backlog-Items zerlegen.
-2. Items mit Format aus `BACKLOG.md` präsentieren (Vorschau, noch nicht schreiben).
-3. **Nutzer bestätigt** → Items in `BACKLOG.md` schreiben + GitHub Issues anlegen.
+### B · Issue-Segmentierung
+1. Anfrage in atomare Issues zerlegen.
+2. Issues als Vorschau präsentieren (Titel + Labels + Body-Entwurf).
+3. **Nutzer bestätigt** → GitHub Issues anlegen (`gh issue create`).
 
 ### C · Priorisierung
-1. Top-3 Items nach Priorität vorschlagen (Begründung: 1 Satz je Item).
-2. Nutzer bestätigt oder nennt alternative Item-IDs.
+1. Top-3 Issues nach Priorität vorschlagen (Begründung: 1 Satz je Issue).
+2. Nutzer bestätigt oder nennt alternative Issue-Nummern.
 
-### D · Implementierung (je Item)
+### D · Implementierung (je Issue)
 Reihenfolge einhalten:
 1. Änderung implementieren – Scope bestimmt Datei: `js/` · `css/` · HTML · Python.
 2. `CFLU_Tests.html` öffnen und prüfen ob bestehende Tests noch grün sind.
@@ -86,20 +111,18 @@ Reihenfolge einhalten:
    - Ausnahme: Tests, die durch die gewollte Änderung absichtlich brechen → ignorieren und im Commit-Message dokumentieren.
    - Nach 2 fehlgeschlagenen Iterationen: stoppen, Nutzer mit Fehlerbeschreibung informieren und auf Commit-Entscheidung warten.
 3. `CFLU_Tests.html` – Testklassen aktualisieren / neu anlegen.
-4. Nutzer zum Test auffordern und abwarten bevor weiter gemacht wird. Sollten fehler gemeldet werden diese als Issues mit Referenz zum BacklogItem erfassen und in der aktuellen Implementierung als subitem bearbeiten. --> zurück zu D 1.
-5. `docs/CHANGELOG.md` – Eintrag hinzufügen (BL-ID, Titel, Datum, Commit).
-6. `BACKLOG.md` – Item als `[x] DONE` flaggen.
-7. GitHub Issue schließen (`gh issue close <id>`).
-8. Vollzug melden: Item-ID, geänderte Dateien, Testergebnis.
+4. Nutzer zum Test auffordern und abwarten. Gemeldete Fehler als neue Issues mit Referenz auf das aktuelle Issue erfassen → zurück zu D 1.
+5. `docs/CHANGELOG.md` – Eintrag hinzufügen (Issue-#, Titel, Datum, Commit).
+6. GitHub Issue schließen (`gh issue close <nr> --reason "completed"`).
+7. Vollzug melden: Issue-#, geänderte Dateien, Testergebnis.
 
 ---
 
-## Backlog-Regeln
-- Items **niemals löschen** – nur als `DONE` flaggen.
-- IDs sind permanent und eindeutig (`BL-001`, `BL-002`, …).
+## Issue-Regeln
+- Issues **niemals löschen** — nur schließen.
 - Priorität: `P1` (kritisch) · `P2` (hoch) · `P3` (normal) · `P4` (nice-to-have).
-- Typ: `Feature` · `Bug` · `Issue` (kleine Änderung/Quickfix) · `Chore` (Wartung/Refactor).
-- DONE-Items wandern in `docs/CHANGELOG.md`, Abschnitt **Changelog**.
+- Typ-Labels: `bug` · `enhancement` · `documentation` · `wontfix`
+- Abgeschlossene Issues wandern als Eintrag in `docs/CHANGELOG.md`.
 
 ---
 

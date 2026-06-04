@@ -48,6 +48,26 @@ Der Hover-Tooltip im BPM-Verlauf-Chart kürzt Song-Namen auf 20 Zeichen. Akzepta
 
 ---
 
+### BL-022 · Hardcoded Track-Pool-Größe in UI-Strings durch dynamischen Wert ersetzen
+| Feld | Wert |
+|------|------|
+| Typ | Bug |
+| Komponente | C2 |
+| Priorität | P3 |
+| GitHub Issue | #1 |
+| Erstellt | 2026-06-04 |
+
+**Beschreibung:**
+In `CFLU_WOD_Builder.html` sind an zwei Stellen feste Track-Zahlen hardcoded statt dynamisch aus `TRACK_DATA.length` berechnet zu werden. Die Werte veralten nach jedem Pool-Rebuild.
+
+Fundstellen:
+- **Zeile 131:** `placeholder="Alle 3.314 Tracks durchsuchen..."` — sollte `TRACK_DATA.tracks.length` nutzen (gesetzt beim Init via JS)
+- **Zeile 291:** `3.314 Tracks · 13 Genre-Gruppen · v4.0` — Footer-Label im Empty-State, sollte ebenfalls dynamisch befüllt werden
+
+Fix: Beide Stellen beim App-Init (`js/app.js`) dynamisch mit dem aktuellen `TRACK_DATA.tracks.length` befüllen statt feste Zahl im HTML.
+
+---
+
 ### BL-016 · pickNext() Phase 3.5 — Camelot/Energy-Relaxierung vor BPM-Eskalation
 | Feld | Wert |
 |------|------|

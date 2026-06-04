@@ -2,7 +2,7 @@
 
 ## Projektübersicht
 
-Lokaler, regelbasierter Playlist-Generator für alle vier Phasen eines CrossFit-Trainings (Whiteboard, Skill, WOD, Cool-Down). Auf Basis von 3.313 Spotify-Tracks erstellt der Builder phasenoptimierte Playlists mit Camelot-Kompatibilität, BPM-Steuerung, Audio-Preview und direktem Spotify-Export — alles lokal ohne Backend, betrieben via Python HTTP-Server. Entwickelt und genutzt für CrossFit Ludwigshafen.
+Lokaler, regelbasierter Playlist-Generator für alle vier Phasen eines CrossFit-Trainings (Whiteboard, Skill, WOD, Cool-Down). Auf Basis des aktuellen Track-Pools erstellt der Builder phasenoptimierte Playlists mit Camelot-Kompatibilität, BPM-Steuerung, Audio-Preview und direktem Spotify-Export — alles lokal ohne Backend, betrieben via Python HTTP-Server. Entwickelt und genutzt für CrossFit Ludwigshafen.
 
 ---
 
@@ -14,7 +14,7 @@ Lokaler, regelbasierter Playlist-Generator für alle vier Phasen eines CrossFit-
 |----|------|------|---------------|
 | C1 | Pool Builder | `CFLU_Pool_Build.py` | Liest `Spotify_Source.xlsx`, bereinigt Duplikate, klassifiziert Genres, schreibt `cflu_tracks.js` |
 | C2 | WOD Builder UI | `CFLU_WOD_Builder.html` + `js/` + `css/` | Haupt-UI: Song-Auswahl, Playlist-Generierung, BPM-Chart, Spotify-Export |
-| C3 | Track Data | `cflu_tracks.js` | Auto-generierter Track-Pool (3.313 Tracks, ~874 KB, non-module global `TRACK_DATA`) |
+| C3 | Track Data | `cflu_tracks.js` | Auto-generierter Track-Pool (non-module global `TRACK_DATA`) |
 | C4 | Tests | `CFLU_Tests.html` | Browser-Test-Suite (160 Tests, 21 Suiten, importiert echte JS-Module) |
 
 ### JS-Module (C2 intern)
@@ -52,7 +52,7 @@ app.js (importiert alle Module, verdrahtet Events)
 | # | Entscheidung | Begründung | Datum |
 |---|-------------|------------|-------|
 | 1 | Vanilla ES-Module, kein Build-System | Kein Node.js benötigt; direkter Browser-Import via Python http.server; maximale Transparenz | 2024 |
-| 2 | `cflu_tracks.js` als non-module global `<script>` | ~874 KB Track-Pool; non-module erlaubt lazy Zugriff aus ES-Modulen ohne Top-Level-Import; importierbar in Tests ohne echte Daten | 2025 |
+| 2 | `cflu_tracks.js` als non-module global `<script>` | Track-Pool; non-module erlaubt lazy Zugriff aus ES-Modulen ohne Top-Level-Import; importierbar in Tests ohne echte Daten | 2025 |
 | 3 | Spotify PKCE ohne Backend | Kein Server nötig; Client ID bleibt lokal; Development Mode reicht für Einzelnutzer | 2024 |
 | 4 | Python `http.server` als lokaler Server | Kein Setup; Spotify OAuth benötigt `http://`-Redirect (kein `file://`) | 2024 |
 | 5 | cflu_tracks.js im Repo (obwohl generiert) | Vollständige Nutzbarkeit nach Clone ohne Pool-Rebuild-Pflicht; nach xlsx-Update neu committen | 2025 |
