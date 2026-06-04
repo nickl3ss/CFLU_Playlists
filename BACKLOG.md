@@ -3,6 +3,7 @@
 > Source of Truth. Sync → GitHub Issues.
 > Format: `[ ] OPEN` · `[~] IN PROGRESS` · `[x] DONE`
 > Priorität: P1 kritisch · P2 hoch · P3 normal · P4 nice-to-have
+> Typ: `Feature` · `Bug` · `Issue` (Quickfix/kleine Änderung) · `Chore`
 
 ---
 
@@ -206,6 +207,18 @@ Pflicht-Klassifikation:
 **Ausgabe-Log:** CSVs gelesen · Tracks extrahiert · Quelldoubletten gefiltert · Tracks neu (append) · Tracks aktualisiert (overwrite) · Tracks gesperrt (locked, skip) · Tracks verworfen (Pflichtfeld fehlt) · Tracks gesamt.
 
 Akzeptanzkriterium: CSV überschreibt bestehende Tracks (locked=0) vollständig; locked=1 schützt Track vor Änderung; neue Tracks erhalten locked=0; alle bestehenden Tracks erhalten locked=0 bei erstem Run; alle 28 Felder (27 + `locked`) korrekt; `stats` neu berechnet; `CFLU_Start.bat` triggert via CSV-Check; keine xlsx-Abhängigkeit; bestehende Tests grün.
+
+---
+
+### [x] BL-021 · Audio-Preview aus Playlist-Darstellung entfernen
+| Feld | Wert |
+|------|------|
+| Typ | Issue |
+| Komponente | C2 |
+| Priorität | P3 |
+| GitHub Issue | – |
+| Erstellt | 2026-06-04 |
+| Abgeschlossen | 2026-06-04 |
 
 ---
 

@@ -17,4 +17,4 @@
 | BL-013 | v4.3: Startup Login Modal (auto-vorausgefüllt, abbrechbar, ESC/Backdrop), Generierungs-Log (kopierbares Textfeld, Einstellungen/Pool/Track-Entscheidungen/Zusammenfassung), tolDefault phasenspezifisch (A=±10/B=±25/C=±35/D=±20), Toleranz-Slider max=40, Chosic als Datenbasis-Quelle dokumentiert, 160 Tests / 21 Suiten | 2026-06 | 01db4cf |
 | BL-014 | chore: Methodik-Workflow integriert (CLAUDE.md, BACKLOG.md, docs/PROJECT.md, .github/ISSUE_TEMPLATE) | 2026-06-04 | b941e3f |
 | BL-015 | v5.0: Methodik-Workflow aktiviert — .gitignore korrigiert (war ohne Punkt, nie aktiv), README aktualisiert, BACKLOG.md mit BL-001–BL-003 befüllt | 2026-06-04 | 0445470 |
-| — | UI: Audio-Preview entfernt — Play-Button, tr-play-Spalte, preview-audio-Element und playPreview-Funktion aus Playlist-Darstellung entfernt | 2026-06-04 | — |
+| BL-021 | UI: Audio-Preview entfernt — Play-Button, tr-play-Spalte, preview-audio-Element und playPreview-Funktion aus Playlist-Darstellung entfernt | 2026-06-04 | d8ce96f |

@@ -58,8 +58,15 @@
 
 ### A · Neue Anfrage
 1. Anfrage analysieren.
-2. Offene Annahmen als nummerierte Fragen stellen – **eine Runde, dann warten**.
-3. Nach Antwort → Schritt B.
+2. **Kleine Änderung?** (einzelne UI-Anpassung, Entfernung, Umbenennung, Quickfix ohne Designentscheidung) → direkt zu **Schritt A3-Quick**.
+3. Offene Annahmen als nummerierte Fragen stellen – **eine Runde, dann warten**.
+4. Nach Antwort → Schritt B.
+
+#### A3-Quick · Sofortiger Einstieg für kleine Änderungen
+1. BL-Item vom Typ `Issue` **sofort anlegen** (kein Vorschau-Schritt, keine Bestätigung nötig):
+   - Minimales Format: Titel, Typ, Priorität, Datum — keine ausführliche Beschreibung nötig.
+2. GitHub Issue anlegen (`gh issue create`).
+3. Direkt zu **Schritt D** (Implementierung).
 
 ### B · Backlog-Segmentierung
 1. Anfrage in atomare Backlog-Items zerlegen.
@@ -90,6 +97,7 @@ Reihenfolge einhalten:
 - Items **niemals löschen** – nur als `DONE` flaggen.
 - IDs sind permanent und eindeutig (`BL-001`, `BL-002`, …).
 - Priorität: `P1` (kritisch) · `P2` (hoch) · `P3` (normal) · `P4` (nice-to-have).
+- Typ: `Feature` · `Bug` · `Issue` (kleine Änderung/Quickfix) · `Chore` (Wartung/Refactor).
 - DONE-Items wandern in `docs/CHANGELOG.md`, Abschnitt **Changelog**.
 
 ---
