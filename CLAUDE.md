@@ -63,10 +63,11 @@
 4. Nach Antwort → Schritt B.
 
 #### A3-Quick · Sofortiger Einstieg für kleine Änderungen
-1. BL-Item vom Typ `Issue` **sofort anlegen** (kein Vorschau-Schritt, keine Bestätigung nötig):
-   - Minimales Format: Titel, Typ, Priorität, Datum — keine ausführliche Beschreibung nötig.
-2. GitHub Issue anlegen (`gh issue create`).
-3. Direkt zu **Schritt D** (Implementierung).
+1. **Grund erfragen:** Eine kurze Frage nach der Motivation stellen — z.B. "Warum wird das entfernt / geändert?" — und Antwort abwarten.
+2. BL-Item vom Typ `Issue` anlegen (kein Vorschau-Schritt, keine weitere Bestätigung nötig):
+   - Minimales Format: Titel, Typ, Priorität, Datum, **Grund** als einzeiliger `Beschreibung`-Eintrag.
+3. GitHub Issue anlegen (`gh issue create`).
+4. Direkt zu **Schritt D** (Implementierung).
 
 ### B · Backlog-Segmentierung
 1. Anfrage in atomare Backlog-Items zerlegen.
