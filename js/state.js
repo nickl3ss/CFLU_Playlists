@@ -4,6 +4,7 @@ export const state = {
   currentPhase: 'C',
   selMode: 'filter',
   selectedTrack: null,
+  poolGenre: '',
   position: 'start',
   maxJump: 10,
   bpmTol: 5,

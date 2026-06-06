@@ -169,7 +169,7 @@ function onPhaseSelect(phase) {
 }
 
 function checkPoolAndWarn() {
-  const genre = document.getElementById('genre-sel').value;
+  const genre = state.poolGenre || document.getElementById('genre-sel').value;
   const pool = getPhasePool(genre, state.currentPhase);
   const warn = document.getElementById('pool-warn');
   if (pool.length < MIN_POOL_SIZE) {
@@ -189,11 +189,14 @@ function setSelMode(m) {
     document.getElementById('tab-' + x).classList.toggle('active', x === m);
     document.getElementById('sel-' + x).classList.toggle('section-hidden', x !== m);
   });
-  document.getElementById('genre-sel').disabled = false;
 }
 
 // ===== GENRE & BPM FILTER =====
-function onGenreChange() { updateFilterList(); }
+function onGenreChange() {
+  state.poolGenre = document.getElementById('genre-sel').value;
+  updatePoolGenreBadge();
+  updateFilterList();
+}
 
 function onBpmSlider(el) {
   const c = updateSliderStyle(el, BPM_STOPS, 60, 220);
@@ -244,8 +247,7 @@ function onDirectSearch() {
   const sel = document.getElementById('direct-list');
   sel.innerHTML = '';
   if (q.length < 2) { document.getElementById('direct-count').textContent = 'Mind. 2 Zeichen eingeben'; return; }
-  const activeGenre = document.getElementById('genre-sel').value;
-  const genrePool = activeGenre === 'Going Wild' ? getPool('Going Wild') : getPool(activeGenre);
+  const genrePool = getPool('Going Wild');
   let res = genrePool.filter(t =>
     (t.song.toLowerCase().includes(q) || t.artist.toLowerCase().includes(q)) &&
     t.energy >= state.wodEnergyMin && t.energy <= state.wodEnergyMax
@@ -282,12 +284,32 @@ function onLinkInput() {
   } else {
     document.getElementById('link-status').textContent = 'Nicht in Pool — bitte Daten eingeben';
     document.getElementById('link-manual').classList.remove('section-hidden');
-    const ext = {id: tid, song: '[Externer Track]', artist: '', bpm: 0, camelot: '', energy: 0, dur: 210, genre: 'Going Wild', bpmg: 'D', external: true};
+    document.getElementById('manual-genre').value = '';
+    state.poolGenre = '';
+    updatePoolGenreBadge();
+    const ext = {id: tid, song: '[Externer Track]', artist: '', bpm: 0, camelot: '', energy: 0, dur: 210, genre: '', bpmg: 'D', external: true};
     selectTrack(ext, true);
   }
 }
 
+function onManualGenreChange() {
+  state.poolGenre = document.getElementById('manual-genre').value;
+  updatePoolGenreBadge();
+  updateGenBtn();
+}
+
 // ===== TRACK SELECT =====
+function updatePoolGenreBadge() {
+  const el = document.getElementById('sel-pool-genre');
+  if (!el) return;
+  if (state.poolGenre) {
+    el.textContent = 'Pool: ' + state.poolGenre;
+    el.style.display = '';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
 function onTrackSelect(sel, mode) {
   const opt = sel.options[sel.selectedIndex];
   if (!opt) return;
@@ -317,9 +339,8 @@ function selectTrack(t, external = false) {
   embed.src           = hasId ? 'https://open.spotify.com/embed/track/' + state.selectedTrack.id + '?utm_source=generator&theme=0' : '';
   embed.style.display  = hasId ? 'block' : 'none';
   document.getElementById('selected-display').classList.remove('section-hidden');
-  const gs = document.getElementById('genre-sel');
-  const match = [...gs.options].find(o => o.value === t.genre);
-  if (match) { gs.value = t.genre; gs.disabled = !external; }
+  state.poolGenre = external ? '' : (t.genre || '');
+  updatePoolGenreBadge();
   enableSteps();
   updateAmpel();
   updateGenBtn();
@@ -544,7 +565,8 @@ function generatePlaylist() {
 
 function _gen() {
   if (!state.selectedTrack || state.selectedTrack.bpm <= 0) { alert('Bitte Song wählen.'); return; }
-  const genre = document.getElementById('genre-sel').value;
+  if (!state.poolGenre) { alert('Bitte Pool-Genre wählen.'); return; }
+  const genre = state.poolGenre;
   const pool = getPhasePoolWithNeighbours(genre, state.currentPhase);
   const targetSec = state.wodMinutes * 60;
   const usedIds = new Set(), usedTitleKeys = new Set(), usedArtists = new Map();
@@ -759,6 +781,7 @@ function init() {
   document.getElementById('direct-list').addEventListener('change', e => onTrackSelect(e.target, 'direct'));
   // Spotify link
   document.getElementById('link-input').addEventListener('input', onLinkInput);
+  document.getElementById('manual-genre').addEventListener('change', onManualGenreChange);
   // Position chips
   ['start','end','mid','plateau'].forEach(p =>
     document.getElementById('pos-' + p).addEventListener('click', () => setPosition(p))
@@ -801,6 +824,9 @@ function init() {
   // Init slider styles
   updateSliderStyle(document.getElementById('bpm-slider'), BPM_STOPS, 60, 220);
   updateSliderStyle(document.getElementById('jump-slider'), JUMP_STOPS, 5, 20);
+
+  // Init pool genre from filter default
+  state.poolGenre = document.getElementById('genre-sel').value;
 
   // Default phase
   onPhaseSelect('C');
