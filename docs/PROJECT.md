@@ -22,7 +22,7 @@ Lokaler, regelbasierter Playlist-Generator für alle vier Phasen eines CrossFit-
 | Modul | Verantwortung |
 |-------|---------------|
 | `js/config.js` | Konstanten: PHASE_CONFIG, GENRE_NEIGHBOURS, BPM_RANGES, Farb-Stops |
-| `js/state.js` | Mutabler App-Zustand (currentPhase, selectedTrack, Token, …) |
+| `js/state.js` | Mutabler App-Zustand (currentPhase, selectedTrack, poolGenre, Token, …) |
 | `js/utils.js` | Pure Helpers: bpmGroup, camCompat, calcPhaseScore, lerpColor, … |
 | `js/algorithm.js` | Kern: pickNext, buildUp, buildDown, buildPlateau, buildDecreasing |
 | `js/chart.js` | BPM-Step-Chart + bidirektionale Hover-Synchronisation |
@@ -56,6 +56,8 @@ app.js (importiert alle Module, verdrahtet Events)
 | 3 | Spotify PKCE ohne Backend | Kein Server nötig; Client ID bleibt lokal; Development Mode reicht für Einzelnutzer | 2024 |
 | 4 | Python `http.server` als lokaler Server | Kein Setup; Spotify OAuth benötigt `http://`-Redirect (kein `file://`) | 2024 |
 | 5 | cflu_tracks.js im Repo (obwohl generiert) | Vollständige Nutzbarkeit nach Clone ohne Pool-Rebuild-Pflicht; nach xlsx-Update neu committen | 2025 |
+| 6 | state.poolGenre als SSOT für Generations-Pool-Genre | genre-sel steuert nur Filter-Modus; Direktsuche und Spotify-Link setzen poolGenre aus t.genre; externer Track: manueller Dropdown | 2026-06-06 |
+| 7 | Direktsuche ohne Camelot-/Energy-Filter | Referenz-Song-Auswahl soll nicht durch Generierungs-Filter eingeschränkt werden; Filter-Modus hat eigene gefilterte Liste | 2026-06-06 |
 
 ---
 
