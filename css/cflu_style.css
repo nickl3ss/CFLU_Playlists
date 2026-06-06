@@ -172,7 +172,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
 .gen-log-copy:hover{border-color:var(--acc);color:var(--acc)}
 
 /* ===== RIGHT PANEL ===== */
-.right-panel{position:fixed;right:0;top:0;width:340px;height:100vh;background:var(--bg2);border-left:1px solid var(--border);transform:translateX(100%);transition:transform .25s ease;z-index:200;display:flex;flex-direction:column;overflow:hidden}
+.right-panel{position:fixed;right:0;top:0;width:340px;height:100vh;background:var(--bg2);border-left:1px solid var(--border);transform:translateX(100%);transition:transform .25s ease;z-index:200;display:flex;flex-direction:column}
 .right-panel--open{transform:translateX(0)}
 .rp-tab{position:absolute;left:-33px;top:50%;transform:translateY(-50%);width:33px;height:64px;background:var(--bg2);border:1px solid var(--border);border-right:none;border-radius:8px 0 0 8px;color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;transition:color .15s,background .15s;padding:0}
 .rp-tab:hover{color:var(--text);background:var(--bg3)}

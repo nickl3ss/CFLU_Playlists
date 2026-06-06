@@ -276,6 +276,12 @@
       <button class="gen-btn" id="gen-btn" disabled>▶ Playlist generieren</button>
     </div>
 
+    <!-- SPOTIFY EXPORT -->
+    <div class="sb-section">
+      <button class="sp-btn" id="sp-export-btn" style="width:100%;display:none">Playlist exportieren →</button>
+      <div class="sp-status" id="sp-status"></div>
+    </div>
+
   </div><!-- end sb-scroll -->
 </aside>
 
@@ -339,8 +345,8 @@
   <button class="rp-tab" id="rp-tab" aria-label="Einstellungen">⚙</button>
   <div class="rp-scroll">
 
-    <!-- SPOTIFY -->
-    <div class="sb-label" style="margin-bottom:12px">Spotify Export</div>
+    <!-- SPOTIFY VERBINDUNG -->
+    <div class="sb-label" style="margin-bottom:12px">Spotify Verbindung</div>
     <div class="sp-instructions">
       <strong style="color:var(--text);font-size:.78rem">Einmalige Einrichtung:</strong><br>
       1. <a href="https://developer.spotify.com/dashboard" target="_blank" style="color:var(--acc)">developer.spotify.com/dashboard</a> öffnen<br>
@@ -357,8 +363,6 @@
       <button class="sp-btn" id="sp-connect-btn">Verbinden</button>
     </div>
     <div class="sp-connected" id="sp-connected">✓ Verbunden: <span id="sp-user"></span></div>
-    <button class="sp-btn" id="sp-export-btn" style="width:100%;display:none">Playlist exportieren →</button>
-    <div class="sp-status" id="sp-status"></div>
 
   </div>
 </aside>
