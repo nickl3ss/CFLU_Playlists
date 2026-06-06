@@ -249,13 +249,11 @@ function onDirectSearch() {
   if (q.length < 2) { document.getElementById('direct-count').textContent = 'Mind. 2 Zeichen eingeben'; return; }
   const genrePool = getPool('Going Wild');
   let res = genrePool.filter(t =>
-    (t.song.toLowerCase().includes(q) || t.artist.toLowerCase().includes(q)) &&
-    t.energy >= state.wodEnergyMin && t.energy <= state.wodEnergyMax
+    t.song.toLowerCase().includes(q) || t.artist.toLowerCase().includes(q)
   ).sort((a, b) => {
     const ps = calcPhaseScore(b, state.currentPhase) - calcPhaseScore(a, state.currentPhase);
     return ps || a.bpm - b.bpm;
-  });
-  res = applyCamFilter(res).slice(0, 80);
+  }).slice(0, 80);
   res.forEach(t => {
     const ps = calcPhaseScore(t, state.currentPhase);
     const o = document.createElement('option');
