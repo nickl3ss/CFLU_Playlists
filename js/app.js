@@ -713,6 +713,7 @@ function renderResult(genre, wod, cd, warns, logText) {
     row.addEventListener('mouseleave', () => clearHighlight());
   });
 
+  if (state.spToken) document.getElementById('sp-export-btn').style.display = 'block';
   if (state.spToken) document.getElementById('sp-export-btn2').style.display = 'block';
 
   document.getElementById('gen-log').value = logText || '';

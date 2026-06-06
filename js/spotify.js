@@ -62,7 +62,7 @@ export async function checkSpotifyCallback() {
       state.spUserId = me.id;
       document.getElementById('sp-user').textContent = me.display_name || me.id;
       document.getElementById('sp-connected').style.display = 'block';
-      document.getElementById('sp-export-btn').style.display = 'block';
+      if (state.generatedWod.length) document.getElementById('sp-export-btn').style.display = 'block';
       if (state.generatedWod.length) document.getElementById('sp-export-btn2').style.display = 'block';
       showStatus('✓ Verbunden!', 'info');
       sessionStorage.removeItem('pkce_v');
