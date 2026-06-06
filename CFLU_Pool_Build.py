@@ -448,6 +448,28 @@ def merge(transformed, existing):
     return list(merged.values()), count_new, count_updated
 
 
+# ===== POOL-CLEANUP =====
+def dedup_pool(tracks):
+    """Entfernt Titeldobbletten nach dem Merge.
+    Key: (artist.lower(), song.lower()) — song ist zu diesem Zeitpunkt bereits SUFFIX_RE-bereinigt.
+    Locked=1 hat Vorrang: locked-Tracks werden zuerst iteriert, damit sie nicht durch
+    ein früher im Pool stehendes locked=0-Duplikat verdrängt werden.
+    Rückgabe in Originalreihenfolge der behaltenen Tracks."""
+    locked_first = sorted(range(len(tracks)), key=lambda i: -tracks[i].get('locked', 0))
+    seen = {}
+    keep_ids = set()
+    for i in locked_first:
+        t = tracks[i]
+        key = (t['artist'].lower().strip(), t['song'].lower().strip())
+        if key not in seen:
+            seen[key] = t['id']
+            keep_ids.add(t['id'])
+
+    removed = len(tracks) - len(keep_ids)
+    print(f'  Doubletten entfernt: {removed}')
+    return [t for t in tracks if t['id'] in keep_ids]
+
+
 # ===== HAUPTFUNKTION =====
 def build():
     print()
@@ -470,6 +492,10 @@ def build():
     else:
         print('  Kein bestehender Pool — wird neu erstellt.')
     tracks, count_new, count_updated = merge(transformed, existing)
+
+    # C — Cleanup
+    print('\n[C] Cleanup')
+    tracks = dedup_pool(tracks)
 
     # Stats berechnen
     stats = compute_stats(tracks)
