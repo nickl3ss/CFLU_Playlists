@@ -28,4 +28,4 @@
 | #61 | feat(server): cflu_server.py — Custom HTTP-Server ersetzt python -m http.server; CFLUHandler(SimpleHTTPRequestHandler) mit POST-Routing; /api/upload-csv gibt 501 (Stub); CFLU_Start.bat angepasst | 2026-06-06 | 0aabfdf |
 | #62 | feat(etl): ETL importierbar — extract() liest Playlists/**/*.csv rekursiv; merge() gibt Tuple (tracks, new, updated); build() gibt (count_new, count_updated, total) zurück | 2026-06-06 | aca77d6 |
 | #71 | feat(etl): Pool-Cleanup — dedup_pool() entfernt Titeldobbletten nach Load; Key=(artist,song), locked=1 hat Vorrang; 554 Doubletten entfernt (4503→3949 Tracks) | 2026-06-06 | 466a40d |
-| #64 | feat(server): POST /api/upload-csv vollständig — JSON-Body, Sanitizing, WebUpload-Ordner, ETL-Trigger, JSON-Response mit added/updated/total; HTTP 400/500 Fehlerpfade | 2026-06-06 | – |
+| #64 | feat(server): POST /api/upload-csv vollständig — JSON-Body, Sanitizing, WebUpload-Ordner, ETL-Trigger, JSON-Response mit added/updated/total; HTTP 400/500 Fehlerpfade | 2026-06-06 | 2fddf60 |
