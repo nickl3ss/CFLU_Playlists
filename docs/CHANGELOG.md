@@ -22,5 +22,5 @@
 | #7  | feat(algorithm): Top-5-Zufallsauswahl in pickNext() + Carry-over — carryover[]-Parameter, Injektion nicht-roter Carry-Kandidaten vor Sort, Zufallspick aus top-5, buildUp thread carry; 6 neue Tests | 2026-06-04 | – |
 | BL-020 | C1: CSV-Direktimport — CFLU_Pool_Build.py auf ETL-Pipeline umgestellt (kein pandas/openpyxl); 40 CSVs aus Playlists/, Dedup per Spotify Track Id, 28 Felder inkl. locked; CFLU_Start.bat xlsx-Zweig entfernt; 3868 Tracks | 2026-06-04 | – |
 | #24 | fix(app): Selektions- und Pool-Genre-Logik entkoppelt — state.poolGenre als SSOT; Direktsuche durchsucht kompletten Pool; genre-sel nur noch Filter-Kontrolle; externer Link-Track erhält eigenen Genre-Dropdown; Pool-Badge in Selected-Display; #3 als Duplicate geschlossen | 2026-06-06 | c66dfa9 |
-| –   | fix(app): Direktsuche Sortierung — startsWith-Priorität entfernt, Sort nach Phase-Score + BPM; Song-Titel-Treffer gleichwertig zu Artist-Treffern | 2026-06-06 | b044e56 |
-| –   | fix(app): Direktsuche ignoriert Camelot- und Energy-Filter — Referenz-Song-Auswahl ohne Generierungs-Filter-Einschränkung | 2026-06-06 | 963eaed |
+| #67 | fix(app): Direktsuche Sortierung — startsWith-Priorität entfernt, Sort nach Phase-Score + BPM; Song-Titel-Treffer gleichwertig zu Artist-Treffern | 2026-06-06 | b044e56 |
+| #68 | fix(app): Direktsuche ignoriert Camelot- und Energy-Filter — Referenz-Song-Auswahl ohne Generierungs-Filter-Einschränkung | 2026-06-06 | 963eaed |

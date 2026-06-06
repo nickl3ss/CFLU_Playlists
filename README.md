@@ -67,7 +67,10 @@ Uses PKCE OAuth — no backend, Client ID never written to localStorage.
 | **D** | Cool-Down | 60–100 | Descending, recovery |
 
 1. **Pick a phase** — pre-fills BPM, tolerance, max-jump and energy range
-2. **Pick a reference song** — by genre/BPM, Direktsuche, or Spotify link; optional Tonart-Filter (Camelot key)
+2. **Pick a reference song** — three independent modes:
+   - **Genre & BPM** — filter by genre, BPM and Camelot key; selected track defines the generation pool
+   - **Direktsuche** — full-text search across the entire pool (all genres, no filter restrictions); selected track's genre defines the pool
+   - **Spotify-Link** — paste a track URL; if found in pool the genre is auto-detected; if external (not in pool), enter BPM/Camelot/Energy and choose pool genre manually
 3. **Set position** (B/C only): Start · Ende · Midpoint · Mid Plateau
 4. **Adjust settings** — WOD duration, max BPM jump, Cool-Down toggle
 5. **Generate** — BPM step chart + track list with Camelot dots, phase scores, preview and Spotify links
