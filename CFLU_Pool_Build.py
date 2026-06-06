@@ -203,8 +203,8 @@ def split_tags(s):
 # ===== E — EXTRACT =====
 def extract():
     """Liest alle Playlists/*.csv, gibt {spotify_id: raw_row} zurück (erster Fund gewinnt)."""
-    pattern = os.path.join(PLAYLISTS_DIR, '*.csv')
-    csv_files = sorted(glob.glob(pattern))
+    pattern = os.path.join(PLAYLISTS_DIR, '**', '*.csv')
+    csv_files = sorted(glob.glob(pattern, recursive=True))
     if not csv_files:
         raise FileNotFoundError(
             f'Keine CSV-Dateien in {PLAYLISTS_DIR}/ gefunden.'
@@ -445,7 +445,7 @@ def merge(transformed, existing):
     print(f'  Tracks gesperrt    : {count_locked}')
     print(f'  Tracks gesamt      : {len(merged)}')
 
-    return list(merged.values())
+    return list(merged.values()), count_new, count_updated
 
 
 # ===== HAUPTFUNKTION =====
@@ -469,7 +469,7 @@ def build():
         print(f'  Bestehende Tracks  : {len(existing)}')
     else:
         print('  Kein bestehender Pool — wird neu erstellt.')
-    tracks = merge(transformed, existing)
+    tracks, count_new, count_updated = merge(transformed, existing)
 
     # Stats berechnen
     stats = compute_stats(tracks)
@@ -489,6 +489,7 @@ def build():
     for g in sorted(gc, key=lambda x: -gc[x]):
         print(f'  {g}: {gc[g]}')
     print()
+    return (count_new, count_updated, len(tracks))
 
 
 if __name__ == '__main__':
