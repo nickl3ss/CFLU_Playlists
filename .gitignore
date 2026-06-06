@@ -43,6 +43,7 @@ Methodik/
 
 # Backup-Dateien
 *.bak
+archive/
 
 # Logs
 *.log
