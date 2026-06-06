@@ -131,7 +131,7 @@ echo.
 start "" /b cmd /c "ping 127.0.0.1 -n 3 >nul & start http://127.0.0.1:%PORT%/%HTML_FILE%"
 
 :: ---- Server starten -----------------------------------------
-%PYTHON% -m http.server %PORT% 2>&1
+%PYTHON% cflu_server.py %PORT% 2>&1
 set SERVER_EXIT=%errorlevel%
 
 echo.
