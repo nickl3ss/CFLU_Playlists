@@ -189,6 +189,7 @@ function setSelMode(m) {
     document.getElementById('tab-' + x).classList.toggle('active', x === m);
     document.getElementById('sel-' + x).classList.toggle('section-hidden', x !== m);
   });
+  document.getElementById('genre-sel').disabled = false;
 }
 
 // ===== GENRE & BPM FILTER =====
@@ -316,11 +317,9 @@ function selectTrack(t, external = false) {
   embed.src           = hasId ? 'https://open.spotify.com/embed/track/' + state.selectedTrack.id + '?utm_source=generator&theme=0' : '';
   embed.style.display  = hasId ? 'block' : 'none';
   document.getElementById('selected-display').classList.remove('section-hidden');
-  if (state.selMode === 'direct' || state.selMode === 'link') {
-    const gs = document.getElementById('genre-sel');
-    const match = [...gs.options].find(o => o.value === t.genre);
-    if (match) { gs.value = t.genre; gs.disabled = !external; }
-  }
+  const gs = document.getElementById('genre-sel');
+  const match = [...gs.options].find(o => o.value === t.genre);
+  if (match) { gs.value = t.genre; gs.disabled = !external; }
   enableSteps();
   updateAmpel();
   updateGenBtn();
