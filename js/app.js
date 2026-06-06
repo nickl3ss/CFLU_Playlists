@@ -840,6 +840,19 @@ function init() {
     }, 100);
   });
 
+  // Right panel toggle
+  const rpPanel = document.getElementById('right-panel');
+  const rpTab   = document.getElementById('rp-tab');
+  rpTab.addEventListener('click', e => {
+    e.stopPropagation();
+    rpPanel.classList.toggle('right-panel--open');
+  });
+  document.addEventListener('click', e => {
+    if (rpPanel.classList.contains('right-panel--open') && !rpPanel.contains(e.target)) {
+      rpPanel.classList.remove('right-panel--open');
+    }
+  });
+
   // Pre-fill Client ID from local file, then show login modal (unless OAuth callback)
   fetch('cflu_client_id.txt')
     .then(r => r.ok ? r.text() : null)

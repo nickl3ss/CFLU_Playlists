@@ -276,28 +276,6 @@
       <button class="gen-btn" id="gen-btn" disabled>▶ Playlist generieren</button>
     </div>
 
-    <!-- SPOTIFY -->
-    <div class="sb-section">
-      <div class="sb-label">Spotify Export</div>
-      <div class="sp-instructions">
-        <strong style="color:var(--text);font-size:.78rem">Einmalige Einrichtung:</strong><br>
-        1. <a href="https://developer.spotify.com/dashboard" target="_blank" style="color:var(--acc)">developer.spotify.com/dashboard</a> öffnen<br>
-        2. App erstellen &rarr; <em>Web API</em> als API-Typ wählen<br>
-        3. Settings &rarr; Redirect URI eintragen:<br>
-        <code>http://127.0.0.1:8888/CFLU_WOD_Builder.html</code><br>
-        4. Client ID aus den App-Settings kopieren<br><br>
-        <strong style="color:var(--text);font-size:.78rem">Pro Session:</strong><br>
-        Server starten: <code>python -m http.server 8888</code><br>
-        Browser: <code>http://127.0.0.1:8888/CFLU_WOD_Builder.html</code>
-      </div>
-      <div class="sp-row">
-        <input type="text" id="sp-cid" placeholder="Client ID..." autocomplete="off" style="font-family:'IBM Plex Mono',monospace;font-size:.72rem">
-        <button class="sp-btn" id="sp-connect-btn">Verbinden</button>
-      </div>
-      <div class="sp-connected" id="sp-connected">✓ Verbunden: <span id="sp-user"></span></div>
-      <button class="sp-btn" id="sp-export-btn" style="width:100%;display:none">Playlist exportieren →</button>
-      <div class="sp-status" id="sp-status"></div>
-    </div>
   </div><!-- end sb-scroll -->
 </aside>
 
@@ -356,6 +334,35 @@
 </main>
 </div>
 
+<!-- ===== RIGHT PANEL ===== -->
+<aside class="right-panel" id="right-panel">
+  <button class="rp-tab" id="rp-tab" aria-label="Einstellungen">⚙</button>
+  <div class="rp-scroll">
+
+    <!-- SPOTIFY -->
+    <div class="sb-label" style="margin-bottom:12px">Spotify Export</div>
+    <div class="sp-instructions">
+      <strong style="color:var(--text);font-size:.78rem">Einmalige Einrichtung:</strong><br>
+      1. <a href="https://developer.spotify.com/dashboard" target="_blank" style="color:var(--acc)">developer.spotify.com/dashboard</a> öffnen<br>
+      2. App erstellen &rarr; <em>Web API</em> als API-Typ wählen<br>
+      3. Settings &rarr; Redirect URI eintragen:<br>
+      <code>http://127.0.0.1:8888/CFLU_WOD_Builder.html</code><br>
+      4. Client ID aus den App-Settings kopieren<br><br>
+      <strong style="color:var(--text);font-size:.78rem">Pro Session:</strong><br>
+      Server starten: <code>python cflu_server.py</code><br>
+      Browser: <code>http://127.0.0.1:8888/CFLU_WOD_Builder.html</code>
+    </div>
+    <div class="sp-row">
+      <input type="text" id="sp-cid" placeholder="Client ID..." autocomplete="off" style="font-family:'IBM Plex Mono',monospace;font-size:.72rem">
+      <button class="sp-btn" id="sp-connect-btn">Verbinden</button>
+    </div>
+    <div class="sp-connected" id="sp-connected">✓ Verbunden: <span id="sp-user"></span></div>
+    <button class="sp-btn" id="sp-export-btn" style="width:100%;display:none">Playlist exportieren →</button>
+    <div class="sp-status" id="sp-status"></div>
+
+  </div>
+</aside>
+
 <!-- ===== STARTUP LOGIN MODAL ===== -->
 <div id="login-modal" class="modal-overlay" style="display:none">
   <div class="modal-box">
@@ -363,7 +370,7 @@
       <div class="modal-title">Mit Spotify verbinden</div>
       <button class="modal-close" id="modal-close-btn" aria-label="Schließen">✕</button>
     </div>
-    <p class="modal-desc">Verbinde jetzt mit Spotify, um Audio-Previews zu hören und die fertige Playlist direkt zu exportieren.<br>Die Verbindung kann auch später jederzeit über den Spotify-Bereich in der Seitenleiste hergestellt werden.</p>
+    <p class="modal-desc">Verbinde jetzt mit Spotify, um Audio-Previews zu hören und die fertige Playlist direkt zu exportieren.<br>Die Verbindung kann auch später jederzeit über das ⚙-Panel rechts hergestellt werden.</p>
     <div class="sp-row" style="margin-bottom:6px">
       <input type="text" id="modal-sp-cid" placeholder="Spotify Client ID..." autocomplete="off" style="font-family:'IBM Plex Mono',monospace;font-size:.78rem">
     </div>
