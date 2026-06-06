@@ -15,7 +15,7 @@ Lokaler, regelbasierter Playlist-Generator für alle vier Phasen eines CrossFit-
 | C1 | Pool Builder | `CFLU_Pool_Build.py` | Liest `Spotify_Source.xlsx`, bereinigt Duplikate, klassifiziert Genres, schreibt `cflu_tracks.js` |
 | C2 | WOD Builder UI | `CFLU_WOD_Builder.html` + `js/` + `css/` | Haupt-UI: Song-Auswahl, Playlist-Generierung, BPM-Chart, Spotify-Export |
 | C3 | Track Data | `cflu_tracks.js` | Auto-generierter Track-Pool (non-module global `TRACK_DATA`) |
-| C4 | Tests | `CFLU_Tests.html` | Browser-Test-Suite (160 Tests, 21 Suiten, importiert echte JS-Module) |
+| C4 | Tests | `js/cflu_tests.js` + `CFLU_Tests.html` | Kanonische Testklasse (dual-mode): `node js/cflu_tests.js` → stdout + Exit-Code; Browser: `CFLU_Tests.html` importiert und rendert. 160 Tests, 21 Suiten. |
 
 ### JS-Module (C2 intern)
 
@@ -58,6 +58,7 @@ app.js (importiert alle Module, verdrahtet Events)
 | 5 | cflu_tracks.js im Repo (obwohl generiert) | Vollständige Nutzbarkeit nach Clone ohne Pool-Rebuild-Pflicht; nach xlsx-Update neu committen | 2025 |
 | 6 | state.poolGenre als SSOT für Generations-Pool-Genre | genre-sel steuert nur Filter-Modus; Direktsuche und Spotify-Link setzen poolGenre aus t.genre; externer Track: manueller Dropdown | 2026-06-06 |
 | 7 | Direktsuche ohne Camelot-/Energy-Filter | Referenz-Song-Auswahl soll nicht durch Generierungs-Filter eingeschränkt werden; Filter-Modus hat eigene gefilterte Liste | 2026-06-06 |
+| 8 | Testklasse als dual-mode JS-Modul (`js/cflu_tests.js`) | Trennung von Test-Logik und HTML-Rendering: `js/cflu_tests.js` ist die kanonische Testklasse (importierbar von Node.js + Browser); `CFLU_Tests.html` ist nur noch ein Rendering-Shell (~90 Zeilen). Ermöglicht `node js/cflu_tests.js` ohne Browser/Server für Claude Code und CI. `package.json` mit `{"type":"module"}` aktiviert ES-Modul-Support in Node.js. | 2026-06-06 |
 
 ---
 

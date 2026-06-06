@@ -25,9 +25,15 @@
 | #67 | fix(app): Direktsuche Sortierung — startsWith-Priorität entfernt, Sort nach Phase-Score + BPM; Song-Titel-Treffer gleichwertig zu Artist-Treffern | 2026-06-06 | b044e56 |
 | #68 | fix(app): Direktsuche ignoriert Camelot- und Energy-Filter — Referenz-Song-Auswahl ohne Generierungs-Filter-Einschränkung | 2026-06-06 | 963eaed |
 | TST | refactor(test): dual-mode Testklasse — js/cflu_tests.js (kanonisch, Node.js + Browser-Export), CFLU_Tests.html als Rendering-Shell; package.json {"type":"module"}; CLAUDE.md + PROJECT.md aktualisiert | 2026-06-06 | – |
+| #69 | fix(test): expect().not ergänzt — Mini-Test-Framework um vollständige .not-Chain erweitert; 166/166 Tests grün | 2026-06-06 | – |
 | #61 | feat(server): cflu_server.py — Custom HTTP-Server ersetzt python -m http.server; CFLUHandler(SimpleHTTPRequestHandler) mit POST-Routing; /api/upload-csv gibt 501 (Stub); CFLU_Start.bat angepasst | 2026-06-06 | 0aabfdf |
 | #62 | feat(etl): ETL importierbar — extract() liest Playlists/**/*.csv rekursiv; merge() gibt Tuple (tracks, new, updated); build() gibt (count_new, count_updated, total) zurück | 2026-06-06 | aca77d6 |
 | #71 | feat(etl): Pool-Cleanup — dedup_pool() entfernt Titeldobbletten nach Load; Key=(artist,song), locked=1 hat Vorrang; 554 Doubletten entfernt (4503→3949 Tracks) | 2026-06-06 | 466a40d |
 | #64 | feat(server): POST /api/upload-csv vollständig — JSON-Body, Sanitizing, WebUpload-Ordner, ETL-Trigger, JSON-Response mit added/updated/total; HTTP 400/500 Fehlerpfade | 2026-06-06 | 2fddf60 |
 | #63 | feat(wod): Rechtes Panel — aside#right-panel, .rp-tab Toggle-Button, CSS Slide-Animation; Spotify-Section aus Sidebar verschoben; Klick-außerhalb schließt Panel | 2026-06-06 | b5c07e5 |
 | #72 | fix(wod): Playlist exportieren nur nach Playlist-Generierung sichtbar — Guard in spotify.js + renderResult() analog sp-export-btn2 | 2026-06-06 | 1cd5743 |
+| #65 | feat(wod): CSV-Upload-UI im rechten Panel — js/upload.js (sanitizeFilename, extractPlaylistName, formatUploadSuccess); Datei-Picker, Pool-aktualisieren-Button, Reload-Button; CSS upload-drop/upload-status | 2026-06-06 | 00e08e2 |
+| #66 | test(upload): Upload-Test-Suite — sanitizeFilename (7 Tests), extractPlaylistName (5), formatUploadSuccess (5); 17 neue Tests; 183 gesamt | 2026-06-06 | cc1d165 |
+| #1  | fix(app): Pool-Größe und Genre-Anzahl dynamisch — getAllTracks().length + Object.keys(getGenreStats()).length in init(); Versionsnummer aus Footer entfernt; placeholder und #pool-info zur Laufzeit gesetzt | 2026-06-06 | – |
+| #70 | fix(spotify): sp_cid nach OAuth-Callback bereinigt — sessionStorage.removeItem('sp_cid') nach pkce_v; playPreview()/stopAllPreviews() Dead Code entfernt (BL-021); Invariante 2 in CLAUDE.md korrigiert | 2026-06-06 | – |
+| HYGE | chore: SE-Hygiene — package.json committed; .claude/settings.json committed; docs/CFLU_Track_Pool.md committed; *.bak in .gitignore | 2026-06-06 | – |

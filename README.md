@@ -11,6 +11,7 @@ Architecture, algorithm details and ADR decisions → [`docs/PROJECT.md`](docs/P
 ## Requirements
 
 - **Python 3.x** (in PATH) — runs the local server and auto-rebuilds the track pool
+- **Node.js LTS** (optional) — runs the test suite from the command line without a browser
 - A modern browser (Chrome, Firefox, Edge)
 - A Spotify account + Developer App (for export and audio preview — one-time setup)
 
@@ -92,25 +93,35 @@ Song metadata comes from **[Chosic Spotify Playlist Analyzer](https://www.chosic
 | **PLB** | Pool Builder | `CFLU_Pool_Build.py` | Python ETL-Pipeline: liest `Playlists/*.csv`, generiert `cflu_tracks.js` |
 | **WOD** | WOD Generator | `CFLU_WOD_Builder.html` + `js/` | Haupt-App: Playlist-Logik, Scoring, UI, Spotify-Export |
 | **TRK** | Track Store | `cflu_tracks.js` | Auto-generierter Track-Pool (nicht manuell editieren) |
-| **TST** | Test Suite | `CFLU_Tests.html` | Browser-Test-Suite (160 Tests / 21 Suiten) |
+| **TST** | Test Suite | `js/cflu_tests.js` · `CFLU_Tests.html` | Dual-mode: `node js/cflu_tests.js` (CLI) · Browser-Renderer (160 Tests / 21 Suiten) |
 
 ## File Overview
 
 ```
 CFLU_WOD_Builder.html   ← [WOD] Main UI (markup only)
 cflu_tracks.js          ← [TRK] Auto-generated track pool (gitignored after rebuild)
-CFLU_Tests.html         ← [TST] Browser test suite (160 tests)
+CFLU_Tests.html         ← [TST] Browser renderer — thin shell, imports js/cflu_tests.js
 CFLU_Start.bat          ← Windows launcher
 CFLU_Pool_Build.py      ← [PLB] Pool builder (Playlists/*.csv → cflu_tracks.js)
+package.json            ← {"type":"module"} — enables node js/cflu_tests.js
 CLAUDE.md               ← Workflow rules for Claude Code sessions
 css/cflu_style.css
-js/                     ← [WOD] ES modules: config · state · utils · algorithm · chart · spotify · app
+js/
+  cflu_tests.js         ← [TST] Canonical test class (dual-mode: Node.js + browser export)
+  config · state · utils · algorithm · chart · spotify · app  ← [WOD] ES modules
 docs/PROJECT.md         ← Architecture & ADR decisions
 docs/CHANGELOG.md       ← Version history
 ```
 
 ### Running the tests
 
+**CLI (Node.js):**
+```bash
+node js/cflu_tests.js
+```
+Exit code `0` = all pass · `1` = failures. Node.js installation: `winget install OpenJS.NodeJS.LTS`
+
+**Browser:**
 ```
 http://127.0.0.1:8888/CFLU_Tests.html
 ```

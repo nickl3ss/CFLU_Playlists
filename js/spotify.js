@@ -66,6 +66,7 @@ export async function checkSpotifyCallback() {
       if (state.generatedWod.length) document.getElementById('sp-export-btn2').style.display = 'block';
       showStatus('✓ Verbunden!', 'info');
       sessionStorage.removeItem('pkce_v');
+      sessionStorage.removeItem('sp_cid');
     } else {
       showStatus('Fehler: ' + JSON.stringify(d), 'error');
     }
@@ -98,57 +99,4 @@ export async function exportPlaylist() {
     document.getElementById('sp-link-wrap').classList.remove('hidden');
     document.getElementById('sp-pl-link').href = pl.external_urls?.spotify || '#';
   } catch (e) { showStatus('Export-Fehler: ' + e.message, 'error'); }
-}
-
-export async function playPreview(trackId, btnId) {
-  const audio = document.getElementById('preview-audio');
-  const btn = document.getElementById(btnId);
-  const PLAY_SVG = '<svg viewBox="0 0 8 10" fill="currentColor"><polygon points="0,0 8,5 0,10"/></svg>';
-  const PAUSE_SVG = '<svg viewBox="0 0 8 10" fill="currentColor"><rect x="0" y="0" width="3" height="10"/><rect x="5" y="0" width="3" height="10"/></svg>';
-
-  if (state.currentAudio === btnId) {
-    audio.pause(); audio.src = '';
-    btn.classList.remove('playing'); btn.innerHTML = PLAY_SVG;
-    state.currentAudio = null;
-    return;
-  }
-  stopAllPreviews();
-  if (!state.spToken) {
-    alert('Spotify-Verbindung erforderlich für Preview.\nBitte zuerst Client ID eingeben und verbinden.');
-    return;
-  }
-  let previewUrl = state.previewCache.get(trackId);
-  if (!previewUrl) {
-    try {
-      const resp = await fetch(`https://api.spotify.com/v1/tracks/${trackId}`, {headers: {Authorization: 'Bearer ' + state.spToken}});
-      if (!resp.ok) throw new Error('API ' + resp.status);
-      const data = await resp.json();
-      previewUrl = data.preview_url;
-      state.previewCache.set(trackId, previewUrl || 'null');
-    } catch (e) { alert('Preview-Fehler: ' + e.message); return; }
-  }
-  if (!previewUrl || previewUrl === 'null') {
-    btn.title = 'Kein Preview verfügbar'; btn.style.opacity = '.3';
-    return;
-  }
-  audio.src = previewUrl; audio.volume = 0.8; audio.play();
-  state.currentAudio = btnId;
-  btn.classList.add('playing'); btn.innerHTML = PAUSE_SVG;
-  audio.onended = () => {
-    btn.classList.remove('playing'); btn.innerHTML = PLAY_SVG;
-    state.currentAudio = null;
-  };
-}
-
-export function stopAllPreviews() {
-  const audio = document.getElementById('preview-audio');
-  audio.pause(); audio.src = '';
-  if (state.currentAudio) {
-    const prevBtn = document.getElementById(state.currentAudio);
-    if (prevBtn) {
-      prevBtn.classList.remove('playing');
-      prevBtn.innerHTML = '<svg viewBox="0 0 8 10" fill="currentColor"><polygon points="0,0 8,5 0,10"/></svg>';
-    }
-    state.currentAudio = null;
-  }
 }

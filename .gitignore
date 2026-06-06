@@ -3,6 +3,9 @@
 # Spotify Client ID (lokal, nicht ins Repo)
 cflu_client_id.txt
 
+# Check-script für Webspace als Test für Transformation auf Webspace (lokal, nicht ins Repo)
+check.php
+
 # Quelldaten (Datenschutz — nicht ins Repo)
 Spotify_Source.xlsx
 *.xlsx
@@ -37,6 +40,9 @@ claude_code_cflu_onboarding_prompt.md
 
 # Methodik Template (lokale Referenz, nicht ins Repo)
 Methodik/
+
+# Backup-Dateien
+*.bak
 
 # Logs
 *.log

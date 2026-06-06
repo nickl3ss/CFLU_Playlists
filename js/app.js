@@ -3,7 +3,7 @@ import { PHASE_CONFIG, GENRE_NEIGHBOURS, MIN_POOL_SIZE, BPM_STOPS, JUMP_STOPS,
          POS_BPM, CAM_COLOR, CAM_ZONE1, CAM_ZONE2 } from './config.js';
 import { state } from './state.js';
 import { bpmGroup, neighbour, titleKey, fmtDur, fmtMin, lerpColor, toHex, camCompat, calcPhaseScore } from './utils.js';
-import { getPool, getPhasePool, getPhasePoolWithNeighbours, getGenreStats,
+import { getAllTracks, getPool, getPhasePool, getPhasePoolWithNeighbours, getGenreStats,
          registerTrack, addTrack, pickNext, buildUp, buildDown,
          buildPlateau, buildDecreasing } from './algorithm.js';
 import { drawChart, highlightFromRow, clearHighlight } from './chart.js';
@@ -853,6 +853,12 @@ function init() {
       rpPanel.classList.remove('right-panel--open');
     }
   });
+
+  // Dynamic pool info — set from TRACK_DATA at runtime
+  const _allTracks = getAllTracks();
+  const _genreCount = Object.keys(getGenreStats()).length;
+  document.getElementById('direct-search').placeholder = `Alle ${_allTracks.length.toLocaleString('de-DE')} Tracks durchsuchen...`;
+  document.getElementById('pool-info').textContent = `${_allTracks.length.toLocaleString('de-DE')} Tracks · ${_genreCount} Genre-Gruppen`;
 
   // Pre-fill Client ID from local file, then show login modal (unless OAuth callback)
   fetch('cflu_client_id.txt')

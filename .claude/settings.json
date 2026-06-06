@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(gh issue create *)",
+      "PowerShell(gh issue close *)",
+      "PowerShell(gh issue comment *)",
+      "PowerShell(gh issue edit *)"
+    ]
+  }
+}
