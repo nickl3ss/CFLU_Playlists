@@ -34,6 +34,9 @@
 | #72 | fix(wod): Playlist exportieren nur nach Playlist-Generierung sichtbar — Guard in spotify.js + renderResult() analog sp-export-btn2 | 2026-06-06 | 1cd5743 |
 | #65 | feat(wod): CSV-Upload-UI im rechten Panel — js/upload.js (sanitizeFilename, extractPlaylistName, formatUploadSuccess); Datei-Picker, Pool-aktualisieren-Button, Reload-Button; CSS upload-drop/upload-status | 2026-06-06 | 00e08e2 |
 | #66 | test(upload): Upload-Test-Suite — sanitizeFilename (7 Tests), extractPlaylistName (5), formatUploadSuccess (5); 17 neue Tests; 183 gesamt | 2026-06-06 | cc1d165 |
+| #73 | fix(wod): Modal-Unterdrückung nach Upload-Reload — Reload-Button navigiert zu ?pool_updated=1; init() unterdrückt Modal + zeigt grüne Pool-Info-Bestätigung | 2026-06-06 | dea09b4 |
+| #74 | fix(wod): Doppelten Export-Button entfernt — sp-export-btn+sp-status aus Sidebar; sp-status ins Right Panel; Zero-Track-Warning classifyUploadResult; 8 neue Tests | 2026-06-06 | dea09b4 |
+| #75 | feat(wod): Upload-UI Discoverability — sanitizeFilename im Dateinamen-Display; CSV-Format-Hint; title-Tooltip auf ⚙-Button | 2026-06-06 | dea09b4 |
 | #1  | fix(app): Pool-Größe und Genre-Anzahl dynamisch — getAllTracks().length + Object.keys(getGenreStats()).length in init(); Versionsnummer aus Footer entfernt; placeholder und #pool-info zur Laufzeit gesetzt | 2026-06-06 | – |
 | #70 | fix(spotify): sp_cid nach OAuth-Callback bereinigt — sessionStorage.removeItem('sp_cid') nach pkce_v; playPreview()/stopAllPreviews() Dead Code entfernt (BL-021); Invariante 2 in CLAUDE.md korrigiert | 2026-06-06 | – |
 | HYGE | chore: SE-Hygiene — package.json committed; .claude/settings.json committed; docs/CFLU_Track_Pool.md committed; *.bak in .gitignore | 2026-06-06 | – |
