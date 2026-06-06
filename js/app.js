@@ -713,7 +713,6 @@ function renderResult(genre, wod, cd, warns, logText) {
     row.addEventListener('mouseleave', () => clearHighlight());
   });
 
-  if (state.spToken) document.getElementById('sp-export-btn').style.display = 'block';
   if (state.spToken) document.getElementById('sp-export-btn2').style.display = 'block';
 
   document.getElementById('gen-log').value = logText || '';
@@ -829,7 +828,10 @@ function init() {
   onPhaseSelect('C');
 
   // Spotify callback — if returning from OAuth, skip the login modal
-  const hasOAuthCode = new URLSearchParams(window.location.search).has('code');
+  const _params = new URLSearchParams(window.location.search);
+  const hasOAuthCode  = _params.has('code');
+  const hasPoolUpdate = _params.has('pool_updated');
+  if (hasPoolUpdate) history.replaceState({}, '', window.location.pathname);
   checkSpotifyCallback();
 
   // Chart resize debounce
@@ -858,9 +860,15 @@ function init() {
   const _allTracks = getAllTracks();
   const _genreCount = Object.keys(getGenreStats()).length;
   document.getElementById('direct-search').placeholder = `Alle ${_allTracks.length.toLocaleString('de-DE')} Tracks durchsuchen...`;
-  document.getElementById('pool-info').textContent = `${_allTracks.length.toLocaleString('de-DE')} Tracks · ${_genreCount} Genre-Gruppen`;
+  const _pi = document.getElementById('pool-info');
+  _pi.textContent = `${_allTracks.length.toLocaleString('de-DE')} Tracks · ${_genreCount} Genre-Gruppen`;
+  if (hasPoolUpdate) {
+    _pi.textContent += ' · ✓ Pool aktualisiert';
+    _pi.style.color = 'var(--acc)';
+    setTimeout(() => { _pi.style.color = ''; _pi.textContent = _pi.textContent.replace(' · ✓ Pool aktualisiert', ''); }, 4000);
+  }
 
-  // Pre-fill Client ID from local file, then show login modal (unless OAuth callback)
+  // Pre-fill Client ID from local file, then show login modal (unless OAuth callback or pool reload)
   fetch('cflu_client_id.txt')
     .then(r => r.ok ? r.text() : null)
     .then(id => {
@@ -869,9 +877,9 @@ function init() {
         document.getElementById('sp-cid').value = cid;
         document.getElementById('modal-sp-cid').value = cid;
       }
-      if (!hasOAuthCode) showLoginModal();
+      if (!hasOAuthCode && !hasPoolUpdate) showLoginModal();
     })
-    .catch(() => { if (!hasOAuthCode) showLoginModal(); });
+    .catch(() => { if (!hasOAuthCode && !hasPoolUpdate) showLoginModal(); });
 }
 
 document.addEventListener('DOMContentLoaded', init);

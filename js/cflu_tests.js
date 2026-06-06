@@ -8,7 +8,7 @@ import { bpmGroup, groupIdx, neighbour, fmtDur, fmtMin, titleKey,
 import { addTrack, pickNext,
          buildUp, buildDown, buildPlateau, buildDecreasing } from './algorithm.js';
 import { state } from './state.js';
-import { sanitizeFilename, extractPlaylistName, formatUploadSuccess } from './upload.js';
+import { sanitizeFilename, extractPlaylistName, formatUploadSuccess, classifyUploadResult } from './upload.js';
 
 // ============================================================
 //  MINI TEST FRAMEWORK
@@ -610,6 +610,17 @@ describe('CSV Upload — formatUploadSuccess', () => {
   it('Nur aktualisierte Tracks',       () => expect(formatUploadSuccess({added:0, updated:7, total:80})).toBe('✓ Pool aktualisiert: 7 aktualisiert, 80 gesamt'));
   it('Keine Änderungen nur gesamt',    () => expect(formatUploadSuccess({added:0, updated:0, total:42})).toBe('✓ Pool aktualisiert: 42 gesamt'));
   it('Enthält Häkchen-Prefix',         () => expect(formatUploadSuccess({added:1, updated:0, total:1})).toMatch(/^✓/));
+});
+
+describe('CSV Upload — classifyUploadResult', () => {
+  it('ok:false gibt type error zurück',              () => expect(classifyUploadResult({ok: false, error: 'Test'}).type).toBe('error'));
+  it('ok:false enthält Fehlermeldung',               () => expect(classifyUploadResult({ok: false, error: 'Disk full'}).msg).toMatch(/Disk full/));
+  it('ok:false ohne error-Feld hat Fallback',        () => expect(classifyUploadResult({ok: false}).msg).toMatch(/Fehler/));
+  it('added:0 + updated:0 gibt type warning zurück', () => expect(classifyUploadResult({ok: true, added: 0, updated: 0, total: 100}).type).toBe('warning'));
+  it('Warning enthält Format-Hinweis',               () => expect(classifyUploadResult({ok: true, added: 0, updated: 0, total: 100}).msg).toMatch(/Format/));
+  it('added > 0 gibt type success zurück',           () => expect(classifyUploadResult({ok: true, added: 5, updated: 0, total: 50}).type).toBe('success'));
+  it('updated > 0 gibt type success zurück',         () => expect(classifyUploadResult({ok: true, added: 0, updated: 3, total: 50}).type).toBe('success'));
+  it('success msg enthält formatUploadSuccess',      () => expect(classifyUploadResult({ok: true, added: 2, updated: 1, total: 50}).msg).toMatch(/✓ Pool/));
 });
 
 // ============================================================

@@ -277,12 +277,6 @@
       <button class="gen-btn" id="gen-btn" disabled>▶ Playlist generieren</button>
     </div>
 
-    <!-- SPOTIFY EXPORT -->
-    <div class="sb-section">
-      <button class="sp-btn" id="sp-export-btn" style="width:100%;display:none">Playlist exportieren →</button>
-      <div class="sp-status" id="sp-status"></div>
-    </div>
-
   </div><!-- end sb-scroll -->
 </aside>
 
@@ -343,7 +337,7 @@
 
 <!-- ===== RIGHT PANEL ===== -->
 <aside class="right-panel" id="right-panel">
-  <button class="rp-tab" id="rp-tab" aria-label="Einstellungen">⚙</button>
+  <button class="rp-tab" id="rp-tab" aria-label="Spotify & CSV Upload" title="Spotify & CSV Upload">⚙</button>
   <div class="rp-scroll">
 
     <!-- SPOTIFY VERBINDUNG -->
@@ -364,6 +358,7 @@
       <button class="sp-btn" id="sp-connect-btn">Verbinden</button>
     </div>
     <div class="sp-connected" id="sp-connected">✓ Verbunden: <span id="sp-user"></span></div>
+    <div class="sp-status" id="sp-status"></div>
 
     <!-- CSV UPLOAD -->
     <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
@@ -377,6 +372,7 @@
       <button class="sp-btn" id="upload-btn" style="width:100%;margin-top:10px" disabled>Pool aktualisieren</button>
       <button class="sp-btn" id="upload-reload-btn" style="width:100%;margin-top:6px;display:none;background:var(--bg4);color:var(--acc)">Seite neu laden →</button>
       <div id="upload-status" class="upload-status"></div>
+      <div class="upload-format-hint">Soundiiz / Chosic Export · Pflichtfelder: Song, Artist, BPM, Camelot, Energy, Duration, Spotify Track Id</div>
     </div>
 
   </div>

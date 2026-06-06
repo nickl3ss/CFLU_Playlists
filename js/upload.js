@@ -19,6 +19,13 @@ export function formatUploadSuccess({ added, updated, total }) {
   return '✓ Pool aktualisiert: ' + parts.join(', ');
 }
 
+export function classifyUploadResult(data) {
+  if (!data.ok) return { type: 'error', msg: '✗ ' + (data.error || 'Fehler') };
+  if (data.added === 0 && data.updated === 0)
+    return { type: 'warning', msg: '⚠ Keine neuen Tracks — CSV-Format prüfen (benötigt: Song, Artist, BPM, Camelot, …)' };
+  return { type: 'success', msg: formatUploadSuccess(data) };
+}
+
 function _initUpload() {
   const fileInput  = document.getElementById('upload-file');
   const fileLabel  = document.getElementById('upload-label');
@@ -27,7 +34,14 @@ function _initUpload() {
   const reloadBtn  = document.getElementById('upload-reload-btn');
 
   fileInput.addEventListener('change', () => {
-    fileLabel.textContent = fileInput.files[0]?.name || 'Keine Datei gewählt';
+    const f = fileInput.files[0];
+    if (f) {
+      const base  = f.name.replace(/\.csv$/i, '');
+      const clean = sanitizeFilename(base);
+      fileLabel.textContent = clean !== base ? `${f.name} → ${clean}.csv` : f.name;
+    } else {
+      fileLabel.textContent = 'Keine Datei gewählt';
+    }
     uploadBtn.disabled = !fileInput.files.length;
     statusEl.textContent = '';
     statusEl.className = 'upload-status';
@@ -50,13 +64,12 @@ function _initUpload() {
           body: JSON.stringify({ filename: file.name, content: e.target.result }),
         });
         const data = await resp.json();
-        if (data.ok) {
-          statusEl.textContent = formatUploadSuccess(data);
-          statusEl.className = 'upload-status success';
+        const result = classifyUploadResult(data);
+        statusEl.textContent = result.msg;
+        statusEl.className = 'upload-status ' + result.type;
+        if (result.type === 'success') {
           reloadBtn.style.display = 'block';
         } else {
-          statusEl.textContent = '✗ ' + (data.error || 'Fehler');
-          statusEl.className = 'upload-status error';
           uploadBtn.disabled = false;
         }
       } catch {
@@ -68,7 +81,12 @@ function _initUpload() {
     reader.readAsText(file, 'utf-8');
   });
 
-  reloadBtn.addEventListener('click', () => location.reload());
+  // Navigate to ?pool_updated=1 so init() can suppress the login modal after reload
+  reloadBtn.addEventListener('click', () => {
+    const url = new URL(location.href);
+    url.searchParams.set('pool_updated', '1');
+    location.href = url.toString();
+  });
 }
 
 if (typeof document !== 'undefined') _initUpload();

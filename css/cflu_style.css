@@ -187,4 +187,6 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
 .upload-status{font-family:'IBM Plex Mono',monospace;font-size:.68rem;margin-top:8px;min-height:14px}
 .upload-status.info{color:var(--text2)}
 .upload-status.success{color:var(--acc)}
+.upload-status.warning{color:var(--yellow)}
 .upload-status.error{color:var(--red)}
+.upload-format-hint{font-family:'IBM Plex Mono',monospace;font-size:.58rem;color:var(--text3);margin-top:10px;line-height:1.5}
