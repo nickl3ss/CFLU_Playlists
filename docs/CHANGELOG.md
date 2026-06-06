@@ -21,3 +21,4 @@
 | #26 | fix(utils): BPM-Penalty in calcSortScore korrigiert — greift jetzt nur bei BPM-Abstieg (t.bpm < cur.bpm); BPM-Anstiege werden nicht mehr bestraft; 2 Tests aktualisiert | 2026-06-04 | – |
 | #7  | feat(algorithm): Top-5-Zufallsauswahl in pickNext() + Carry-over — carryover[]-Parameter, Injektion nicht-roter Carry-Kandidaten vor Sort, Zufallspick aus top-5, buildUp thread carry; 6 neue Tests | 2026-06-04 | – |
 | BL-020 | C1: CSV-Direktimport — CFLU_Pool_Build.py auf ETL-Pipeline umgestellt (kein pandas/openpyxl); 40 CSVs aus Playlists/, Dedup per Spotify Track Id, 28 Felder inkl. locked; CFLU_Start.bat xlsx-Zweig entfernt; 3868 Tracks | 2026-06-04 | – |
+| #24 | fix(app): Genre-Sync in selectTrack() für alle selModes — if-Bedingung (direct/link) entfernt, Dropdown sperrt bei jeder Track-Wahl auf t.genre, Tab-Wechsel gibt Dropdown frei; #3 als Duplicate geschlossen | 2026-06-06 | d2229d3 |
