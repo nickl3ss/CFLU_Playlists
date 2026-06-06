@@ -790,7 +790,6 @@ function init() {
   // Generate & Spotify
   document.getElementById('gen-btn').addEventListener('click', generatePlaylist);
   document.getElementById('sp-connect-btn').addEventListener('click', spotifyLogin);
-  document.getElementById('sp-export-btn').addEventListener('click', exportPlaylist);
   document.getElementById('sp-export-btn2').addEventListener('click', exportPlaylist);
 
   // Generation log copy
