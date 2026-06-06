@@ -252,10 +252,8 @@ function onDirectSearch() {
     (t.song.toLowerCase().includes(q) || t.artist.toLowerCase().includes(q)) &&
     t.energy >= state.wodEnergyMin && t.energy <= state.wodEnergyMax
   ).sort((a, b) => {
-    const aS = (a.artist.toLowerCase().startsWith(q) || a.song.toLowerCase().startsWith(q)) ? 0 : 1;
-    const bS = (b.artist.toLowerCase().startsWith(q) || b.song.toLowerCase().startsWith(q)) ? 0 : 1;
     const ps = calcPhaseScore(b, state.currentPhase) - calcPhaseScore(a, state.currentPhase);
-    return aS - bS || ps || a.bpm - b.bpm;
+    return ps || a.bpm - b.bpm;
   });
   res = applyCamFilter(res).slice(0, 80);
   res.forEach(t => {
