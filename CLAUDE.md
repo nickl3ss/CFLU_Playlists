@@ -73,6 +73,15 @@
 > **Source of Truth: GitHub Issues** (https://github.com/nickl3ss/CFLU_Playlists/issues)
 > `BACKLOG.md` ist archiviert — nicht mehr verwenden.
 
+### GitHub Projects
+
+| Projekt | URL | Scope |
+|---------|-----|-------|
+| **CFLUPlaylist-Local** | https://github.com/users/nickl3ss/projects/2 | Lokale App: Issues #1–#30, #61–#99. Aktiver Fokus. |
+| **CFLUPlaylist-Web** | https://github.com/users/nickl3ss/projects/3 | Webapp-Variante: Issues #31–#60. Parkt bis Local-App fertig ist. |
+
+Neue Issues immer dem passenden Projekt zuweisen (`gh project item-add <nr> --owner nickl3ss --url <issue-url>`).
+
 ### Issue-Format
 
 **Titel:** `[KÜRZEL] Kurzbeschreibung` — z.B. `[WOD] pickNext() Phase 3.5`
