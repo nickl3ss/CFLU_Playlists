@@ -70,9 +70,9 @@ Uses PKCE OAuth — no backend, Client ID never written to localStorage.
 1. **Pick a phase** — pre-fills BPM, tolerance, max-jump and energy range
 2. **Pick a reference song** — three independent modes:
    - **Genre & BPM** — filter by genre, BPM and Camelot key; selected track defines the generation pool
-   - **Direktsuche** — full-text search across the entire pool (all genres, no filter restrictions); selected track's genre defines the pool
+   - **Direct search** — full-text search across the entire pool (all genres, no filter restrictions); selected track's genre defines the pool
    - **Spotify-Link** — paste a track URL; if found in pool the genre is auto-detected; if external (not in pool), enter BPM/Camelot/Energy and choose pool genre manually
-3. **Set position** (B/C only): Start · Ende · Midpoint · Mid Plateau
+3. **Set position** (B/C only): Start · End · Midpoint · Mid Plateau
 4. **Adjust settings** — WOD duration, max BPM jump, Cool-Down toggle
 5. **Generate** — BPM step chart + track list with Camelot dots, phase scores, preview and Spotify links
 
@@ -80,20 +80,42 @@ Uses PKCE OAuth — no backend, Client ID never written to localStorage.
 
 ## Adding Songs / Rebuilding the Pool
 
-Song metadata comes from **[Chosic Spotify Playlist Analyzer](https://www.chosic.com//spotify-playlist-analyzer/)** — export CSV and place it in the `Playlists/` subfolder.
+Song metadata is sourced via **[Chosic Spotify Playlist Analyzer](https://www.chosic.com/spotify-playlist-analyzer/)**. The CSV files exported there are the sole input for the track pool.
 
-`CFLU_Start.bat` (or `CFLU_Pool_Build.py` manually) picks up all CSVs in `Playlists/`, deduplicates by Spotify Track ID, and regenerates `cflu_tracks.js` automatically on every start.
+### Best Practice: Creating a CSV
+
+1. **Create a temporary playlist in Spotify** — add a new, empty playlist to your own account.
+2. **Make the playlist public** — Chosic can only analyse public playlists.
+3. **Collect songs** — mark all tracks from existing playlists that are suitable for workouts and drag & drop them into the new playlist. In the pop-up, choose **"Only add new songs"** to avoid duplicates.
+4. **Copy the playlist link** — share the playlist in Spotify → copy the link to the clipboard.
+5. **Start the analysis** — paste the link at [chosic.com/spotify-playlist-analyzer](https://www.chosic.com/spotify-playlist-analyzer/) and run the analysis.
+6. **Download the CSV** — at the bottom of the analysis page there is a download button for the CSV file.
+7. **Place the CSV** — move the downloaded file into the `Playlists/` subfolder of the project directory. Multiple CSV files from different playlists can coexist there.
+
+### Rebuilding the Pool
+
+Run **`CFLU_Start.bat`** — the script automatically picks up all CSVs in `Playlists/`, deduplicates by Spotify Track ID, and rewrites `cflu_tracks.js`.
+
+Alternatively, run manually:
+```bash
+python CFLU_Pool_Build.py
+```
+
+### Data & Privacy Notes
+
+- **D-01 — Chosic:** To analyse a playlist, Chosic requires it to be **public** on Spotify. Chosic is a third-party web service; your playlist metadata (track names, artists, audio features) is sent to their servers and may be processed according to their privacy policy. Make the playlist private again after the CSV download, or delete it entirely.
+- **D-02 — Spotify Export:** When you export a generated playlist to Spotify, the app requests only the `playlist-modify-private` scope. The playlist is created as **private**. Spotify may still infer workout patterns from your listening and playlist data according to their own privacy policy.
 
 ---
 
 ## Components
 
-| Kürzel | Name | Pfad | Beschreibung |
-|--------|------|------|--------------|
-| **PLB** | Pool Builder | `CFLU_Pool_Build.py` | Python ETL-Pipeline: liest `Playlists/*.csv`, generiert `cflu_tracks.js` |
-| **WOD** | WOD Generator | `CFLU_WOD_Builder.html` + `js/` | Haupt-App: Playlist-Logik, Scoring, UI, Spotify-Export |
-| **TRK** | Track Store | `cflu_tracks.js` | Auto-generierter Track-Pool (nicht manuell editieren) |
-| **TST** | Test Suite | `js/cflu_tests.js` · `CFLU_Tests.html` | Dual-mode: `node js/cflu_tests.js` (CLI) · Browser-Renderer (281 Tests) |
+| Abbr. | Name | Path | Description |
+|-------|------|------|-------------|
+| **PLB** | Pool Builder | `CFLU_Pool_Build.py` | Python ETL pipeline: reads `Playlists/*.csv`, generates `cflu_tracks.js` |
+| **WOD** | WOD Generator | `CFLU_WOD_Builder.html` + `js/` | Main app: playlist logic, scoring, UI, Spotify export |
+| **TRK** | Track Store | `cflu_tracks.js` | Auto-generated track pool (do not edit manually) |
+| **TST** | Test Suite | `js/cflu_tests.js` · `CFLU_Tests.html` | Dual-mode: `node js/cflu_tests.js` (CLI) · Browser renderer (281 tests) |
 
 ## File Overview
 
@@ -110,7 +132,7 @@ js/
   cflu_tests.js         ← [TST] Canonical test class (dual-mode: Node.js + browser export)
   config · state · utils · algorithm · chart · spotify · app  ← [WOD] ES modules
 docs/PROJECT.md         ← Architecture & ADR decisions
-docs/CHANGELOG.md       ← Version history
+
 ```
 
 ### Running the tests

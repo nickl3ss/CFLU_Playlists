@@ -1,5 +1,6 @@
 // Pure, Node-testable exports
 export function sanitizeFilename(name) {
+  // eslint-disable-next-line no-control-regex -- intentional: NTFS-illegal control chars
   return name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '').replace(/\s+/g, ' ').trim() || 'Upload';
 }
 

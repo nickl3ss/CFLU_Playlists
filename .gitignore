@@ -41,17 +41,17 @@ _fix_issues.py
 
 # Archivierte Dateien — lokal als Referenz, nicht im Repo
 archive/
+Methodik/
 
 # Interne Entwicklungs-Prompts
 claude_code_prompt_playlist_generator.md
 claude_code_cflu_onboarding_prompt.md
 
-# Methodik Template (lokale Referenz, nicht ins Repo)
-Methodik/
-
 # Backup-Dateien
 *.bak
-archive/
+
+# Node.js (ESLint devDependencies)
+node_modules/
 
 # Logs
 *.log

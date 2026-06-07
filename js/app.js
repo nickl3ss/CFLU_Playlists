@@ -5,10 +5,10 @@ import { getNeighbours } from './genres.js';
 import { state } from './state.js';
 import { titleKey, fmtDur, fmtMin, lerpColor, toHex, camCompat, calcPhaseScore } from './utils.js';
 import { getAllTracks, getPool, getPhasePool, getPhasePoolWithNeighbours, getGenreStats,
-         registerTrack, addTrack, pickNext, pickPrev, buildUp, buildDown,
+         registerTrack, addTrack, pickNext, buildUp, buildDown,
          buildPlateau, buildDecreasing, buildAlternating } from './algorithm.js';
 import { drawChart, highlightFromRow, clearHighlight } from './chart.js';
-import { spotifyLogin, checkSpotifyCallback, exportPlaylist } from './spotify.js';
+import { spotifyLogin, spotifyLogout, checkSpotifyCallback, exportPlaylist } from './spotify.js';
 
 // ===== SLIDER UI =====
 function updateSliderStyle(slider, stops, minV, maxV) {
@@ -73,7 +73,7 @@ function parseCamNumbers(input) {
   for (const part of str.split(/[\s,]+/).filter(Boolean)) {
     const m = part.match(/^(\d+)-(\d+)$/);
     if (m) {
-      let cur = parseInt(m[1], 10), end = parseInt(m[2], 10);
+      let cur = parseInt(m[1], 10); const end = parseInt(m[2], 10);
       if (cur < 1 || cur > 12 || end < 1 || end > 12) continue;
       for (let i = 0; i <= 12; i++) { addN(cur); if (cur === end) break; cur = cur === 12 ? 1 : cur + 1; }
     } else {
@@ -249,7 +249,7 @@ function onDirectSearch() {
   sel.innerHTML = '';
   if (q.length < 2) { document.getElementById('direct-count').textContent = 'Mind. 2 Zeichen eingeben'; return; }
   const genrePool = getPool('Going Wild');
-  let res = genrePool.filter(t =>
+  const res = genrePool.filter(t =>
     t.song.toLowerCase().includes(q) || t.artist.toLowerCase().includes(q)
   ).sort((a, b) => {
     const ps = calcPhaseScore(b, state.currentPhase) - calcPhaseScore(a, state.currentPhase);
@@ -307,7 +307,7 @@ function updatePoolGenreBadge() {
   }
 }
 
-function onTrackSelect(sel, mode) {
+function onTrackSelect(sel, _mode) {
   const opt = sel.options[sel.selectedIndex];
   if (!opt) return;
   const allTracks = getPool('Going Wild');
@@ -520,8 +520,8 @@ function buildGenLog(genre, wod, cd, warnMsgs) {
         reason = 'Fallback (BPM-Eskalation)';
         if (prev && t.bpm <= prev.bpm) reason += '  ⚠ kein BPM-Fortschritt';
       }
-      if (t.genre && t.genre !== genre) reason += `  | Genre-Fallback: ${t.genre}`;
     }
+    if (t.genre) reason += (reason ? '  | ' : '') + `Genre: ${t.genre}${!isRef && t.genre !== genre ? ' (Fallback)' : ''}`;
     add(`${rpad(i+1,3)}  ${pad(t.song,30)}  ${pad(t.artist,20)}  ${rpad(t.bpm,3)}  ${rpad(delta,5)}  ${camStr}  ${rpad(t.energy,3)}  ${rpad(ps,3)}  ${reason}`);
   });
 
@@ -532,7 +532,8 @@ function buildGenLog(genre, wod, cd, warnMsgs) {
     add('-'.repeat(75));
     cd.forEach((t, i) => {
       const ps = calcPhaseScore(t, 'D');
-      add(`${rpad(wod.length+i+1,3)}  ${pad(t.song,30)}  ${pad(t.artist,20)}  ${rpad(t.bpm,3)}  ${pad(t.camelot||'—',5)}  ${rpad(t.energy,3)}  ${rpad(ps,3)}`);
+      const genreStr = t.genre ? `  | Genre: ${t.genre}` : '';
+      add(`${rpad(wod.length+i+1,3)}  ${pad(t.song,30)}  ${pad(t.artist,20)}  ${rpad(t.bpm,3)}  ${pad(t.camelot||'—',5)}  ${rpad(t.energy,3)}  ${rpad(ps,3)}${genreStr}`);
     });
   }
 
@@ -647,7 +648,7 @@ function _gen() {
   }
 
   // Cool-Down
-  let cd = [];
+  const cd = [];
   const warnMsgs = [];
   if (state.cdActive) {
     const maxWodBpm = wod.length ? Math.max(...wod.map(t => t.bpm)) : 100;
@@ -736,6 +737,7 @@ function renderResult(genre, wod, cd, warns, logText) {
   });
 
   if (state.spToken) document.getElementById('sp-export-btn2').style.display = 'block';
+  document.getElementById('csv-export-btn').style.display = 'block';
 
   document.getElementById('gen-log').value = logText || '';
   document.getElementById('gen-log-section').style.display = '';
@@ -744,6 +746,45 @@ function renderResult(genre, wod, cd, warns, logText) {
   document.getElementById('empty-state').classList.add('hidden');
   document.getElementById('result-area').classList.remove('hidden');
   requestAnimationFrame(() => drawChart(wod.length));
+}
+
+function exportCsv() {
+  const all = [...state.generatedWod, ...state.generatedCd];
+  if (!all.length) return;
+  const esc = v => {
+    const s = String(v ?? '');
+    return s.includes(',') || s.includes('"') || s.includes('\n')
+      ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const rows = [['Nr', 'Artist', 'Title', 'BPM', 'Camelot', 'Energy', 'Duration', 'Genre']];
+  all.forEach((t, i) => {
+    const mm = Math.floor((t.dur || 0) / 60);
+    const ss = String((t.dur || 0) % 60).padStart(2, '0');
+    rows.push([i + 1, t.artist, t.song, t.bpm, t.camelot || '', t.energy, `${mm}:${ss}`, t.genre || '']);
+  });
+  const csv = rows.map(r => r.map(esc).join(',')).join('\r\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `CFLU_WOD_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function _metaColor(field, v) {
+  if (v == null || isNaN(v)) return 'var(--text3)';
+  switch (field) {
+    case 'popularity':   return v >= 70 ? '#1db954' : v >= 40 ? '#f7c948' : 'var(--text3)';
+    case 'valence':      return v >= 65 ? '#1db954' : v >= 40 ? '#f7c948' : '#a855f7';
+    case 'dance':        return v >= 70 ? '#1db954' : v >= 45 ? '#f7c948' : 'var(--text3)';
+    case 'acoustic':     return v < 20  ? '#1db954' : v < 50  ? '#f7c948' : '#ef4444';
+    case 'instrumental': return v < 30  ? '#1db954' : v < 65  ? '#f7c948' : '#ef4444';
+    case 'speech':       return v < 15  ? '#1db954' : v < 35  ? '#f7c948' : '#ef4444';
+    case 'live':         return v < 20  ? '#1db954' : v < 50  ? '#f7c948' : '#ef4444';
+    case 'loud':         return v >= -6 ? '#1db954' : v >= -12 ? '#f7c948' : 'var(--text3)';
+    default: return 'var(--text3)';
+  }
 }
 
 function makeRow(idx, t, num, delta, cc, isCd, isRef) {
@@ -757,12 +798,21 @@ function makeRow(idx, t, num, delta, cc, isCd, isRef) {
     ? `<svg class="sp-icon" onclick="window.open('https://open.spotify.com/track/${t.id}','_blank')" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="11" fill="#1db954"/><path d="M16.5 16.5c-2.5-1.5-5.5-1.8-9-1" stroke="white" stroke-width="1.4" stroke-linecap="round"/><path d="M17.5 13.5c-3-1.8-7-2-10.5-1" stroke="white" stroke-width="1.4" stroke-linecap="round"/><path d="M18 10c-3.5-2-8-2.2-11.5-1" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>` : '';
   const ps = calcPhaseScore(t, state.currentPhase);
   const psCls = ps >= 80 ? 'ps-green' : ps >= 50 ? 'ps-yellow' : 'ps-red';
+  const m = (field, v) => `<div class="tr-meta" style="color:${_metaColor(field, v)}">${v ?? '—'}</div>`;
   row.innerHTML = `
     <div class="tr-num">${num}${isRef ? '<br><span style="font-size:.55rem;color:var(--acc)">REF</span>' : ''}</div>
     <div><div class="tr-song" title="${t.song}">${song}</div><div class="tr-artist" title="${t.artist}">${artist}</div></div>
     <div><div class="tr-bpm">${t.bpm}</div>${delta > 0 ? `<div class="tr-bpm-delta">+${delta}</div>` : ''}</div>
     <div class="tr-cam"><span class="cam-dot" style="background:${CAM_COLOR[cc]}"></span>${t.camelot || '—'}</div>
     <div class="tr-eng" style="color:${engColor}">${t.energy}</div>
+    ${m('popularity', t.popularity)}
+    ${m('valence', t.valence)}
+    ${m('dance', t.dance)}
+    ${m('acoustic', t.acoustic)}
+    ${m('instrumental', t.instrumental)}
+    ${m('speech', t.speech)}
+    ${m('live', t.live)}
+    ${m('loud', t.loud)}
     <div class="tr-phase"><span class="phase-score ${psCls}">${ps}</span></div>
     <div class="tr-dur">${fmtDur(t.dur)}</div>
     <div class="tr-sp">${spLink}</div>`;
@@ -813,7 +863,9 @@ function init() {
   // Generate & Spotify
   document.getElementById('gen-btn').addEventListener('click', generatePlaylist);
   document.getElementById('sp-connect-btn').addEventListener('click', spotifyLogin);
+  document.getElementById('sp-logout-btn').addEventListener('click', spotifyLogout);
   document.getElementById('sp-export-btn2').addEventListener('click', exportPlaylist);
+  document.getElementById('csv-export-btn').addEventListener('click', exportCsv);
 
   // Generation log copy
   document.getElementById('gen-log-copy-btn').addEventListener('click', () => {

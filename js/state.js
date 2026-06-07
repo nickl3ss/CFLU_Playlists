@@ -20,6 +20,7 @@ export const state = {
   crossfadeSec: 0,
   spToken: null,
   spUserId: null,
+  spTokenExpiry: 0,
   hoveredTrackIdx: null,
   bpmChartData: [],
   chartCtx: null,

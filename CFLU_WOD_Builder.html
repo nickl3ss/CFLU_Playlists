@@ -312,7 +312,7 @@
     <div class="main-scroll">
       <div class="track-list-wrap">
         <div class="tl-header">
-          <div>#</div><div>Track</div><div>BPM</div><div>Camelot</div><div>Energy</div><div>Phase</div><div>Dauer</div><div></div>
+          <div>#</div><div>Track</div><div>BPM</div><div>Camelot</div><div>Energy</div><div title="Popularität auf Spotify (0–100) — hoch = bekannter Track">POP</div><div title="Valence: Stimmung/Positivität (0–100) — hoch = euphorisch, tief = düster/aggressiv">VAL</div><div title="Danceability: Eignung für rhythmische Bewegung (0–100) — hoch = ideal für WOD">DNC</div><div title="Acousticness: Anteil akustischer Instrumente (0–100) — niedrig = elektronisch/produziert">ACU</div><div title="Instrumentalness: Gesangsanteil umgekehrt (0–100) — niedrig = mit Vocals, hoch = rein instrumental">INS</div><div title="Speechiness: Sprachanteil (0–100) — niedrig = Musik, hoch = Spoken Word / Podcast">SPE</div><div title="Liveness: Wahrscheinlichkeit einer Live-Aufnahme (0–100) — niedrig = Studio-Recording">LVE</div><div title="Loudness in dBFS — je näher 0, desto lauter (typisch –12 bis –4)">LOU</div><div>Phase</div><div>Dauer</div><div></div>
         </div>
         <div class="tl-scroll" id="tl-scroll">
           <div id="track-rows"></div>
@@ -322,6 +322,7 @@
       <div class="sp-section">
         <div class="sp-section-title">● Spotify Export</div>
         <button class="sp-btn" id="sp-export-btn2" style="display:none;width:100%;margin-bottom:10px">Playlist zu Spotify exportieren →</button>
+        <button class="sp-btn" id="csv-export-btn" style="display:none;width:100%;margin-bottom:10px">Als CSV herunterladen ↓</button>
         <div class="sp-status" id="sp-status2"></div>
         <div class="hidden" id="sp-link-wrap" style="margin-top:8px;font-family:'IBM Plex Mono',monospace;font-size:.75rem">
           ✓ <a id="sp-pl-link" href="#" target="_blank" style="color:var(--acc)">Playlist in Spotify öffnen</a>
@@ -363,7 +364,7 @@
       <input type="text" id="sp-cid" placeholder="Client ID..." autocomplete="off" style="font-family:'IBM Plex Mono',monospace;font-size:.72rem">
       <button class="sp-btn" id="sp-connect-btn">Verbinden</button>
     </div>
-    <div class="sp-connected" id="sp-connected">✓ Verbunden: <span id="sp-user"></span></div>
+    <div class="sp-connected" id="sp-connected">✓ Verbunden: <span id="sp-user"></span> <button id="sp-logout-btn" style="margin-left:8px;font-size:.68rem;padding:1px 6px;cursor:pointer;background:transparent;border:1px solid var(--border);border-radius:3px;color:var(--text2)">Abmelden</button></div>
     <div class="sp-status" id="sp-status"></div>
 
     <!-- CSV UPLOAD -->

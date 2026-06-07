@@ -1,0 +1,29 @@
+# CFLU WOD Playlist Builder — systemd user service
+#
+# Installation (einmalig):
+#   mkdir -p ~/.config/systemd/user
+#   cp cflu.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now cflu
+#
+# Danach läuft der Server beim Login automatisch auf http://127.0.0.1:8888
+#
+# Logs:     journalctl --user -u cflu -f
+# Stoppen:  systemctl --user stop cflu
+# Status:   systemctl --user status cflu
+
+[Unit]
+Description=CFLU WOD Playlist Builder
+After=network.target
+
+[Service]
+Type=simple
+# CFLU_DIR auf das tatsächliche Installationsverzeichnis anpassen:
+Environment=CFLU_DIR=%h/CFLUPlaylist
+ExecStart=/usr/bin/python3 %h/CFLUPlaylist/cflu_server.py
+WorkingDirectory=%h/CFLUPlaylist
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

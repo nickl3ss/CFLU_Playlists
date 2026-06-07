@@ -12,14 +12,35 @@ import sys
 import json
 import os
 import re
+import pathlib
 from datetime import datetime
 from http.server import SimpleHTTPRequestHandler
 import socketserver
 
+# L-03: Work from the script's own directory regardless of CWD at launch.
+os.chdir(pathlib.Path(__file__).parent)
+
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8888
 UPLOAD_DIR = os.path.join('Playlists', 'WebUpload')
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # S-04: 10 MB hard cap
 
 _UNSAFE_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+# S-06: Security headers sent on every response.
+_SECURITY_HEADERS = [
+    ('X-Content-Type-Options', 'nosniff'),
+    ('X-Frame-Options', 'DENY'),
+    ('Referrer-Policy', 'no-referrer'),
+    # CSP: scripts/styles self-only; fetch() to Spotify endpoints allowed.
+    ('Content-Security-Policy',
+     "default-src 'self'; "
+     "script-src 'self'; "
+     "style-src 'self' 'unsafe-inline'; "
+     "connect-src 'self' https://accounts.spotify.com https://api.spotify.com; "
+     "img-src 'self' data:; "
+     "frame-src https://open.spotify.com; "
+     "object-src 'none';"),
+]
 
 
 def _sanitize(name):
@@ -29,6 +50,11 @@ def _sanitize(name):
 
 
 class CFLUHandler(SimpleHTTPRequestHandler):
+    def end_headers(self):
+        for name, value in _SECURITY_HEADERS:
+            self.send_header(name, value)
+        super().end_headers()
+
     def do_POST(self):
         if self.path == '/api/upload-csv':
             self._handle_upload()
@@ -37,7 +63,10 @@ class CFLUHandler(SimpleHTTPRequestHandler):
 
     def _handle_upload(self):
         try:
+            # S-04: Enforce upload size cap before reading body.
             length = int(self.headers.get('Content-Length', 0))
+            if length > MAX_UPLOAD_BYTES:
+                return self._respond(413, {'error': 'Payload too large'})
             raw = self.rfile.read(length)
             try:
                 payload = json.loads(raw)
@@ -57,9 +86,9 @@ class CFLUHandler(SimpleHTTPRequestHandler):
             os.makedirs(UPLOAD_DIR, exist_ok=True)
             out_path = os.path.join(UPLOAD_DIR, out_filename)
 
-            # Strip UTF-8 BOM if present, then write as utf-8
+            # S-05: removeprefix strips exactly one leading BOM; lstrip would strip all.
             with open(out_path, 'w', encoding='utf-8', newline='') as f:
-                f.write(content.lstrip('﻿'))
+                f.write(content.removeprefix('﻿'))
 
             from CFLU_Pool_Build import build
             count_new, count_updated, total = build(import_only=True)
@@ -72,8 +101,8 @@ class CFLUHandler(SimpleHTTPRequestHandler):
                 'filename': out_filename,
             })
 
-        except Exception as e:
-            self._respond(500, {'ok': False, 'error': str(e)})
+        except Exception:
+            self._respond(500, {'ok': False, 'error': 'Internal server error'})
 
     def _respond(self, code, payload):
         body = json.dumps(payload, ensure_ascii=False).encode('utf-8')
@@ -87,6 +116,6 @@ class CFLUHandler(SimpleHTTPRequestHandler):
 socketserver.TCPServer.allow_reuse_address = True
 
 if __name__ == '__main__':
-    with socketserver.TCPServer(('', PORT), CFLUHandler) as httpd:
+    with socketserver.TCPServer(('127.0.0.1', PORT), CFLUHandler) as httpd:
         print(f'CFLU Server läuft auf Port {PORT}')
         httpd.serve_forever()

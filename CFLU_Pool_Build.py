@@ -16,6 +16,7 @@ import json
 import re
 import os
 import glob
+import pathlib
 from collections import defaultdict
 
 # ===== KONFIGURATION =====
@@ -38,6 +39,45 @@ GERMAN_KEYWORDS = [
     'deutscher hip', 'kolsch', 'karneval',
 ]
 
+# ===== GENRE-KEYWORD-TABELLEN =====
+# Änderungen am Genre-Mapping hier vornehmen, nicht in classify() selbst.
+
+_SKA_TRIGGER       = ['ska', 'rocksteady']
+_SKA_WEIGHT_KEYS   = ['ska', 'rocksteady', 'ska punk']
+_PUNK_WEIGHT_KEYS  = ['punk rock', 'skate punk', 'pop punk', 'hardcore punk']
+_REGGAE_KEYWORDS   = ['reggae', 'dub', 'dancehall', 'ragga']
+_PUNK_KEYWORDS     = ['punk', 'skate punk', 'ska punk', 'pop punk', 'hardcore punk',
+                      'oi!', 'street punk', 'melodic hardcore']
+_EDM_KEYWORDS      = ['edm', 'house', 'techno', 'trance', 'dubstep', 'hardstyle', 'hypertechno',
+                      'big room', 'melodic techno', 'melodic house', 'eurobeat', 'electro house',
+                      'bass house', 'tech house', 'future bass', 'slap house', 'melbourne bounce',
+                      'big beat', 'eurodance', 'hi-nrg', 'bubblegum dance', 'italo disco',
+                      'happy hardcore', 'italo dance', 'gabba', 'hands up',
+                      'electroclash', 'indie dance', 'elektronische musik', 'electronica',
+                      'indietronica']
+_SYNTH_KEYWORDS    = ['synthwave', 'vaporwave', 'chillwave', 'outrun', 'retrowave',
+                      'darksynth', 'dreamwave', 'trip-hop', 'downtempo', 'new age', 'ambient',
+                      'lo-fi', 'darkwave']
+_DANCE_POP_KEYS    = ['tropical house', 'dance pop', 'electro swing']
+_BLUES_EXCLUDE     = ['hip-hop', 'hip hop', 'rap', 'r&b', 'funk', 'disco', 'metal', 'soul', 'motown']
+_BLUES_KEYWORDS    = ['classic blues', 'traditional blues', 'chicago blues', 'delta blues',
+                      'modern blues', 'british blues', 'texas blues']
+_METAL_KEYWORDS    = ['metal', 'glam metal', 'heavy metal', 'thrash metal', 'death metal']
+_ROCK_KEYWORDS     = ['rock', 'hard rock', 'klassischer rock', 'classic rock', 'soft rock',
+                      'aor', 'arena rock', 'album rock', 'glam rock', 'post-grunge',
+                      'alternative rock', 'indie rock', 'grunge', 'new wave', 'post-punk',
+                      'mellow gold', 'permanent wave', 'emo', 'neo mellow', 'lilith',
+                      'folk rock', 'celtic rock', 'keltische musik', 'bluesrock']
+_HIP_HOP_KEYWORDS  = ['hip-hop', 'hip hop', 'rap', 'r&b', 'old school', 'east coast', 'west coast',
+                      'trap', 'grime', 'urban contemporary', 'new jack swing', 'crunk']
+_FUNK_KEYWORDS     = ['funk', 'disco', 'soul', 'motown', 'boogie']
+_POP_KEYWORDS      = ['pop', 'new wave', 'new romantic', 'synthpop', 'singer-songwriter',
+                      'country', 'europop', 'boy band', 'girl group']
+
+# Muss mit BPM_RANGES in js/config.js identisch bleiben.
+_BPM_GROUPS = [('A',0,90),('B',90,110),('C',110,120),('D',120,130),('E',130,140),
+               ('F',140,150),('G',150,160),('H',160,175),('I',175,999)]
+
 
 # ===== GENRE-KLASSIFIZIERUNG =====
 def is_modern_year(album_date_str):
@@ -51,7 +91,7 @@ def is_modern_year(album_date_str):
 
 
 def classify(genres_str, parent_str, bpm, album_date_str=''):
-    """Gibt eine der 12 Genre-Gruppen zurück oder None wenn kein Match."""
+    """Gibt eine der 12 Genre-Gruppen zurück. Keyword-Tabellen → Modul-Ebene."""
     genres = genres_str.lower()
     parent = parent_str.lower()
 
@@ -59,92 +99,50 @@ def classify(genres_str, parent_str, bpm, album_date_str=''):
     is_modern = is_modern_year(album_date_str)
 
     # Ska & Reggae (vor Punk — ska-punk Gewichtung)
-    if any(x in genres for x in ['ska', 'rocksteady']):
-        ska_w  = sum(1 for x in ['ska', 'rocksteady', 'ska punk'] if x in genres)
-        punk_w = sum(1 for x in ['punk rock', 'skate punk', 'pop punk', 'hardcore punk'] if x in genres)
+    if any(x in genres for x in _SKA_TRIGGER):
+        ska_w  = sum(1 for x in _SKA_WEIGHT_KEYS if x in genres)
+        punk_w = sum(1 for x in _PUNK_WEIGHT_KEYS if x in genres)
         if ska_w >= punk_w:
             return 'Ska & Reggae'
-    if any(x in genres for x in ['reggae', 'dub', 'dancehall', 'ragga']):
+    if any(x in genres for x in _REGGAE_KEYWORDS):
         return 'Ska & Reggae'
 
-    # Punk
-    if any(x in genres for x in [
-        'punk', 'skate punk', 'ska punk', 'pop punk', 'hardcore punk',
-        'oi!', 'street punk', 'melodic hardcore',
-    ]):
+    if any(x in genres for x in _PUNK_KEYWORDS):
         return 'Punk'
 
-    # EDM / Electronic (BPM >= 118)
-    if any(x in genres for x in [
-        'edm', 'house', 'techno', 'trance', 'dubstep', 'hardstyle', 'hypertechno',
-        'big room', 'melodic techno', 'melodic house', 'eurobeat', 'electro house',
-        'bass house', 'tech house', 'future bass', 'slap house', 'melbourne bounce',
-        'big beat', 'eurodance', 'hi-nrg', 'bubblegum dance', 'italo disco',
-        'happy hardcore', 'italo dance', 'gabba', 'hands up',
-        'electroclash', 'indie dance', 'elektronische musik', 'electronica',
-        'indietronica',
-    ]) and bpm >= 118:
+    if any(x in genres for x in _EDM_KEYWORDS) and bpm >= 118:
         return 'EDM / Electronic'
 
-    # Synthwave / Electronica
-    if any(x in genres for x in [
-        'synthwave', 'vaporwave', 'chillwave', 'outrun', 'retrowave',
-        'darksynth', 'dreamwave', 'trip-hop', 'downtempo', 'new age', 'ambient', 'lo-fi',
-        'darkwave',
-    ]):
+    if any(x in genres for x in _SYNTH_KEYWORDS):
         return 'Synthwave / Electronica'
 
-    # Dance Pop (BPM-konditional)
-    if any(x in genres for x in ['tropical house', 'dance pop', 'electro swing']):
+    # Dance Pop: BPM-konditional zwischen EDM und Pop
+    if any(x in genres for x in _DANCE_POP_KEYS):
         return 'EDM / Electronic' if bpm >= 118 else 'Pop & New Wave'
 
-    # Deutsch
     if is_german and is_modern:
         return 'Moderne Deutsche Musik'
     if is_german:
         return 'Deutschrock / NDW / Schlager'
 
-    # Blues & Soul
-    if 'blues' in parent and 'rock' not in parent and not any(x in genres for x in [
-        'hip-hop', 'hip hop', 'rap', 'r&b', 'funk', 'disco', 'metal', 'soul', 'motown',
-    ]):
+    if 'blues' in parent and 'rock' not in parent and not any(x in genres for x in _BLUES_EXCLUDE):
         return 'Blues & Soul'
-    if any(x in genres for x in [
-        'classic blues', 'traditional blues', 'chicago blues', 'delta blues',
-        'modern blues', 'british blues', 'texas blues',
-    ]) and 'metal' not in genres:
+    if any(x in genres for x in _BLUES_KEYWORDS) and 'metal' not in genres:
         return 'Blues & Soul'
 
-    # Metal & Hard Rock
-    if any(x in genres for x in ['metal', 'glam metal', 'heavy metal', 'thrash metal', 'death metal']):
+    if any(x in genres for x in _METAL_KEYWORDS):
         return 'Metal & Hard Rock'
 
-    # Rock
-    if any(x in genres for x in [
-        'rock', 'hard rock', 'klassischer rock', 'classic rock', 'soft rock',
-        'aor', 'arena rock', 'album rock', 'glam rock', 'post-grunge',
-        'alternative rock', 'indie rock', 'grunge', 'new wave', 'post-punk',
-        'mellow gold', 'permanent wave', 'emo', 'neo mellow', 'lilith',
-        'folk rock', 'celtic rock', 'keltische musik', 'bluesrock',
-    ]):
+    if any(x in genres for x in _ROCK_KEYWORDS):
         return 'Rock'
 
-    # Hip Hop & R&B
-    if any(x in genres for x in [
-        'hip-hop', 'hip hop', 'rap', 'r&b', 'old school', 'east coast', 'west coast',
-        'trap', 'grime', 'urban contemporary', 'new jack swing', 'crunk',
-    ]):
+    if any(x in genres for x in _HIP_HOP_KEYWORDS):
         return 'Hip Hop & R&B'
 
-    # Funk & Disco
-    if any(x in genres for x in ['funk', 'disco', 'soul', 'motown', 'boogie']):
+    if any(x in genres for x in _FUNK_KEYWORDS):
         return 'Funk & Disco'
 
-    # Pop & New Wave
-    if any(x in genres for x in [
-        'pop', 'new wave', 'new romantic', 'synthpop', 'singer-songwriter',
-        'country', 'europop', 'boy band', 'girl group',
-    ]) or 'pop' in parent or 'rock' in parent:
+    if any(x in genres for x in _POP_KEYWORDS) or 'pop' in parent or 'rock' in parent:
         return 'Pop & New Wave'
 
     # Parent-Genre-Fallbacks
@@ -157,16 +155,11 @@ def classify(genres_str, parent_str, bpm, album_date_str=''):
     if 'r&b' in parent or 'hip hop' in parent:
         return 'Hip Hop & R&B'
 
-    # Letzter Fallback (praktisch immer erreichbar)
     return 'Pop & New Wave'
 
 
 def bpm_group(bpm):
-    for g, lo, hi in [
-        ('A', 0, 90), ('B', 90, 110), ('C', 110, 120),
-        ('D', 120, 130), ('E', 130, 140), ('F', 140, 150),
-        ('G', 150, 160), ('H', 160, 175), ('I', 175, 999),
-    ]:
+    for g, lo, hi in _BPM_GROUPS:
         if lo <= bpm < hi:
             return g
     return 'I'
@@ -537,4 +530,7 @@ def build(import_only=False):
 
 
 if __name__ == '__main__':
+    # L-03: Work from script's directory so relative paths (Playlists/, cflu_tracks.js) work
+    # regardless of CWD when launched from terminal, batch file, or systemd.
+    os.chdir(pathlib.Path(__file__).parent)
     build()

@@ -41,7 +41,7 @@ export function camCompat(c1, c2) {
     if (diff === 1 && l1 === l2) return 'green';
     if (diff === 2 && l1 === l2) return 'yellow';
     return 'red';
-  } catch (e) { return 'unknown'; }
+  } catch { return 'unknown'; }
 }
 export function camStrictOk(c1, c2) { return camCompat(c1, c2) === 'green'; }
 
@@ -78,7 +78,7 @@ export function camelotZoneDistance(key) {
       if (d < min) min = d;
     }
     return min;
-  } catch (e) { return 99; }
+  } catch { return 99; }
 }
 
 export function attrScore(val, spec) {
@@ -117,13 +117,22 @@ export function calcPhaseScore(t, phase) {
   if (cfg.live)          scores.push(attrScore(t.live,          cfg.live));
   if (cfg.loud)          scores.push(attrScore(t.loud,          cfg.loud));
   if (t.live != null && t.live > 80) scores.push(30);
-  return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+  // scores always has ≥1 element (BPM push above is unconditional), but guard for safety.
+  return scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 50;
 }
 
 export function isHalfDouble(bpm1, bpm2, tol = 3) {
   return Math.abs(bpm1 * 2 - bpm2) <= tol || Math.abs(bpm1 - bpm2 * 2) <= tol;
 }
 
+// calcSortScore — linear combination of calibrated-by-use components (all on 0–200 scale):
+//   camPoints   [0,100,200]  Camelot compatibility is the primary sort criterion;
+//                            green = same or adjacent key (200) outweighs phase score differences.
+//   phasePoints [0–200]      calcPhaseScore (0–100) × 2, so phase fitness equals Camelot weight.
+//   energyPoints [0–100]     direct energy value; secondary tie-breaker.
+//   bridge      [0,50]       bonus for bridge-subgenre tracks; smaller than energy to avoid over-promotion.
+//   penalties   (≤0)         soft deltas: Δenergy ×-2 outside ±15, Δloud ×-5 outside ±3,
+//                            Δvalence ×-1 outside ±20, Δdance ×-1 outside ±15 (B/C only).
 export function calcSortScore(t, cur, phase) {
   const cs = {green: 200, yellow: 100, red: 0, unknown: 0};
   const camPoints    = cs[camCompat(cur.camelot, t.camelot)] || 0;

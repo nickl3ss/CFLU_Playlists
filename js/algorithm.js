@@ -1,8 +1,8 @@
 // Core playlist generation algorithm
 // TRACK_DATA is accessed lazily inside functions so this module is safe to import
 // in test environments that don't load cflu_tracks.js.
-import { GERMAN_GENRES, MIN_POOL_SIZE, PHASE_CONFIG, CAM_ZONE1, CAM_ZONE2 } from './config.js';
-import { getNeighbours, getNeighboursWeighted, getRoleBonus, getSubgenres, bridgeTagsForMain } from './genres.js';
+import { GERMAN_GENRES, PHASE_CONFIG, CAM_ZONE1, CAM_ZONE2 } from './config.js';
+import { getNeighboursWeighted, getRoleBonus, getSubgenres, bridgeTagsForMain } from './genres.js';
 import { bpmGroup, neighbour, titleKey, titleDuplicate, camStrictOk, camCompat, calcPhaseScore, calcSortScore, isHalfDouble, camelotZoneDistance } from './utils.js';
 import { state } from './state.js';
 
@@ -56,16 +56,29 @@ export function addTrack(t, result, usedIds, usedTitleKeys, usedArtists) {
   registerTrack(t, usedIds, usedTitleKeys, usedArtists);
 }
 
-export function pickNext(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carryover = []) {
+// Unbiased integer in [0, n) via Web Crypto.
+// Modulo bias = (2^32 mod n) / 2^32 ≤ 5/2^32 for n ≤ 5 — negligible for playlist selection.
+function _randomInt(n) {
+  const a = new Uint32Array(1);
+  crypto.getRandomValues(a);
+  return a[0] % n;
+}
+
+// Unified pick — asc=true → ascending BPM (pickNext), asc=false → descending (pickPrev).
+// The sole algorithmic difference is the BPM-delta direction:
+//   delta(t) = asc ? t.bpm - cur.bpm : cur.bpm - t.bpm
+// A positive delta means a step in the intended direction; negative means wrong way.
+function _pick(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carryover, asc) {
   const { maxJump, wodEnergyMin, wodEnergyMax, currentPhase } = state;
   const cg = bpmGroup(cur.bpm);
   const maxArtist = Math.max(1, Math.floor(totalTracks * 0.1));
+  const delta = t => asc ? t.bpm - cur.bpm : cur.bpm - t.bpm;
 
   const baseOk = t => {
     if (usedIds.has(t.id || t.song)) return false;
     if (t.speech > 66) return false;
-    if (t.bpm < cur.bpm) return false;
-    if (t.bpm - cur.bpm > maxJump) return false;
+    const d = delta(t);
+    if (d < 0 || d > maxJump) return false;
     if (!neighbour(cg, bpmGroup(t.bpm))) return false;
     if (titleDuplicate(t.song, usedTitleKeys)) return false;
     const ak = t.artist.split(',')[0].trim().toLowerCase();
@@ -83,7 +96,6 @@ export function pickNext(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTr
     return true;
   };
 
-  // Inner Camelot phases applied within each escalation level
   function applyInnerCamelot(subset) {
     let c = subset.filter(t => camStrictOk(cur.camelot, t.camelot) && (CAM_ZONE1.has(t.camelot) || CAM_ZONE2.has(t.camelot)));
     if (c.length) return c;
@@ -97,7 +109,6 @@ export function pickNext(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTr
   const curSubgenres = getSubgenres(cur);
   const curGenre = cur.genre || '';
   const activeBridgeTags = bridgeTagsForMain(curGenre);
-
   let cands = [];
 
   // Stufe 1: same subgenre (genres_raw overlap)
@@ -124,7 +135,8 @@ export function pickNext(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTr
       const s4 = pool.filter(t => {
         if (!baseOkNoEnergy(t)) return false;
         if (t.genre !== nb.mainId) return false;
-        const bpmOk = (t.bpm >= cur.bpm && t.bpm - cur.bpm <= maxJump && neighbour(cg, bpmGroup(t.bpm)))
+        const d = delta(t);
+        const bpmOk = (d >= 0 && d <= maxJump && neighbour(cg, bpmGroup(t.bpm)))
           || isHalfDouble(cur.bpm, t.bpm);
         if (!bpmOk) return false;
         if (!isHalfDouble(cur.bpm, t.bpm) && (t.energy < wodEnergyMin || t.energy > wodEnergyMax)) return false;
@@ -141,14 +153,16 @@ export function pickNext(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTr
     cands = applyInnerCamelot(sf);
   }
 
-  // Phase 4: BPM escalation — ignores energy + BPM-group rules; last resort
+  // Phase 4: BPM escalation — ignores energy + BPM-group rules; last resort.
+  // ascending: seeks tracks 'extra' BPM ahead (gap jump); descending: expands allowed window.
   let fromPhase4 = false;
   if (!cands.length) {
     for (let extra = 5; extra <= 40; extra += 5) {
+      const dLo = asc ? extra : 0;
       cands = pool.filter(t => {
         if (!baseOkNoEnergy(t)) return false;
-        if (t.bpm < cur.bpm + extra) return false;
-        if (t.bpm - cur.bpm > maxJump + extra) return false;
+        const d = delta(t);
+        if (d < dLo || d > maxJump + extra) return false;
         return true;
       });
       if (cands.length) { fromPhase4 = true; break; }
@@ -177,140 +191,19 @@ export function pickNext(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTr
     cands.sort((a, b) => calcSortScore(b, cur, currentPhase) - calcSortScore(a, cur, currentPhase));
   }
 
-  const pickIdx = Math.floor(Math.random() * Math.min(5, cands.length));
-  const picked = cands[pickIdx];
+  const top = Math.min(5, cands.length);
+  const picked = cands[_randomInt(top)];
   carryover.length = 0;
-  cands.slice(0, Math.min(5, cands.length))
-    .filter(t => t !== picked)
-    .slice(0, 2)
-    .forEach(t => carryover.push(t));
-
+  cands.slice(0, top).filter(t => t !== picked).slice(0, 2).forEach(t => carryover.push(t));
   return picked;
 }
 
+export function pickNext(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carryover = []) {
+  return _pick(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carryover, true);
+}
+
 export function pickPrev(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carryover = []) {
-  const { maxJump, wodEnergyMin, wodEnergyMax, currentPhase } = state;
-  const cg = bpmGroup(cur.bpm);
-  const maxArtist = Math.max(1, Math.floor(totalTracks * 0.1));
-
-  const baseOk = t => {
-    if (usedIds.has(t.id || t.song)) return false;
-    if (t.speech > 66) return false;
-    if (t.bpm > cur.bpm) return false;
-    if (cur.bpm - t.bpm > maxJump) return false;
-    if (!neighbour(cg, bpmGroup(t.bpm))) return false;
-    if (titleDuplicate(t.song, usedTitleKeys)) return false;
-    const ak = t.artist.split(',')[0].trim().toLowerCase();
-    if ((usedArtists.get(ak) || 0) >= maxArtist) return false;
-    if (t.energy < wodEnergyMin || t.energy > wodEnergyMax) return false;
-    return true;
-  };
-
-  const baseOkNoEnergy = t => {
-    if (usedIds.has(t.id || t.song)) return false;
-    if (t.speech > 66) return false;
-    if (titleDuplicate(t.song, usedTitleKeys)) return false;
-    const ak = t.artist.split(',')[0].trim().toLowerCase();
-    if ((usedArtists.get(ak) || 0) >= maxArtist) return false;
-    return true;
-  };
-
-  function applyInnerCamelot(subset) {
-    let c = subset.filter(t => camStrictOk(cur.camelot, t.camelot) && (CAM_ZONE1.has(t.camelot) || CAM_ZONE2.has(t.camelot)));
-    if (c.length) return c;
-    c = subset.filter(t => camStrictOk(cur.camelot, t.camelot));
-    if (c.length) return c;
-    c = subset.filter(t => camCompat(cur.camelot, t.camelot) !== 'red');
-    if (c.length) return c;
-    return subset;
-  }
-
-  const curSubgenres = getSubgenres(cur);
-  const curGenre = cur.genre || '';
-  const activeBridgeTags = bridgeTagsForMain(curGenre);
-
-  let cands = [];
-
-  if (curSubgenres.length) {
-    const s1 = pool.filter(t => baseOk(t) && getSubgenres(t).some(tag => curSubgenres.includes(tag)));
-    cands = applyInnerCamelot(s1);
-  }
-
-  if (!cands.length) {
-    const s2 = pool.filter(t => baseOk(t) && t.genre === curGenre);
-    cands = applyInnerCamelot(s2);
-  }
-
-  if (!cands.length && activeBridgeTags.length) {
-    const s3 = pool.filter(t => baseOk(t) && getSubgenres(t).some(tag => activeBridgeTags.includes(tag)));
-    cands = applyInnerCamelot(s3);
-  }
-
-  if (!cands.length) {
-    for (const nb of getNeighboursWeighted(curGenre)) {
-      const s4 = pool.filter(t => {
-        if (!baseOkNoEnergy(t)) return false;
-        if (t.genre !== nb.mainId) return false;
-        const bpmOk = (t.bpm <= cur.bpm && cur.bpm - t.bpm <= maxJump && neighbour(cg, bpmGroup(t.bpm)))
-          || isHalfDouble(cur.bpm, t.bpm);
-        if (!bpmOk) return false;
-        if (!isHalfDouble(cur.bpm, t.bpm) && (t.energy < wodEnergyMin || t.energy > wodEnergyMax)) return false;
-        return true;
-      });
-      const s4cam = applyInnerCamelot(s4);
-      if (s4cam.length) { cands = s4cam; break; }
-    }
-  }
-
-  if (!cands.length) {
-    const sf = pool.filter(t => baseOk(t));
-    cands = applyInnerCamelot(sf);
-  }
-
-  // BPM escalation downward — ignores energy + BPM-group; last resort
-  let fromPhase4 = false;
-  if (!cands.length) {
-    for (let extra = 5; extra <= 40; extra += 5) {
-      cands = pool.filter(t => {
-        if (!baseOkNoEnergy(t)) return false;
-        if (t.bpm > cur.bpm) return false;
-        if (cur.bpm - t.bpm > maxJump + extra) return false;
-        return true;
-      });
-      if (cands.length) { fromPhase4 = true; break; }
-    }
-  }
-  if (!cands.length) return null;
-
-  if (carryover.length) {
-    const candIds = new Set(cands.map(t => t.id || t.song));
-    for (const t of carryover) {
-      if (candIds.has(t.id || t.song)) continue;
-      if (!baseOk(t)) continue;
-      if (camCompat(cur.camelot, t.camelot) === 'red') continue;
-      cands.push(t);
-    }
-  }
-
-  if (fromPhase4) {
-    cands.sort((a, b) => {
-      const dA = camelotZoneDistance(a.camelot), dB = camelotZoneDistance(b.camelot);
-      if (dA !== dB) return dA - dB;
-      return calcSortScore(b, cur, currentPhase) - calcSortScore(a, cur, currentPhase);
-    });
-  } else {
-    cands.sort((a, b) => calcSortScore(b, cur, currentPhase) - calcSortScore(a, cur, currentPhase));
-  }
-
-  const pickIdx = Math.floor(Math.random() * Math.min(5, cands.length));
-  const picked = cands[pickIdx];
-  carryover.length = 0;
-  cands.slice(0, Math.min(5, cands.length))
-    .filter(t => t !== picked)
-    .slice(0, 2)
-    .forEach(t => carryover.push(t));
-
-  return picked;
+  return _pick(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carryover, false);
 }
 
 export function buildAlternating(pool, ref, usedIds, usedTitleKeys, usedArtists, targetSec) {
@@ -372,7 +265,7 @@ export function buildDown(pool, endT, usedIds, usedTitleKeys, usedArtists, count
   const maxArtist = Math.max(1, Math.floor(count * 0.1));
   for (let i = 0; i < count; i++) {
     const cg = bpmGroup(cur.bpm);
-    let cands = pool.filter(t => {
+    const cands = pool.filter(t => {
       if (usedIds.has(t.id || t.song)) return false;
       if (t.bpm > cur.bpm) return false;
       if (cur.bpm - t.bpm > maxJump) return false;

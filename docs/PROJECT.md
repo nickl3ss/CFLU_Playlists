@@ -27,7 +27,7 @@ Lokaler, regelbasierter Playlist-Generator für alle vier Phasen eines CrossFit-
 | `js/genres.js` | GENRE_CONFIG: 12 Main Genres, gewichteter Neighbour-Graph, Bridge-Subgenres, Rollen-Affinität |
 | `js/algorithm.js` | Kern: pickNext/pickPrev (4-stufig), buildUp/Down/Plateau/Decreasing/Alternating |
 | `js/chart.js` | BPM-Step-Chart + bidirektionale Hover-Synchronisation |
-| `js/spotify.js` | Spotify PKCE Auth, Playlist-Export |
+| `js/spotify.js` | Spotify PKCE Auth, Token-Expiry (55 min), Logout, Playlist-Export |
 | `js/upload.js` | CSV-Upload-Helfer: sanitizeFilename, extractPlaylistName, formatUploadSuccess |
 | `js/app.js` | UI-Handler, _gen(), renderResult(), Event-Wiring, Init |
 
@@ -75,7 +75,46 @@ app.js (importiert alle Module, verdrahtet Events)
 
 ## Changelog
 
-Siehe [`docs/CHANGELOG.md`](CHANGELOG.md) · Offene Items → GitHub Issues (https://github.com/nickl3ss/CFLU_Playlists/issues)
+Offene Items → GitHub Issues (https://github.com/nickl3ss/CFLU_Playlists/issues)
+
+### 2026-06-07 — Security-Review, Qualitäts-Hardening, neue Features
+
+#### Sicherheit (`cflu_server.py`, `js/spotify.js`)
+- **S-01** Spotify OAuth-Scope auf `playlist-modify-private` eingeschränkt (war zu breit)
+- **S-02** Token-Expiry in `state.spTokenExpiry` getrackt (55 min); `isTokenValid()` + `spotifyLogout()` ergänzt; Export prüft Gültigkeit vor API-Aufruf
+- **S-03** Spotify-API-Fehler werden nicht mehr roh per `JSON.stringify` in die UI gegeben — `console.error` + generische Fehlermeldung
+- **S-04** Upload-Size-Limit 10 MB in `cflu_server.py` (vor Body-Read geprüft)
+- **S-05** BOM-Entfernung beim CSV-Upload per `removeprefix('﻿')` statt `lstrip` (entfernt exakt eine BOM)
+- **S-06** Security-Headers auf allen Responses: `Content-Security-Policy`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`; CSP erlaubt `frame-src https://open.spotify.com` für den Track-Preview-Embed
+
+#### Linux / Deployment (`CFLU_Start.sh`, `cflu.service`)
+- **L-01** Port-Check in `CFLU_Start.sh` via `ss -tlnp` mit `lsof` als Fallback (ersetzt macOS-spezifisches `lsof`)
+- **L-02** `cflu.service` — systemd User-Service für automatischen Start nach Login
+- **L-03** CWD-Unabhängigkeit: `cflu_server.py` und `CFLU_Pool_Build.py` wechseln per `os.chdir(pathlib.Path(__file__).parent)` ins Skript-Verzeichnis
+
+#### Algorithmus (`js/algorithm.js`, `js/utils.js`)
+- `pickNext` / `pickPrev` zu einer gemeinsamen `_pick(…, asc)` zusammengeführt (DRY; formaler Unterschied: BPM-Delta-Richtung)
+- `Math.random()` → `crypto.getRandomValues()` (kryptographisch sicher; gleiche Web-Crypto-API wie PKCE)
+- Leerer `scores`-Array in `calcSortScore` gibt jetzt `50` statt `NaN`
+
+#### Qualitäts-Tooling (neu)
+- `eslint.config.js` — ESLint 9 flat config mit allen Browser-Globals; `npm run lint` → `npx eslint js/`
+- `pyproject.toml` — Ruff-Config (target py311, E/W/F/I/B/UP); `cflu_server.py` B904 ausgenommen
+- `.github/workflows/tests.yml` — GitHub Actions CI: `node js/cflu_tests.js` bei Push/PR
+
+#### Pool-Builder (`CFLU_Pool_Build.py`)
+- Alle Keyword-Listen als Modul-Level-Konstanten (`_SKA_TRIGGER`, `_EDM_KEYWORDS`, …)
+- BPM-Gruppen als `_BPM_GROUPS`-Liste statt Inline-Kette
+- `pathlib` importiert; CWD-Fix im `__main__`-Block
+
+#### Neue Features
+- **CSV-Export** (`js/app.js`, `CFLU_WOD_Builder.html`): Playlist als `CFLU_WOD_YYYY-MM-DD.csv` herunterladen (WOD + Cool-Down; UTF-8 BOM für Excel)
+- **Datenschutzhinweise** (`README.md`): D-01 Chosic (Playlist temporär öffentlich), D-02 Spotify (private Playlist, Workout-Pattern)
+- **Track-Metadaten-Spalten** (`css/cflu_style.css`, `js/app.js`, `CFLU_WOD_Builder.html`): 8 neue Spalten im Track-Grid — POP, VAL, DNC, ACU, INS, SPE, LVE, LOU — mit WOD-relevantem Farb-Coding; Hover über Spaltenkopf zeigt Erklärung
+- **Playlist-Log Genre** (`js/app.js`): Jede Log-Zeile zeigt das zugeordnete Genre; Fallback-Tracks als `(Fallback)` markiert
+
+#### Archivierung
+- `docs/CHANGELOG.md` → `archive/CHANGELOG.md` (gitignored); Verweise in CLAUDE.md und README bereinigt
 
 ---
 
