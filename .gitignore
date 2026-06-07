@@ -34,6 +34,10 @@ desktop.ini
 # Generierte Playlist-Exports
 Playlists/
 
+# Claude Code — lokal, nicht ins Repo
+CLAUDE.md
+_fix_issues.py
+
 # Interne Entwicklungs-Prompts
 claude_code_prompt_playlist_generator.md
 claude_code_cflu_onboarding_prompt.md
