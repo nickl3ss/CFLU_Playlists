@@ -37,6 +37,10 @@ Playlists/
 # Claude Code — lokal, nicht ins Repo
 CLAUDE.md
 _fix_issues.py
+.claude/
+
+# Archivierte Dateien — lokal als Referenz, nicht im Repo
+archive/
 
 # Interne Entwicklungs-Prompts
 claude_code_prompt_playlist_generator.md
