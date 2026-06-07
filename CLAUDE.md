@@ -40,6 +40,7 @@
 ├── CFLU_Tests.html             # [TST] Browser-Renderer — thin shell, importiert js/cflu_tests.js
 ├── cflu_tracks.js              # [TRK] Auto-generierter Track-Pool (nicht manuell editieren)
 ├── CFLU_Pool_Build.py          # [PLB] Pool-Builder (liest Playlists/*.csv, schreibt cflu_tracks.js)
+├── cflu_server.py              # [PLB] Custom HTTP-Server (Port 8888, POST /api/upload-csv)
 ├── CFLU_Start.bat              # Windows Launcher
 ├── css/
 │   └── cflu_style.css
@@ -52,6 +53,7 @@
     ├── algorithm.js
     ├── chart.js
     ├── spotify.js
+    ├── upload.js
     └── app.js
 ```
 
@@ -79,20 +81,17 @@
 
 **Body-Template:**
 ```
-| Feld | Wert |
-|------|------|
-| Komponente | WOD |
-| Priorität | P2 |
-| Erstellt | YYYY-MM-DD |
+## Beschreibung
+<!-- Was. Warum. -->
 
-**Beschreibung:**
-...
+## Algorithmus / Umsetzung
+<!-- Optional: konkrete Schritte oder Pseudocode -->
 
-**Algorithmus:** (optional)
-1. ...
-
-Akzeptanzkriterium: ...
+## Akzeptanzkriterium
+- [ ] ...
 ```
+
+> Komponente und Priorität werden als **Labels** gesetzt (WOD/PLB/TST/TRK + P1–P4), nicht im Body.
 
 ### A · Neue Anfrage
 1. Anfrage analysieren.

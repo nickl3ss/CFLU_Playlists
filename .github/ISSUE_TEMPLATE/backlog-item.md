@@ -1,27 +1,18 @@
 ---
 name: Backlog Item
-about: Neues Feature oder Bug aus BACKLOG.md
-title: "[BL-XXX] Titel"
-labels: backlog
+about: Neues Feature, Bug oder Verbesserung
+title: "[KÜRZEL] Kurzbeschreibung"
+labels: ""
 assignees: ""
 ---
 
-## BL-ID
-BL-XXX
-
-## Typ
-- [ ] Feature
-- [ ] Bug
-- [ ] Chore
-
-## Komponente
-<!-- C? -->
-
-## Priorität
-<!-- P1 / P2 / P3 / P4 -->
+<!-- Labels setzen: Typ (bug/enhancement/documentation) + Priorität (P1–P4) + Komponente (WOD/PLB/TST/TRK) -->
 
 ## Beschreibung
-<!-- Was. Warum. Akzeptanzkriterium. -->
+<!-- Was soll geändert werden? Warum? -->
+
+## Algorithmus / Umsetzung
+<!-- Optional: konkrete Schritte oder Pseudocode -->
 
 ## Akzeptanzkriterium
 - [ ] ...

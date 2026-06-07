@@ -28,6 +28,7 @@ Lokaler, regelbasierter Playlist-Generator für alle vier Phasen eines CrossFit-
 | `js/algorithm.js` | Kern: pickNext/pickPrev (4-stufig), buildUp/Down/Plateau/Decreasing/Alternating |
 | `js/chart.js` | BPM-Step-Chart + bidirektionale Hover-Synchronisation |
 | `js/spotify.js` | Spotify PKCE Auth, Playlist-Export |
+| `js/upload.js` | CSV-Upload-Helfer: sanitizeFilename, extractPlaylistName, formatUploadSuccess |
 | `js/app.js` | UI-Handler, _gen(), renderResult(), Event-Wiring, Init |
 
 ### Abhängigkeiten
@@ -43,6 +44,7 @@ genres.js  (importiert: config.js)
 algorithm.js (importiert: config.js, state.js, utils.js, genres.js)
 chart.js     (importiert: state.js)
 spotify.js   (importiert: state.js)
+upload.js    (importiert: –, genutzt von cflu_server.py + app.js)
      ↓
 app.js (importiert alle Module, verdrahtet Events)
 ```
