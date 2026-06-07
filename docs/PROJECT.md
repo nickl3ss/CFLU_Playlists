@@ -64,6 +64,13 @@ app.js (importiert alle Module, verdrahtet Events)
 
 ---
 
+## Theorie-Quellen
+
+| Dokument | Inhalt | Genutzt in |
+|----------|--------|-----------|
+| [`docs/theory/WODability_Playlist-WodMusicTheory.md`](theory/WODability_Playlist-WodMusicTheory.md) | BPM-Progressionstheorie, DJ-Norm ±5 BPM, Phasen-Energie-Fenster | #94 maxJump-Default, #80 PHASE_CONFIG |
+| [`docs/theory/Genre_MatchingTheory.md`](theory/Genre_MatchingTheory.md) | Genre-Kompatibilitätsmatrix, Neighbour-Graph, Bridge-Subgenres | #85–#88 genres.js |
+
 ## Changelog
 
 Siehe [`docs/CHANGELOG.md`](CHANGELOG.md) · Offene Items → GitHub Issues (https://github.com/nickl3ss/CFLU_Playlists/issues)
