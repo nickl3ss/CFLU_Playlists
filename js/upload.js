@@ -14,7 +14,7 @@ export function extractPlaylistName(csvContent, fallback) {
 export function formatUploadSuccess({ added, updated, total }) {
   const parts = [];
   if (added) parts.push(`${added} neu`);
-  if (updated) parts.push(`${updated} aktualisiert`);
+  if (updated) parts.push(`${updated} bereits im Pool`);
   parts.push(`${total} gesamt`);
   return '✓ Pool aktualisiert: ' + parts.join(', ');
 }
@@ -23,6 +23,8 @@ export function classifyUploadResult(data) {
   if (!data.ok) return { type: 'error', msg: '✗ ' + (data.error || 'Fehler') };
   if (data.added === 0 && data.updated === 0)
     return { type: 'warning', msg: '⚠ Keine neuen Tracks — CSV-Format prüfen (benötigt: Song, Artist, BPM, Camelot, …)' };
+  if (data.added === 0 && data.updated > 0)
+    return { type: 'warning', msg: `⚠ Alle Tracks bereits im Pool (${data.updated} Doubletten, ${data.total} gesamt)` };
   return { type: 'success', msg: formatUploadSuccess(data) };
 }
 

@@ -48,6 +48,7 @@
     ├── config.js
     ├── state.js
     ├── utils.js
+    ├── genres.js
     ├── algorithm.js
     ├── chart.js
     ├── spotify.js

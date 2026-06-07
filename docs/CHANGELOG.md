@@ -40,3 +40,26 @@
 | #1  | fix(app): Pool-Größe und Genre-Anzahl dynamisch — getAllTracks().length + Object.keys(getGenreStats()).length in init(); Versionsnummer aus Footer entfernt; placeholder und #pool-info zur Laufzeit gesetzt | 2026-06-06 | – |
 | #70 | fix(spotify): sp_cid nach OAuth-Callback bereinigt — sessionStorage.removeItem('sp_cid') nach pkce_v; playPreview()/stopAllPreviews() Dead Code entfernt (BL-021); Invariante 2 in CLAUDE.md korrigiert | 2026-06-06 | – |
 | HYGE | chore: SE-Hygiene — package.json committed; .claude/settings.json committed; docs/CFLU_Track_Pool.md committed; *.bak in .gitignore | 2026-06-06 | – |
+| #78 W1 | fix(config): Phase B BPM-Obergrenze 130→120 — PHASE_CONFIG.B.bpm[1] gesenkt | 2026-06-07 | – |
+| #79 W2 | fix(algorithm): Speechiness Hard-Gate >66 in baseOk() — sprachdominierende Tracks phasenübergreifend ausgeschlossen | 2026-06-07 | – |
+| #85 G1 | feat(genres): genres.js GENRE_CONFIG Modul — 12 Main Genres, gewichteter Neighbour-Graph, 20 Bridge-Subgenres, 4 primäre Bridges, Rollen (peak/warmup/cooldown), Helper-Funktionen | 2026-06-07 | – |
+| #86 G2 | refactor(config): GENRE_NEIGHBOURS entfernt — algorithm.js + app.js auf getNeighbours/getNeighboursWeighted aus genres.js migriert | 2026-06-07 | – |
+| #80 W3 | fix(config): PHASE_CONFIG Energy-Fenster korrigiert (A:20-45, B:40-65, C:75-100, D:15-40) + bpmCore pro Phase (A:90-105, B:90-110, C:140-175, D:65-85) | 2026-06-07 | – |
+| #81 W4 | feat(utils): BPM-Trapez-Score in calcPhaseScore — trapezScore() Funktion, BPM ~40% Gewicht via Doppel-Push; calcPhaseCBonus entfernt | 2026-06-07 | – |
+| #87 G3 | feat(algorithm): getPhasePoolWithNeighbours() proaktiv — gewichtetes Neighbour-Blending (NEIGHBOUR_BLEND_FACTOR=0.3) + Rollen-Affinität (getRoleBonus) | 2026-06-07 | – |
+| #88 G4 | feat(algorithm): pickNext() 4-stufige Subgenre-Eskalation (genres_raw-basiert) — Stufe 1 gleiches Subgenre, 2 gleiches Main, 3 Bridge-Pivot, 4 Neighbour-Main mit Half/Double-Time; isHalfDouble() in utils.js | 2026-06-07 | – |
+| #82 W5 | feat(algorithm): buildDecreasing() erster Pick erlaubt Half/Double-Time (C→D-Übergang) | 2026-06-07 | – |
+| #83 W6 | feat(utils): Delta-Scoring in calcSortScore — ΔEnergy, ΔLoudness, ΔValence, ΔDance Soft-Penalties | 2026-06-07 | – |
+| #84 W7 | feat(utils): Liveness-Soft-Penalty >80 in calcPhaseScore — scores.push(30) wenn live>80 | 2026-06-07 | – |
+| #89 G5 | test(suite): 8 neue Test-Suiten — GENRE_CONFIG Struktur, getNeighboursWeighted, bridgeTags, isHalfDouble, trapezScore, calcPhaseScore BPM, calcSortScore Bridge-Bonus, pickNext Subgenre-Eskalation, getRoleBonus; 245 Tests gesamt (+54) | 2026-06-07 | – |
+| #23 | feat(algorithm): buildAlternating() + pickPrev() — Midpoint-Position durationskorrekt; pickPrev() als vollständiges G4-Spiegelbild von pickNext() (Stufen 1–4 + Camelot-Fallback + BPM-Eskalation abwärts); app.js mid-Zweig auf buildAlternating() umgestellt; plateau-Zweig getrennt; 263 Tests gesamt (+18) | 2026-06-07 | – |
+| #90 | fix(app): Plateau BPM-Filter — neighbour() → Math.abs(t.bpm - ref.bpm) ≤ 12; bpmGroup/neighbour aus app.js-Import entfernt | 2026-06-07 | – |
+| #91 | feat(app): Spotify Crossfade-Kompensation — state.crossfadeSec, rawTargetSec-Inflation, effectiveSec im Stats-Header (WOD eff.), Crossfade-Zeile im Log; UI-Slider 0–25s in Schritt 3 | 2026-06-07 | – |
+| #94 | fix(config/app): Max-BPM-Sprung Default + Hint-Schwellen nach WODability-Theorie — Default 10→5 (DJ-Norm ≤5 BPM); JUMP_STOPS Grünzone 5–8 BPM; jumpHint neu kalibriert | 2026-06-07 | – |
+| #95 | feat(config/app/html): Nicht-linearer Dauer-Slider 5–360 min — DUR_STEPS[] (53 Werte); WOD + CD-Slider auf Index 0–52; onDurSlider/onCdDurSlider lesen DUR_STEPS[idx]; Phase-D-Reset index-korrekt; xfade-Slider Inline-Handler → addEventListener gefixt | 2026-06-07 | – |
+| #92 | fix(server,etl,upload): Manual Upload überspringt Doublets — merge(import_only=True) in CFLU_Pool_Build.py; Server ruft build(import_only=True); UI "aktualisiert"→"bereits im Pool"; added:0+updated>0 → Warning; 2 neue Tests, 265 gesamt | 2026-06-07 | – |
+| #93 | feat(etl): cflu_tracks.js ein Track pro Zeile — build() schreibt lesbares Format (kompakte Track-JSON-Objekte zeilenweise, Stats-Block zeilenweise); einmaliger Rebuild: 4794 Tracks, Spotify-ID-Dedup via load_existing(); 2508 KB | 2026-06-07 | – |
+| #96 | fix(algorithm): buildUp Artist-Diversität — result.length statt 9999 als totalTracks; maxArtist wächst mit echter Playlist-Länge; 10%-Regel jetzt aktiv für Position=Start | 2026-06-07 | – |
+| #97 | fix(app): Eskalation-Fallback Log-Warnung — ⚠ kein BPM-Fortschritt wenn Stufe-4-Fallback ΔBPM ≤ 0 liefert | 2026-06-07 | – |
+| #98 | fix(utils,algorithm,test): Titeldedup startsWith — titleDuplicate() erkennt Remix-Duplikate (startsWith beide Richtungen, Guard ≥6 Zeichen); 6 neue Tests | 2026-06-07 | – |
+| #99 | feat(algorithm): Camelot-Recovery — camelotZoneDistance() in utils.js; Stufe-4-Kandidaten nach Zone-1/2-Abstand sortiert (minimiert Key-Cluster-Drift); 10 neue Tests; 281 Tests gesamt | 2026-06-07 | – |

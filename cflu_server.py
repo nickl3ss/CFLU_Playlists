@@ -62,7 +62,7 @@ class CFLUHandler(SimpleHTTPRequestHandler):
                 f.write(content.lstrip('﻿'))
 
             from CFLU_Pool_Build import build
-            count_new, count_updated, total = build()
+            count_new, count_updated, total = build(import_only=True)
 
             self._respond(200, {
                 'ok': True,

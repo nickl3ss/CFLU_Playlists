@@ -414,15 +414,15 @@ def compute_stats(tracks):
     return stats
 
 
-def merge(transformed, existing):
+def merge(transformed, existing, import_only=False):
     """
     Merged CSV-Tracks in bestehenden Pool.
-    - Neu   : anhängen (locked=0)
-    - locked=1 : überspringen
-    - locked=0 : vollständig ersetzen (locked=0 beibehalten)
+    - Neu       : anhängen (locked=0)
+    - locked=1  : immer überspringen
+    - locked=0  : aktualisieren (Vollmodus) oder überspringen (import_only=True)
     """
     count_new      = 0
-    count_updated  = 0
+    count_updated  = 0  # im import_only-Modus: bereits im Pool (übersprungen)
     count_locked   = 0
 
     merged = dict(existing)  # Kopie, enthält auch Tracks die nicht in CSVs sind
@@ -435,13 +435,18 @@ def merge(transformed, existing):
             count_new += 1
         elif merged[tid].get('locked', 0) == 1:
             count_locked += 1
+        elif import_only:
+            count_updated += 1  # bereits im Pool — überspringen
         else:
             t['locked'] = 0
             merged[tid] = t
             count_updated += 1
 
     print(f'  Tracks neu         : {count_new}')
-    print(f'  Tracks aktualisiert: {count_updated}')
+    if import_only:
+        print(f'  Bereits im Pool    : {count_updated}')
+    else:
+        print(f'  Tracks aktualisiert: {count_updated}')
     print(f'  Tracks gesperrt    : {count_locked}')
     print(f'  Tracks gesamt      : {len(merged)}')
 
@@ -471,10 +476,12 @@ def dedup_pool(tracks):
 
 
 # ===== HAUPTFUNKTION =====
-def build():
+def build(import_only=False):
     print()
     print('CFLU Pool Builder — ETL-Pipeline')
     print('=' * 40)
+    if import_only:
+        print('  Modus: Import-Only (bestehende Tracks werden nicht überschrieben)')
 
     # E — Extract
     print('\n[E] Extract')
@@ -491,7 +498,7 @@ def build():
         print(f'  Bestehende Tracks  : {len(existing)}')
     else:
         print('  Kein bestehender Pool — wird neu erstellt.')
-    tracks, count_new, count_updated = merge(transformed, existing)
+    tracks, count_new, count_updated = merge(transformed, existing, import_only=import_only)
 
     # C — Cleanup
     print('\n[C] Cleanup')
@@ -500,13 +507,24 @@ def build():
     # Stats berechnen
     stats = compute_stats(tracks)
 
-    # Schreiben
-    out = {'tracks': tracks, 'stats': stats}
-    js_content = json.dumps(out, ensure_ascii=False, separators=(',', ':'))
+    # Schreiben — ein Track pro Zeile für Lesbarkeit
+    track_lines = ',\n'.join(
+        json.dumps(t, ensure_ascii=False, separators=(',', ':')) for t in tracks
+    )
+    stat_lines = ',\n'.join(
+        json.dumps(k, ensure_ascii=False) + ':' + json.dumps(v, ensure_ascii=False, separators=(',', ':'))
+        for k, v in stats.items()
+    )
+    file_content = (
+        f'const TRACK_DATA={{\n'
+        f'"tracks":[\n{track_lines}\n],\n'
+        f'"stats":{{\n{stat_lines}\n}}'
+        f'}};\n'
+    )
     with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
-        f.write(f'const TRACK_DATA={js_content};')
+        f.write(file_content)
 
-    kb = len(js_content) // 1024
+    kb = len(file_content.encode('utf-8')) // 1024
     print(f'\ncflu_tracks.js geschrieben ({kb} KB, {len(tracks)} Tracks)')
     print('\nGenre-Verteilung:')
     gc = defaultdict(int)

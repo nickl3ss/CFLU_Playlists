@@ -2,7 +2,7 @@
 
 > CrossFit Ludwigshafen — Local class-phase playlist generator with Spotify export
 
-Builds rule-based playlists for all four phases of a CrossFit class from the track pool across 12 genre groups. Select a class phase, pick a reference song, configure duration — and get a scored, Camelot-compatible playlist with audio preview and direct Spotify export.
+Builds rule-based playlists for all four phases of a CrossFit class from the track pool across 12 genre groups. Select a class phase, pick a reference song, configure duration — and get a scored, Camelot-compatible playlist with direct Spotify export.
 
 Architecture, algorithm details and ADR decisions → [`docs/PROJECT.md`](docs/PROJECT.md)
 
@@ -13,7 +13,7 @@ Architecture, algorithm details and ADR decisions → [`docs/PROJECT.md`](docs/P
 - **Python 3.x** (in PATH) — runs the local server and auto-rebuilds the track pool
 - **Node.js LTS** (optional) — runs the test suite from the command line without a browser
 - A modern browser (Chrome, Firefox, Edge)
-- A Spotify account + Developer App (for export and audio preview — one-time setup)
+- A Spotify account + Developer App (for export — one-time setup)
 
 ---
 
@@ -24,7 +24,7 @@ Double-click **`CFLU_Start.bat`**.
 What it does automatically:
 1. Checks Python is installed
 2. If CSVs are present in `Playlists/` — rebuilds `cflu_tracks.js` from scratch
-3. Starts `python -m http.server 8888`
+3. Starts `python cflu_server.py` (custom HTTP server on port 8888)
 4. Opens `http://127.0.0.1:8888/CFLU_WOD_Builder.html` in the default browser
 
 Keep the terminal window open while using the app. Closing it stops the server.
@@ -34,7 +34,7 @@ Keep the terminal window open while using the app. Closing it stops the server.
 ```bash
 cd path/to/CFLUPlaylist
 python CFLU_Pool_Build.py   # optional: only needed after adding/updating CSVs
-python -m http.server 8888
+python cflu_server.py
 # open: http://127.0.0.1:8888/CFLU_WOD_Builder.html
 ```
 
@@ -93,7 +93,7 @@ Song metadata comes from **[Chosic Spotify Playlist Analyzer](https://www.chosic
 | **PLB** | Pool Builder | `CFLU_Pool_Build.py` | Python ETL-Pipeline: liest `Playlists/*.csv`, generiert `cflu_tracks.js` |
 | **WOD** | WOD Generator | `CFLU_WOD_Builder.html` + `js/` | Haupt-App: Playlist-Logik, Scoring, UI, Spotify-Export |
 | **TRK** | Track Store | `cflu_tracks.js` | Auto-generierter Track-Pool (nicht manuell editieren) |
-| **TST** | Test Suite | `js/cflu_tests.js` · `CFLU_Tests.html` | Dual-mode: `node js/cflu_tests.js` (CLI) · Browser-Renderer (160 Tests / 21 Suiten) |
+| **TST** | Test Suite | `js/cflu_tests.js` · `CFLU_Tests.html` | Dual-mode: `node js/cflu_tests.js` (CLI) · Browser-Renderer (281 Tests) |
 
 ## File Overview
 

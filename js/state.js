@@ -6,7 +6,7 @@ export const state = {
   selectedTrack: null,
   poolGenre: '',
   position: 'start',
-  maxJump: 10,
+  maxJump: 5,
   bpmTol: 5,
   camLetter: 'both',   // 'A' | 'both' | 'B'
   camNumbers: [],      // [] = kein Filter, sonst Array mit Zahlen 1–12
@@ -17,6 +17,7 @@ export const state = {
   wodEnergyMax: 100,
   generatedWod: [],
   generatedCd: [],
+  crossfadeSec: 0,
   spToken: null,
   spUserId: null,
   hoveredTrackIdx: null,

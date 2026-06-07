@@ -1,11 +1,12 @@
 // UI handlers, generation, rendering, and event wiring
-import { PHASE_CONFIG, GENRE_NEIGHBOURS, MIN_POOL_SIZE, BPM_STOPS, JUMP_STOPS,
-         POS_BPM, CAM_COLOR, CAM_ZONE1, CAM_ZONE2 } from './config.js';
+import { PHASE_CONFIG, MIN_POOL_SIZE, BPM_STOPS, JUMP_STOPS,
+         POS_BPM, CAM_COLOR, CAM_ZONE1, CAM_ZONE2, DUR_STEPS } from './config.js';
+import { getNeighbours } from './genres.js';
 import { state } from './state.js';
-import { bpmGroup, neighbour, titleKey, fmtDur, fmtMin, lerpColor, toHex, camCompat, calcPhaseScore } from './utils.js';
+import { titleKey, fmtDur, fmtMin, lerpColor, toHex, camCompat, calcPhaseScore } from './utils.js';
 import { getAllTracks, getPool, getPhasePool, getPhasePoolWithNeighbours, getGenreStats,
-         registerTrack, addTrack, pickNext, buildUp, buildDown,
-         buildPlateau, buildDecreasing } from './algorithm.js';
+         registerTrack, addTrack, pickNext, pickPrev, buildUp, buildDown,
+         buildPlateau, buildDecreasing, buildAlternating } from './algorithm.js';
 import { drawChart, highlightFromRow, clearHighlight } from './chart.js';
 import { spotifyLogin, checkSpotifyCallback, exportPlaylist } from './spotify.js';
 
@@ -29,9 +30,9 @@ function bpmHint(v) {
   return 'Grenzbereich';
 }
 function jumpHint(v) {
-  if (v <= 7) return 'Eng — langsamer Aufbau';
-  if (v <= 15) return 'Idealbereich ✓';
-  if (v <= 18) return 'Etwas sprunghaft';
+  if (v <= 5) return 'Standard ✓ (DJ-Norm ≤5 BPM)';
+  if (v <= 8) return 'Akzeptabel (≤5 % bei 160 BPM)';
+  if (v <= 12) return 'Sprunghaft — Übergänge hörbar';
   return 'Harte Sprünge möglich';
 }
 
@@ -160,7 +161,7 @@ function onPhaseSelect(phase) {
   }
   if (phase === 'D') {
     state.wodMinutes = 15;
-    document.getElementById('dur-slider').value = 15;
+    document.getElementById('dur-slider').value = DUR_STEPS.indexOf(15);
     document.getElementById('dur-badge').textContent = '15 min';
   }
   updateFilterList();
@@ -173,7 +174,7 @@ function checkPoolAndWarn() {
   const pool = getPhasePool(genre, state.currentPhase);
   const warn = document.getElementById('pool-warn');
   if (pool.length < MIN_POOL_SIZE) {
-    const neighbours = GENRE_NEIGHBOURS[genre] || [];
+    const neighbours = getNeighbours(genre);
     warn.textContent = `Nur ${pool.length} Tracks für Phase ${state.currentPhase} in "${genre}".`
       + (neighbours.length ? ` Fallback auf: ${neighbours.slice(0, 2).join(', ')} möglich.` : '');
     warn.style.display = 'block';
@@ -394,8 +395,9 @@ function updateAmpel() {
 
 // ===== SETTINGS =====
 function onDurSlider(el) {
-  state.wodMinutes = +el.value;
-  document.getElementById('dur-badge').textContent = el.value + ' min';
+  const min = DUR_STEPS[+el.value];
+  state.wodMinutes = min;
+  document.getElementById('dur-badge').textContent = min + ' min';
   onLenChange();
 }
 function onLenChange() {
@@ -403,6 +405,10 @@ function onLenChange() {
   const stats = (getGenreStats()[genre]) || {avg_dur: 210};
   const est = Math.round((state.wodMinutes * 60) / Math.max(stats.avg_dur, 60));
   document.getElementById('est-tracks').textContent = '≈ ' + est + ' Tracks geschätzt';
+}
+function onXfadeSlider(el) {
+  state.crossfadeSec = +el.value;
+  document.getElementById('xfade-badge').textContent = el.value + ' s';
 }
 function onJumpSlider(el) {
   const c = updateSliderStyle(el, JUMP_STOPS, 5, 20);
@@ -417,8 +423,9 @@ function onCdToggle() {
   document.getElementById('cd-dur-wrap').classList.toggle('section-hidden', !state.cdActive);
 }
 function onCdDurSlider(el) {
-  state.cdMinutes = +el.value;
-  document.getElementById('cd-dur-badge').textContent = el.value + ' min';
+  const min = DUR_STEPS[+el.value];
+  state.cdMinutes = min;
+  document.getElementById('cd-dur-badge').textContent = min + ' min';
 }
 function updateGenBtn() {
   document.getElementById('gen-btn').disabled = !(state.selectedTrack && state.selectedTrack.bpm > 0);
@@ -465,6 +472,7 @@ function buildGenLog(genre, wod, cd, warnMsgs) {
     add(`  Position:        ${posLabels[state.position] || state.position}`);
   }
   add(`  WOD-Dauer:       ${state.wodMinutes} min`);
+  if (state.crossfadeSec > 0) add(`  Crossfade:       ${state.crossfadeSec}s (Spotify Mixing)`);
   const bpmTarget = +document.getElementById('bpm-slider').value;
   add(`  Ziel-BPM:        ${bpmTarget} BPM  ±${state.bpmTol}`);
   add(`  Max BPM-Sprung:  +${state.maxJump} BPM`);
@@ -508,7 +516,10 @@ function buildGenLog(genre, wod, cd, warnMsgs) {
       const zone  = CAM_ZONE1.has(t.camelot) ? ' Zone1' : CAM_ZONE2.has(t.camelot) ? ' Zone2' : '';
       if      (cc === 'green')  reason = 'Camelot +' + zone;
       else if (cc === 'yellow') reason = 'Camelot ~';
-      else                      reason = 'Fallback (BPM-Eskalation)';
+      else {
+        reason = 'Fallback (BPM-Eskalation)';
+        if (prev && t.bpm <= prev.bpm) reason += '  ⚠ kein BPM-Fortschritt';
+      }
       if (t.genre && t.genre !== genre) reason += `  | Genre-Fallback: ${t.genre}`;
     }
     add(`${rpad(i+1,3)}  ${pad(t.song,30)}  ${pad(t.artist,20)}  ${rpad(t.bpm,3)}  ${rpad(delta,5)}  ${camStr}  ${rpad(t.energy,3)}  ${rpad(ps,3)}  ${reason}`);
@@ -537,7 +548,12 @@ function buildGenLog(genre, wod, cd, warnMsgs) {
     if (c === 'green') cG++; else if (c === 'yellow') cY++; else cR++;
   }
   const avgEng = wod.length ? Math.round(wod.reduce((s, t) => s + t.energy, 0) / wod.length) : 0;
-  add(`  WOD:        ${wod.length} Tracks  ·  ${fmtDur(wodSec)}  ·  BPM ${bpms[0]||0} → ${bpms[bpms.length-1]||0}`);
+  const xfadeLog = state.crossfadeSec || 0;
+  const effectiveLog = xfadeLog > 0 && wod.length > 1 ? Math.max(0, wodSec - (wod.length - 1) * xfadeLog) : wodSec;
+  const durStr = xfadeLog > 0
+    ? `${fmtDur(wodSec)} roh  ·  ${fmtMin(effectiveLog)} effektiv`
+    : fmtDur(wodSec);
+  add(`  WOD:        ${wod.length} Tracks  ·  ${durStr}  ·  BPM ${bpms[0]||0} → ${bpms[bpms.length-1]||0}`);
   if (cd.length) {
     const cdBpms = cd.map(t => t.bpm);
     add(`  Cool-Down:  ${cd.length} Tracks  ·  ${fmtDur(cdSec)}  ·  BPM ${cdBpms[0]||0} → ${cdBpms[cdBpms.length-1]||0}`);
@@ -565,28 +581,34 @@ function _gen() {
   const genre = state.poolGenre;
   const pool = getPhasePoolWithNeighbours(genre, state.currentPhase);
   const targetSec = state.wodMinutes * 60;
+  const crossfadeSec = state.crossfadeSec || 0;
+  const avgDur = Math.max(60, (getGenreStats()[genre] || {avg_dur: 210}).avg_dur);
+  const estTracks = Math.max(1, Math.round(targetSec / avgDur));
+  const rawTargetSec = crossfadeSec > 0
+    ? targetSec + Math.max(0, estTracks - 1) * crossfadeSec
+    : targetSec;
   const usedIds = new Set(), usedTitleKeys = new Set(), usedArtists = new Map();
   let wod = [];
   const ref = state.selectedTrack;
 
   if (state.currentPhase === 'A') {
-    wod = buildPlateau(pool, ref.bpm, usedIds, usedTitleKeys, usedArtists, targetSec);
+    wod = buildPlateau(pool, ref.bpm, usedIds, usedTitleKeys, usedArtists, rawTargetSec);
     if (!usedIds.has(ref.id || ref.song)) { wod.unshift(ref); registerTrack(ref, usedIds, usedTitleKeys, usedArtists); }
 
   } else if (state.currentPhase === 'D') {
     registerTrack(ref, usedIds, usedTitleKeys, usedArtists);
-    wod = [ref, ...buildDecreasing(pool, ref.bpm, usedIds, usedTitleKeys, usedArtists, targetSec - ref.dur)];
+    wod = [ref, ...buildDecreasing(pool, ref.bpm, usedIds, usedTitleKeys, usedArtists, rawTargetSec - ref.dur)];
 
   } else {
     if (state.position === 'start') {
-      wod = buildUp(pool, ref, usedIds, usedTitleKeys, usedArtists, targetSec, 0);
+      wod = buildUp(pool, ref, usedIds, usedTitleKeys, usedArtists, rawTargetSec, 0);
 
     } else if (state.position === 'end') {
-      const half = Math.round((targetSec / 2) / (ref.dur || 210));
+      const half = Math.round((rawTargetSec / 2) / (ref.dur || 210));
       registerTrack(ref, usedIds, usedTitleKeys, usedArtists);
       const before = buildDown(pool, ref, usedIds, usedTitleKeys, usedArtists, half + 5);
       const beforePool = pool.filter(t => !usedIds.has(t.id || t.song) && t.bpm <= ref.bpm && t.energy >= state.wodEnergyMin && t.energy <= state.wodEnergyMax);
-      const totalBefore = targetSec - ref.dur;
+      const totalBefore = rawTargetSec - ref.dur;
       let durSoFar = before.reduce((s, t) => s + t.dur, 0);
       let cur = before.length ? before[before.length - 1] : null;
       if (cur) {
@@ -599,28 +621,26 @@ function _gen() {
       }
       wod = [...before, ref];
 
-    } else if (state.position === 'mid' || state.position === 'plateau') {
-      const halfSec = Math.floor(targetSec / 2);
+    } else if (state.position === 'mid') {
+      registerTrack(ref, usedIds, usedTitleKeys, usedArtists);
+      wod = buildAlternating(pool, ref, usedIds, usedTitleKeys, usedArtists, rawTargetSec);
+
+    } else if (state.position === 'plateau') {
+      const halfSec = Math.floor(rawTargetSec / 2);
       registerTrack(ref, usedIds, usedTitleKeys, usedArtists);
       const before = buildDown(pool, ref, usedIds, usedTitleKeys, usedArtists, Math.ceil(halfSec / (ref.dur || 210)));
-      let after = [];
-      if (state.position === 'mid') {
-        after = buildUp(pool, ref, usedIds, usedTitleKeys, usedArtists, halfSec, 0);
-        after.shift();
-      } else {
-        const refGrp = bpmGroup(ref.bpm);
-        const platCands = pool.filter(t =>
-          !usedIds.has(t.id || t.song) &&
-          neighbour(bpmGroup(t.bpm), refGrp) &&
-          (!titleKey(t.song) || !usedTitleKeys.has(titleKey(t.song))) &&
-          t.energy >= state.wodEnergyMin && t.energy <= state.wodEnergyMax
-        ).sort((a, b) => calcPhaseScore(b, state.currentPhase) - calcPhaseScore(a, state.currentPhase));
-        let platDur = 0;
-        for (const t of platCands) {
-          if (platDur >= halfSec) break;
-          addTrack(t, after, usedIds, usedTitleKeys, usedArtists);
-          platDur += t.dur;
-        }
+      const after = [];
+      const platCands = pool.filter(t =>
+        !usedIds.has(t.id || t.song) &&
+        Math.abs(t.bpm - ref.bpm) <= 12 &&
+        (!titleKey(t.song) || !usedTitleKeys.has(titleKey(t.song))) &&
+        t.energy >= state.wodEnergyMin && t.energy <= state.wodEnergyMax
+      ).sort((a, b) => calcPhaseScore(b, state.currentPhase) - calcPhaseScore(a, state.currentPhase));
+      let platDur = 0;
+      for (const t of platCands) {
+        if (platDur >= halfSec) break;
+        addTrack(t, after, usedIds, usedTitleKeys, usedArtists);
+        platDur += t.dur;
       }
       wod = [...before, ref, ...after];
     }
@@ -635,7 +655,7 @@ function _gen() {
     const cdEnergyMax = state.currentPhase === 'D' ? 40 : ((getGenreStats()[genre] || {avg_energy: 70}).avg_energy);
     let cdPool = getPhasePoolWithNeighbours(genre, 'D').filter(t => !usedIds.has(t.id || t.song) && t.bpm <= cdBpmMax && t.energy <= cdEnergyMax);
     if (cdPool.length < 3) {
-      for (const nb of (GENRE_NEIGHBOURS[genre] || [])) {
+      for (const nb of getNeighbours(genre)) {
         cdPool = [...cdPool, ...getPhasePool(nb, 'D').filter(t => !usedIds.has(t.id || t.song) && t.bpm <= cdBpmMax && t.energy <= cdEnergyMax)];
         if (cdPool.length >= 3) { warnMsgs.push(`Cool-Down: Nachbar-Genre "${nb}" ergänzt`); break; }
       }
@@ -665,6 +685,8 @@ function renderResult(genre, wod, cd, warns, logText) {
   const all = [...wod, ...cd];
   const wodSec = wod.reduce((s, t) => s + t.dur, 0);
   const cdSec  = cd.reduce((s, t) => s + t.dur, 0);
+  const xfade  = state.crossfadeSec || 0;
+  const effectiveSec = xfade > 0 && wod.length > 1 ? Math.max(0, wodSec - (wod.length - 1) * xfade) : wodSec;
   const bpms   = wod.map(t => t.bpm);
   const avgEng = wod.length ? Math.round(wod.reduce((s, t) => s + t.energy, 0) / wod.length) : 0;
   let camG = 0, camY = 0, camR = 0;
@@ -678,7 +700,7 @@ function renderResult(genre, wod, cd, warns, logText) {
 
   document.getElementById('stats-bar').innerHTML = `
     <div class="stat"><div class="stat-val">${wod.length}</div><div class="stat-lbl">Tracks</div></div>
-    <div class="stat"><div class="stat-val">${fmtMin(wodSec)}</div><div class="stat-lbl">WOD</div></div>
+    <div class="stat"><div class="stat-val">${fmtMin(effectiveSec)}</div><div class="stat-lbl">WOD${xfade > 0 ? ' eff.' : ''}</div></div>
     ${cd.length ? `<div class="stat"><div class="stat-val" style="color:var(--purple)">${fmtMin(cdSec)}</div><div class="stat-lbl">Cool-Down</div></div>` : ''}
     <div class="stat"><div class="stat-val">${bpms[0] || 0}→${bpms[bpms.length - 1] || 0}</div><div class="stat-lbl">BPM</div></div>
     <div class="stat"><div class="stat-val">${avgEng}</div><div class="stat-lbl">Ø Energy</div></div>
@@ -784,6 +806,7 @@ function init() {
   );
   // Settings
   document.getElementById('dur-slider').addEventListener('input', e => onDurSlider(e.target));
+  document.getElementById('xfade-slider').addEventListener('input', e => onXfadeSlider(e.target));
   document.getElementById('jump-slider').addEventListener('input', e => onJumpSlider(e.target));
   document.getElementById('cd-toggle').addEventListener('change', onCdToggle);
   document.getElementById('cd-dur-slider').addEventListener('input', e => onCdDurSlider(e.target));
