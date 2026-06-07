@@ -76,8 +76,7 @@
 ### Issue-Format
 
 **Titel:** `[KÜRZEL] Kurzbeschreibung` — z.B. `[WOD] pickNext() Phase 3.5`
-**Labels:** Typ-Label (`bug` / `enhancement` / `documentation`) + Priorität (`P1`–`P4`)
-**Komponenten-Kürzel:** `PLB` · `WOD` · `TRK` · `TST` (mehrere: `[WOD, TST]`)
+**Labels:** Typ (`bug` / `enhancement` / `documentation`) + Priorität (`P1`–`P4`) + Komponente (`WOD` / `PLB` / `TRK` / `TST`)
 
 **Body-Template:**
 ```
@@ -90,8 +89,6 @@
 ## Akzeptanzkriterium
 - [ ] ...
 ```
-
-> Komponente und Priorität werden als **Labels** gesetzt (WOD/PLB/TST/TRK + P1–P4), nicht im Body.
 
 ### A · Neue Anfrage
 1. Anfrage analysieren.
