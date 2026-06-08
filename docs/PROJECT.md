@@ -15,15 +15,15 @@ Lokaler, regelbasierter Playlist-Generator für alle vier Phasen eines CrossFit-
 | C1 | Pool Builder | `CFLU_Pool_Build.py` | ETL-Pipeline: liest `Playlists/**/*.csv` rekursiv, dedup per Spotify Track-ID, schreibt `cflu_tracks.js`. Phasen: E-T-L-G-A-C-M. Standard: Add-only (`--rebuild` für vollständigen Update). |
 | C2 | WOD Builder UI | `CFLU_WOD_Builder.html` + `js/` + `css/` | Haupt-UI: Song-Auswahl, Playlist-Generierung, BPM-Chart, Spotify-Export |
 | C3 | Track Data | `cflu_tracks.js` | Auto-generierter Track-Pool (non-module global `TRACK_DATA`) |
-| C4 | Tests | `js/cflu_tests.js` + `CFLU_Tests.html` | Kanonische Testklasse (dual-mode): `node js/cflu_tests.js` → stdout + Exit-Code; Browser: `CFLU_Tests.html` importiert und rendert. 301 Tests. |
+| C4 | Tests | `js/cflu_tests.js` + `CFLU_Tests.html` | Kanonische Testklasse (dual-mode): `node js/cflu_tests.js` → stdout + Exit-Code; Browser: `CFLU_Tests.html` importiert und rendert. 313 Tests. |
 
 ### JS-Module (C2 intern)
 
 | Modul | Verantwortung |
 |-------|---------------|
 | `js/config.js` | Konstanten: PHASE_CONFIG, BPM_RANGES, DUR_STEPS, Farb-Stops |
-| `js/state.js` | Mutabler App-Zustand (currentPhase, selectedTrack, poolGenre, Token, …) |
-| `js/utils.js` | Pure Helpers: bpmGroup, camCompat, calcPhaseScore, titleDuplicate, camelotZoneDistance, … |
+| `js/state.js` | Mutabler App-Zustand (currentPhase, selectedTrack, poolGenre, lockCamFilter, Token, …) |
+| `js/utils.js` | Pure Helpers: bpmGroup, camCompat, calcPhaseScore, calcEraScore, calcSortScore, titleDuplicate, camelotZoneDistance, … |
 | `js/genres.js` | GENRE_CONFIG: 10 Main Genres (Everynoise-derived neighbour weights), Bridge-Subgenres, Rollen-Affinität |
 | `js/algorithm.js` | Kern: pickNext/pickPrev (4-stufig), buildUp/Down/Plateau/Decreasing/Alternating |
 | `js/chart.js` | BPM-Step-Chart + bidirektionale Hover-Synchronisation |
@@ -79,6 +79,53 @@ app.js (importiert alle Module, verdrahtet Events)
 ## Changelog
 
 Offene Items → GitHub Issues (https://github.com/nickl3ss/CFLU_Playlists/issues)
+
+### 2026-06-08 — CSS-Designsystem + Launcher-Vereinfachung (#115)
+
+#### `css/cflu_style.css`
+
+- Vollständiges CSS-Tokensystem: `--ff-ui`, `--ff-mono`, `--fz-2xs`–`--fz-2xl` für Typography; alle Inline-Werte durch Variablen ersetzt
+- Akzentfarbe `--acc` geändert: Spotify-Grün (`#1db954`) → Weiß (`#ffffff`); Spotify-Brand-Farbe in eigenständige Variablen `--spotify` / `--spotify2` ausgelagert (semantische Trennung: accent vs. Spotify-Brand)
+- Sidebar-Breite: 360 px → 480 px
+- Toggle: `checked`-Thumb-Farbe auf `--bg2` (statt weiß) — verbesserte Lesbarkeit auf weißem Hintergrund
+
+#### `CFLU_Start.bat` / `CFLU_Start.sh`
+
+- CSV-Prüf-Guard vor Pool-Build entfernt — Skripte rufen `CFLU_Pool_Build.py` immer auf; kein CSV → `_reclassify_only()` intern
+- Alignt mit Key Invariant 8: „Start-Scripts always run pool build on startup"
+
+#### `eslint.config.js`
+
+- `getComputedStyle` als Browser-Global ergänzt (fehlte nach Nutzung in neuem CSS-Util-Code)
+
+---
+
+### 2026-06-08 — Ära-Score, Camelot-Lock-Toggle, Crossfade-Default (#111–#114)
+
+#### `js/utils.js` — Ära-Score als Priorisierungsmodul (#111)
+
+- Neue exportierte Funktion `calcEraScore(t, cur)`:
+  - diff ≤ 5 Jahre → 30 Punkte (volles Fenster)
+  - diff 5–15 Jahre → linearer Abfall 30 → 0
+  - diff ≥ 15 Jahre → 0
+  - fehlende `album_date` → 0 (kein Fehler, kein Penalty)
+- Integriert als 12. Komponente in `calcSortScore()`; Kommentar-Block aktualisiert
+- 13 neue Unit-Tests; Gesamtzahl: 313
+
+#### `js/algorithm.js` + `js/state.js` — Camelot-Lock-Toggle (#113)
+
+- Neues State-Feld `state.lockCamFilter: false`
+- Neue Funktion `_camLockOk(t)`: prüft Track gegen `state.camLetter` / `state.camNumbers` wenn `lockCamFilter` aktiv
+- Angewendet in `baseOk()`, `baseOkNoEnergy()`, `buildDown()`, `buildDecreasing()`, `buildPlateau()`
+- UI: Toggle in Schritt 3 (`.toggle-row`-Muster); greyed-out wenn kein Tonart-Filter gesetzt
+- `updateCamLockRow()` in `app.js` aktualisiert live bei Filteränderung; auto-reset bei inaktivem Filter
+
+#### WOD Builder — Crossfade-Standard (#114)
+
+- Spotify-Crossfade-Slider: Standardwert 0 → 20 s, Maximum 25 → 30 s
+- `state.crossfadeSec` initialisiert mit 20
+
+---
 
 ### 2026-06-08 — AI-Genre: Verbesserte Kontextualisierung + --reclassify-ai Flag (#109)
 
