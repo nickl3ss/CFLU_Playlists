@@ -218,7 +218,7 @@ def bpm_group(bpm):
 
 # ===== HILFSFUNKTIONEN =====
 def clean_song(title):
-    return SUFFIX_RE.sub('', title).strip()
+    return SUFFIX_RE.sub('', title).strip(' /')
 
 
 def parse_dur(s):
@@ -782,16 +782,37 @@ Erlaubte Genre-Gruppen (exakt so zurückgeben):
 
 Regeln:
 1. Antworte NUR mit einem JSON-Objekt:
-   {"genre": "<eine der 12 Gruppen>", "confident": true}
+   {"genre": "<eine der 10 Gruppen>", "confident": true}
    ODER {"genre": null, "confident": false}
 2. Setze confident=true NUR wenn du zu mindestens 99% sicher bist.
-3. Wenn der Songtitel einen Remix-/Edit-Hinweis enthält (z.B. "Remix", "Club Mix", \
-"Radio Edit", "Bootleg", "Instrumental", "Mix"), priorisiere den Stil des Remixes \
-über den Originalstil des Künstlers.
-4. Songtitel + Künstler + BPM sind deine Grundlage. BPM ist unterstützendes Signal.
+3. Wenn der Songtitel einen EXPLIZIT genre-wechselnden Remix-Hinweis enthält \
+(z.B. "EDM Remix", "Club Mix", "House Version", "Trance Edit", "Techno Remix", \
+"Drum & Bass Mix", "Hardstyle Edit"), priorisiere den Stil des Remixes. \
+Bei generischen Bezeichnungen (z.B. "Extended Mix", "Shotgun Mix", "Pts. 1 & 2", \
+"Radio Edit", "Single Edit", "Remaster", "Instrumental") behalte das Genre des \
+Originalkünstlers bei.
+4. Songtitel + Künstler + BPM + Albumjahr sind deine Grundlage. BPM ist unterstützendes Signal.
 5. Erfinde keine Genres. Wenn ambivalent oder unbekannt: genre=null.
-6. Gib ausschließlich das JSON-Objekt zurück, ohne Erklärung.\
+6. Gib ausschließlich das JSON-Objekt zurück, ohne Erklärung.
+7. Wenn "Bekannte Genres" oder "Geerbte Genres" mitgeliefert werden: \
+Diese sind ein starkes Prior. Ändere das Genre nur wenn der Songtitel einen \
+explizit genre-wechselnden Hinweis enthält (Regel 3).\
 """
+
+
+def reset_ai_genres(tracks):
+    """Resets open_genre=2 tracks to open_genre=1 for re-classification.
+    Clears genres_raw and resets genre to the classify() fallback.
+    open_genre=3 (manual) and =4 (inherited) are not touched.
+    """
+    count = 0
+    for t in tracks:
+        if t.get('open_genre') == 2:
+            t['open_genre'] = 1
+            t['genres_raw'] = []
+            t['genre'] = classify('', '', t.get('bpm', 0), t.get('album_date') or '')
+            count += 1
+    return count
 
 
 def tag_genres_ai(tracks):
@@ -800,6 +821,11 @@ def tag_genres_ai(tracks):
     open_genre=4 (vererbt, Titelprüfung kann abweichendes Genre erkennen).
     Überspringt Tracks mit open_genre=2/3 (bereits gepflegt).
     Setzt bei Treffer: genres_raw=[kanonisches Keyword], genre, bpmg, open_genre=2.
+
+    Kontext-Anreicherung pro Track:
+    - Album + Albumjahr
+    - Bekannte Genres des Künstlers aus dem Pool (open_genre 0/2/4)
+    - Geerbte Genres für open_genre=4-Tracks als starkes Prior
     """
     try:
         import anthropic as _anthropic
@@ -827,17 +853,42 @@ def tag_genres_ai(tracks):
     n4 = sum(1 for t in candidates if t.get('open_genre') == 4)
     print(f'  Kandidaten         : {len(candidates)}  (open_genre=1: {n1}, =4: {n4})')
 
+    # Build artist→genres lookup from tracks with reliable genre data.
+    # First match per artist wins; candidates (open_genre 1/4) are excluded as sources.
+    artist_known_genres: dict[str, list] = {}
+    for track in tracks:
+        if track.get('open_genre', 0) in (0, 2, 4) and track.get('genres_raw'):
+            key = track['artist'].lower()
+            if key not in artist_known_genres:
+                artist_known_genres[key] = track['genres_raw']
+
     client = _anthropic.Anthropic(api_key=api_key)
     tagged = 0
     errors = 0
 
     for i, t in enumerate(candidates):
-        user_msg = (
-            f'Songtitel: {t.get("song", "")}\n'
-            f'Künstler:  {t.get("artist", "")}\n'
-            f'BPM:       {t.get("bpm", 0)}'
-        )
         prev_og = t.get('open_genre', 1)
+        album = t.get('album') or ''
+        album_date = t.get('album_date') or ''
+        album_year = album_date[:4] if album_date else ''
+        inherited = t.get('genres_raw', []) if prev_og == 4 else []
+        known = artist_known_genres.get(t.get('artist', '').lower(), [])
+
+        lines = [
+            f'Songtitel: {t.get("song", "")}',
+            f'Künstler:  {t.get("artist", "")}',
+        ]
+        if album or album_year:
+            album_str = f'{album} ({album_year})' if album and album_year else album or album_year
+            lines.append(f'Album:     {album_str}')
+        lines.append(f'BPM:       {t.get("bpm", 0)}')
+        if known:
+            lines.append(f'Bekannte Genres dieses Künstlers im Pool: {", ".join(known[:6])}')
+        if inherited:
+            lines.append(f'Geerbte Genres (automatisch, gleicher Künstler): {", ".join(inherited)}')
+            lines.append('Ändere nur wenn der Titel einen explizit genre-wechselnden Hinweis enthält.')
+        user_msg = '\n'.join(lines)
+
         try:
             resp = client.messages.create(
                 model=_AI_MODEL,
@@ -875,11 +926,12 @@ def tag_genres_ai(tracks):
 
 
 # ===== R — REKLASSIFIZIERUNG (kein CSV-Import) =====
-def _reclassify_only():
+def _reclassify_only(reclassify_ai=False):
     """
     Reklassifizierungs-Modus: keine CSVs vorhanden.
     Liest cflu_tracks.js, wendet Keyword-Tabellen neu an, schreibt zurück.
     Nützlich nach Genre-Korrekturen ohne erneuten CSV-Import.
+    reclassify_ai=True: setzt open_genre=2-Tracks zurück und startet AI-Klassifikation neu.
     """
     print('  Modus: Reklassifizierung (keine CSVs gefunden)')
     existing = load_existing()
@@ -909,6 +961,11 @@ def _reclassify_only():
 
     print(f'  Tracks gesamt      : {len(tracks)}')
     print(f'  Reklassifiziert    : {changed}')
+
+    if reclassify_ai:
+        print('\n[Reset AI-Genres]')
+        count_reset = reset_ai_genres(tracks)
+        print(f'  open_genre=2 zurückgesetzt: {count_reset}')
 
     print('\n[G] Genre-Vererbung')
     count_inherited = inherit_genres(tracks)
@@ -958,7 +1015,7 @@ def _reclassify_only():
 
 
 # ===== HAUPTFUNKTION =====
-def build(rebuild=False):
+def build(rebuild=False, reclassify_ai=False):
     print()
     print('CFLU Pool Builder — ETL-Pipeline')
     print('=' * 40)
@@ -969,7 +1026,7 @@ def build(rebuild=False):
     try:
         extracted = extract()
     except FileNotFoundError:
-        return _reclassify_only()
+        return _reclassify_only(reclassify_ai=reclassify_ai)
 
     # Load existing pool early so [T] skips already-known IDs (add-only mode only).
     # In --rebuild mode all tracks are re-transformed, so no skip.
@@ -993,6 +1050,12 @@ def build(rebuild=False):
         print('  Kein bestehender Pool — wird neu erstellt.')
     tracks, count_new, count_updated = merge(transformed, existing, rebuild=rebuild)
     migrate_deprecated_genres(tracks)
+
+    # Reset AI genres before G+A if requested
+    if reclassify_ai:
+        print('\n[Reset AI-Genres]')
+        count_reset = reset_ai_genres(tracks)
+        print(f'  open_genre=2 zurückgesetzt: {count_reset}')
 
     # G — Genre-Vererbung (open_genre 1→4)
     print('\n[G] Genre-Vererbung')
@@ -1053,4 +1116,4 @@ if __name__ == '__main__':
     # regardless of CWD when launched from terminal, batch file, or systemd.
     os.chdir(pathlib.Path(__file__).parent)
     import sys
-    build(rebuild='--rebuild' in sys.argv)
+    build(rebuild='--rebuild' in sys.argv, reclassify_ai='--reclassify-ai' in sys.argv)
