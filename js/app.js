@@ -117,9 +117,21 @@ function updateCamHint() {
   hint.textContent = keys.length > 10 ? keys.slice(0,10).join(' ') + ' …' : keys.join(' ');
 }
 
+function updateCamLockRow() {
+  const active = !(state.camLetter === 'both' && state.camNumbers.length === 0);
+  const row = document.getElementById('cam-lock-row');
+  row.style.opacity = active ? '' : '.4';
+  row.style.pointerEvents = active ? '' : 'none';
+  if (!active) {
+    state.lockCamFilter = false;
+    document.getElementById('cam-lock-toggle').checked = false;
+  }
+}
+
 function onCamLetterSlider(el) {
   state.camLetter = ['A','both','B'][+el.value];
   updateCamHint();
+  updateCamLockRow();
   updateFilterList();
   if (state.selMode === 'direct') onDirectSearch();
 }
@@ -129,6 +141,7 @@ function onCamNumbers() {
   state.camNumbers = parseCamNumbers(el.value);
   document.getElementById('clear-cam-numbers').style.display = el.value ? '' : 'none';
   updateCamHint();
+  updateCamLockRow();
   updateFilterList();
   if (state.selMode === 'direct') onDirectSearch();
 }
@@ -819,6 +832,20 @@ function makeRow(idx, t, num, delta, cc, isCd, isRef) {
   return row;
 }
 
+// ===== GENRE DROPDOWNS =====
+function _initGenreDropdowns() {
+  const genres = [...new Set(getAllTracks().map(t => t.genre).filter(Boolean))].sort();
+
+  const genreSel = document.getElementById('genre-sel');
+  genres.forEach(g => { const o = document.createElement('option'); o.value = g; o.textContent = g; genreSel.appendChild(o); });
+  [['Alle Deutschen Tracks', 'Alle Deutschen Tracks'], ['Going Wild', 'Going Wild (alle Genres)']].forEach(([v, l]) => {
+    const o = document.createElement('option'); o.value = v; o.textContent = l; genreSel.appendChild(o);
+  });
+
+  const manualGenre = document.getElementById('manual-genre');
+  genres.forEach(g => { const o = document.createElement('option'); o.value = g; o.textContent = g; manualGenre.appendChild(o); });
+}
+
 // ===== INIT =====
 function init() {
   // Phase tiles
@@ -859,6 +886,7 @@ function init() {
   document.getElementById('xfade-slider').addEventListener('input', e => onXfadeSlider(e.target));
   document.getElementById('jump-slider').addEventListener('input', e => onJumpSlider(e.target));
   document.getElementById('cd-toggle').addEventListener('change', onCdToggle);
+  document.getElementById('cam-lock-toggle').addEventListener('change', e => { state.lockCamFilter = e.target.checked; });
   document.getElementById('cd-dur-slider').addEventListener('input', e => onCdDurSlider(e.target));
   // Generate & Spotify
   document.getElementById('gen-btn').addEventListener('click', generatePlaylist);
@@ -894,6 +922,9 @@ function init() {
   // Init slider styles
   updateSliderStyle(document.getElementById('bpm-slider'), BPM_STOPS, 60, 220);
   updateSliderStyle(document.getElementById('jump-slider'), JUMP_STOPS, 5, 20);
+
+  // Populate genre dropdowns from track data (must run before onPhaseSelect reads the select)
+  _initGenreDropdowns();
 
   // Init pool genre from filter default
   state.poolGenre = document.getElementById('genre-sel').value;

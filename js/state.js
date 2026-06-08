@@ -14,6 +14,7 @@ export const state = {
   cdMinutes: 15,
   wodEnergyMin: 70,
   wodEnergyMax: 100,
+  lockCamFilter: false,
   generatedWod: [],
   generatedCd: [],
   crossfadeSec: 0,

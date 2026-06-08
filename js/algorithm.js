@@ -67,6 +67,14 @@ function _randomInt(n) {
 // The sole algorithmic difference is the BPM-delta direction:
 //   delta(t) = asc ? t.bpm - cur.bpm : cur.bpm - t.bpm
 // A positive delta means a step in the intended direction; negative means wrong way.
+function _camLockOk(t) {
+  if (!state.lockCamFilter) return true;
+  if (!t.camelot || t.camelot === 'nan') return false;
+  if (state.camLetter !== 'both' && t.camelot.slice(-1).toUpperCase() !== state.camLetter) return false;
+  if (state.camNumbers.length > 0 && !state.camNumbers.includes(parseInt(t.camelot, 10))) return false;
+  return true;
+}
+
 function _pick(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carryover, asc) {
   const { maxJump, wodEnergyMin, wodEnergyMax, currentPhase } = state;
   const cg = bpmGroup(cur.bpm);
@@ -83,6 +91,7 @@ function _pick(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carr
     const ak = t.artist.split(',')[0].trim().toLowerCase();
     if ((usedArtists.get(ak) || 0) >= maxArtist) return false;
     if (t.energy < wodEnergyMin || t.energy > wodEnergyMax) return false;
+    if (!_camLockOk(t)) return false;
     return true;
   };
 
@@ -92,6 +101,7 @@ function _pick(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carr
     if (titleDuplicate(t.song, usedTitleKeys)) return false;
     const ak = t.artist.split(',')[0].trim().toLowerCase();
     if ((usedArtists.get(ak) || 0) >= maxArtist) return false;
+    if (!_camLockOk(t)) return false;
     return true;
   };
 
@@ -275,6 +285,7 @@ export function buildDown(pool, endT, usedIds, usedTitleKeys, usedArtists, count
       const ak = t.artist.split(',')[0].trim().toLowerCase();
       if ((usedArtists.get(ak) || 0) >= maxArtist) return false;
       if (t.energy < wodEnergyMin || t.energy > wodEnergyMax) return false;
+      if (!_camLockOk(t)) return false;
       return true;
     });
     if (!cands.length) break;
@@ -295,6 +306,7 @@ export function buildPlateau(pool, refBpm, usedIds, usedTitleKeys, usedArtists, 
     if (usedIds.has(t.id || t.song)) return false;
     if (Math.abs(t.bpm - refBpm) > band) return false;
     if (titleDuplicate(t.song, usedTitleKeys)) return false;
+    if (!_camLockOk(t)) return false;
     return true;
   }).sort((a, b) => calcPhaseScore(b, 'A') - calcPhaseScore(a, 'A'));
   for (const t of cands) {
@@ -315,6 +327,7 @@ export function buildDecreasing(pool, startBpm, usedIds, usedTitleKeys, usedArti
     const cands = pool.filter(t => {
       if (usedIds.has(t.id || t.song)) return false;
       if (titleDuplicate(t.song, usedTitleKeys)) return false;
+      if (!_camLockOk(t)) return false;
       if (isFirst() && isHalfDouble(cur.bpm, t.bpm)) return true;
       if (t.bpm > cur.bpm) return false;
       if (cur.bpm - t.bpm > maxJump * 2) return false;
