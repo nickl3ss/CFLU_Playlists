@@ -1,14 +1,20 @@
+# CFLU_Pool_Build.py — ETL pipeline only; reads Playlists/*.csv, writes cflu_tracks.js; no HTTP, no UI
 """
 CFLU_Pool_Build.py
 ==================
 ETL-Pipeline: Playlists/*.csv → cflu_tracks.js
 
-E — Extract : Alle CSVs alphabetisch einlesen, Dedup per Spotify Track Id
-T — Transform: Typ-Cast, Format-Konversion, Genre-Ableitung, Suffix-Bereinigung
-L — Load     : Bestehende cflu_tracks.js einlesen, mergen, neu schreiben
+E — Extract          : Alle CSVs rekursiv einlesen, Dedup per Spotify Track Id
+T — Transform        : Typ-Cast, Format-Konversion, Genre-Ableitung, Suffix-Bereinigung
+L — Load & Merge     : Bestehende cflu_tracks.js einlesen, mergen, neu schreiben
+G — Genre-Vererbung  : open_genre=1 → 4: genres_raw vom gleichen Künstler erben
+A — AI-Genre         : open_genre=1/4 → 2/5: Claude Haiku Klassifikation (BYOK)
+C — Cleanup          : Titeldobbletten entfernen
+M — Mood Tags        : Claude Haiku Batch-Tagging (BYOK)
 
 Verwendung:
-    python CFLU_Pool_Build.py
+    python CFLU_Pool_Build.py           # Add-only (bestehende Tracks unverändert)
+    python CFLU_Pool_Build.py --rebuild # Full-Update (dynamische Felder erhalten)
 """
 
 import csv
@@ -47,36 +53,62 @@ _SKA_WEIGHT_KEYS   = ['ska', 'rocksteady', 'ska punk']
 _PUNK_WEIGHT_KEYS  = ['punk rock', 'skate punk', 'pop punk', 'hardcore punk']
 _REGGAE_KEYWORDS   = ['reggae', 'dub', 'dancehall', 'ragga']
 _PUNK_KEYWORDS     = ['punk', 'skate punk', 'ska punk', 'pop punk', 'hardcore punk',
-                      'oi!', 'street punk', 'melodic hardcore']
+                      'oi!', 'street punk', 'melodic hardcore', 'post-hardcore', 'screamo',
+                      'folk punk', 'psychobilly', 'celtic punk', 'dance-punk', 'riot grrrl']
 _EDM_KEYWORDS      = ['edm', 'house', 'techno', 'trance', 'dubstep', 'hardstyle', 'hypertechno',
                       'big room', 'melodic techno', 'melodic house', 'eurobeat', 'electro house',
                       'bass house', 'tech house', 'future bass', 'slap house', 'melbourne bounce',
                       'big beat', 'eurodance', 'hi-nrg', 'bubblegum dance', 'italo disco',
                       'happy hardcore', 'italo dance', 'gabba', 'hands up',
                       'electroclash', 'indie dance', 'elektronische musik', 'electronica',
-                      'indietronica']
+                      'indietronica', 'drum and bass', 'dnb', 'jungle', 'uk garage', 'uk dance']
 _SYNTH_KEYWORDS    = ['synthwave', 'vaporwave', 'chillwave', 'outrun', 'retrowave',
                       'darksynth', 'dreamwave', 'trip-hop', 'downtempo', 'new age', 'ambient',
-                      'lo-fi', 'darkwave']
-_DANCE_POP_KEYS    = ['tropical house', 'dance pop', 'electro swing']
+                      'lo-fi', 'darkwave', 'industrial', 'ebm', 'dark ambient']
+_DANCE_POP_KEYS    = ['tropical house', 'dance pop']
 _BLUES_EXCLUDE     = ['hip-hop', 'hip hop', 'rap', 'r&b', 'funk', 'disco', 'metal', 'soul', 'motown']
 _BLUES_KEYWORDS    = ['classic blues', 'traditional blues', 'chicago blues', 'delta blues',
-                      'modern blues', 'british blues', 'texas blues']
-_METAL_KEYWORDS    = ['metal', 'glam metal', 'heavy metal', 'thrash metal', 'death metal']
+                      'modern blues', 'british blues', 'texas blues',
+                      'soul jazz', 'vocal jazz', 'smooth jazz', 'nu jazz', 'jazz fusion', 'acid jazz']
+_METAL_KEYWORDS    = ['metal', 'glam metal', 'heavy metal', 'thrash metal', 'death metal',
+                      'groove metal', 'speed metal', 'doom metal', 'stoner metal', 'sludge metal',
+                      'djent', 'melodic death metal', 'deathcore', 'grindcore']
 _ROCK_KEYWORDS     = ['rock', 'hard rock', 'klassischer rock', 'classic rock', 'soft rock',
                       'aor', 'arena rock', 'album rock', 'glam rock', 'post-grunge',
-                      'alternative rock', 'indie rock', 'grunge', 'new wave', 'post-punk',
+                      'alternative rock', 'indie rock', 'grunge', 'post-punk',
                       'mellow gold', 'permanent wave', 'emo', 'neo mellow', 'lilith',
                       'folk rock', 'celtic rock', 'keltische musik', 'bluesrock']
 _HIP_HOP_KEYWORDS  = ['hip-hop', 'hip hop', 'rap', 'r&b', 'old school', 'east coast', 'west coast',
-                      'trap', 'grime', 'urban contemporary', 'new jack swing', 'crunk']
-_FUNK_KEYWORDS     = ['funk', 'disco', 'soul', 'motown', 'boogie']
-_POP_KEYWORDS      = ['pop', 'new wave', 'new romantic', 'synthpop', 'singer-songwriter',
-                      'country', 'europop', 'boy band', 'girl group']
+                      'trap', 'grime', 'urban contemporary', 'new jack swing', 'crunk',
+                      'hip pop', 'jazz rap', 'jazz beats']
+_FUNK_KEYWORDS     = ['funk', 'disco', 'soul', 'motown', 'boogie', 'jazz funk', 'funk rock']
+_POP_KEYWORDS      = ['pop', 'new wave', 'electro swing', 'new romantic', 'synthpop',
+                      'singer-songwriter', 'country', 'europop', 'boy band', 'girl group']
 
 # Muss mit BPM_RANGES in js/config.js identisch bleiben.
 _BPM_GROUPS = [('A',0,90),('B',90,110),('C',110,120),('D',120,130),('E',130,140),
                ('F',140,150),('G',150,160),('H',160,175),('I',175,999)]
+
+# Kanonisches genres_raw-Keyword pro Genre-Gruppe.
+# Wird für AI-zugewiesene Tracks (open_genre=2) in genres_raw gesetzt,
+# damit inherit_genres() diese Tracks als Vererbungsquelle nutzen kann.
+_AI_MODEL = 'claude-haiku-4-5-20251001'
+
+_GENRE_CANONICAL = {
+    'EDM / Electronic':             'edm',
+    'Pop & New Wave':               'pop',
+    'Rock':                         'rock',
+    'Metal & Hard Rock':            'metal',
+    'Synthwave / Electronica':      'synthwave',
+    'Ska & Reggae':                 'reggae',
+    'Moderne Deutsche Musik':       'deutschpop',
+    'Hip Hop & R&B':                'hip hop',
+    'Punk':                         'punk',
+    'Funk & Disco':                 'funk',
+    'Deutschrock / NDW / Schlager': 'deutschrock',
+    'Blues & Soul':                 'classic blues',
+}
+_ALLOWED_GENRES = list(_GENRE_CANONICAL.keys())
 
 
 # ===== GENRE-KLASSIFIZIERUNG =====
@@ -104,7 +136,7 @@ def classify(genres_str, parent_str, bpm, album_date_str=''):
         punk_w = sum(1 for x in _PUNK_WEIGHT_KEYS if x in genres)
         if ska_w >= punk_w:
             return 'Ska & Reggae'
-    if any(x in genres for x in _REGGAE_KEYWORDS):
+    if any(x in genres for x in _REGGAE_KEYWORDS) and 'dubstep' not in genres:
         return 'Ska & Reggae'
 
     if any(x in genres for x in _PUNK_KEYWORDS):
@@ -128,6 +160,8 @@ def classify(genres_str, parent_str, bpm, album_date_str=''):
     if 'blues' in parent and 'rock' not in parent and not any(x in genres for x in _BLUES_EXCLUDE):
         return 'Blues & Soul'
     if any(x in genres for x in _BLUES_KEYWORDS) and 'metal' not in genres:
+        return 'Blues & Soul'
+    if 'blues' in genres and 'rock' not in genres and 'metal' not in genres:
         return 'Blues & Soul'
 
     if any(x in genres for x in _METAL_KEYWORDS):
@@ -270,8 +304,7 @@ def transform(extracted):
             popularity = safe_int(row.get('Popularity', ''), 'popularity')
 
             genres_raw = split_tags(row.get('Genres', ''))
-            if not genres_raw:
-                raise ValueError('genres_raw')
+            # empty genres are valid — classify() falls back to 'Pop & New Wave'
 
             dance        = safe_int(row.get('Dance', ''),          'dance')
             acoustic     = safe_int(row.get('Acoustic', ''),       'acoustic')
@@ -306,6 +339,9 @@ def transform(extracted):
             if genre is None:
                 raise ValueError('genre')
 
+            # 0=importiert, 1=nicht importiert (kein Genre in Spotify)
+            open_genre = 0 if genres_raw else 1
+
             tracks.append({
                 'id':           tid,
                 'song':         song,
@@ -318,6 +354,7 @@ def transform(extracted):
                 'popularity':   popularity,
                 'genres_raw':   genres_raw,
                 'parent_genres': parent_genres,
+                'open_genre':   open_genre,
                 'album':        album,
                 'album_date':   album_date,
                 'dance':        dance,
@@ -334,6 +371,7 @@ def transform(extracted):
                 'explicit':     explicit,
                 'genre':        genre,
                 'bpmg':         bpm_group(bpm),
+                'mood_tags':    [],
             })
 
         except ValueError as e:
@@ -407,18 +445,22 @@ def compute_stats(tracks):
     return stats
 
 
-def merge(transformed, existing, import_only=False):
+def merge(transformed, existing, rebuild=False):
     """
     Merged CSV-Tracks in bestehenden Pool.
-    - Neu       : anhängen (locked=0)
-    - locked=1  : immer überspringen
-    - locked=0  : aktualisieren (Vollmodus) oder überspringen (import_only=True)
+    - Neu        : anhängen (locked=0)
+    - locked=1   : immer überspringen
+    - rebuild=False (Default): bestehende Tracks unverändert lassen (nur ergänzen)
+    - rebuild=True: bestehenden Track aktualisieren; dynamische Felder bleiben erhalten:
+        mood_tags  → immer erhalten
+        open_genre → erhalten wenn Wert ≥ 2 (AI- oder manuell gepflegt)
     """
     count_new      = 0
-    count_updated  = 0  # im import_only-Modus: bereits im Pool (übersprungen)
+    count_skipped  = 0
+    count_updated  = 0
     count_locked   = 0
 
-    merged = dict(existing)  # Kopie, enthält auch Tracks die nicht in CSVs sind
+    merged = dict(existing)
 
     for t in transformed:
         tid = t['id']
@@ -428,22 +470,68 @@ def merge(transformed, existing, import_only=False):
             count_new += 1
         elif merged[tid].get('locked', 0) == 1:
             count_locked += 1
-        elif import_only:
-            count_updated += 1  # bereits im Pool — überspringen
+        elif not rebuild:
+            count_skipped += 1
         else:
-            t['locked'] = 0
+            existing_tags      = merged[tid].get('mood_tags', [])
+            existing_og        = merged[tid].get('open_genre', 0)
+            existing_ai_genres = merged[tid].get('genres_raw', []) if existing_og == 2 else None
+            existing_ai_genre  = merged[tid].get('genre')          if existing_og == 2 else None
+            t['locked'] = merged[tid].get('locked', 0)
             merged[tid] = t
+            if existing_tags:
+                merged[tid]['mood_tags'] = existing_tags
+            if existing_og in (2, 3, 5):  # 4=vererbt wird neu berechnet
+                merged[tid]['open_genre'] = existing_og
+            if existing_og == 2 and existing_ai_genres is not None:
+                merged[tid]['genres_raw'] = existing_ai_genres
+                merged[tid]['genre']      = existing_ai_genre
             count_updated += 1
 
     print(f'  Tracks neu         : {count_new}')
-    if import_only:
-        print(f'  Bereits im Pool    : {count_updated}')
-    else:
-        print(f'  Tracks aktualisiert: {count_updated}')
+    print(f'  Tracks aktualisiert: {count_updated}')
+    print(f'  Tracks unverändert : {count_skipped}')
     print(f'  Tracks gesperrt    : {count_locked}')
     print(f'  Tracks gesamt      : {len(merged)}')
 
     return list(merged.values()), count_new, count_updated
+
+
+# ===== G — GENRE-VERERBUNG =====
+def inherit_genres(tracks):
+    """
+    Für Tracks mit open_genre=1 (kein Spotify-Genre):
+    genres_raw von einem anderen Track desselben Künstlers erben (open_genre=0 oder 4).
+    Setzt open_genre=4, aktualisiert genres_raw + genre + bpmg.
+    Behandlung wie 0 — abgeleitet, nicht manuell/AI-gepflegt.
+    """
+    # Erster Fund pro Künstler mit gesichertem Genre (0=Spotify, 2=AI, 4=vererbt)
+    artist_genres = {}
+    for t in tracks:
+        if t.get('open_genre', 0) in (0, 2, 4) and t.get('genres_raw'):
+            key = t['artist'].lower()
+            if key not in artist_genres:
+                artist_genres[key] = t['genres_raw']
+
+    count = 0
+    for t in tracks:
+        if t.get('open_genre', 0) != 1:
+            continue
+        inherited = artist_genres.get(t['artist'].lower())
+        if not inherited:
+            continue
+        t['genres_raw'] = inherited
+        t['genre']      = classify(
+            ', '.join(inherited),
+            ', '.join(t.get('parent_genres', [])),
+            t.get('bpm', 0),
+            t.get('album_date') or '',
+        )
+        t['bpmg']       = bpm_group(t.get('bpm', 0))
+        t['open_genre'] = 4
+        count += 1
+
+    return count
 
 
 # ===== POOL-CLEANUP =====
@@ -468,17 +556,311 @@ def dedup_pool(tracks):
     return [t for t in tracks if t['id'] in keep_ids]
 
 
+# ===== M — MOOD TAGS =====
+_MOOD_TAGS = [
+    'aggressive', 'pump-up', 'euphoric', 'dark',
+    'groovy', 'chill', 'anthem', 'build-up',
+    'emotional', 'heavy', 'energetic', 'triumphant',
+    'gritty', 'smooth', 'explosive',
+]
+
+
+def tag_moods(tracks):
+    """
+    Tags tracks with up to 4 WOD mood labels via Claude Haiku.
+    Reads API key from anthropic_api_key.txt (gitignored).
+    Skips gracefully if file missing or anthropic package not installed.
+    Skips tracks that already have non-empty mood_tags (re-run safe).
+    Returns count of newly tagged tracks.
+    """
+    key_path = 'anthropic_api_key.txt'
+    if not os.path.exists(key_path):
+        print('  anthropic_api_key.txt nicht gefunden — Mood-Tagging übersprungen.')
+        return 0
+
+    try:
+        import anthropic
+    except ImportError:
+        print('  anthropic-Paket fehlt — Mood-Tagging übersprungen.')
+        print('  Installation: pip install anthropic')
+        return 0
+
+    with open(key_path, 'r', encoding='utf-8') as f:
+        api_key = f.read().strip()
+    if not api_key:
+        print('  anthropic_api_key.txt ist leer — Mood-Tagging übersprungen.')
+        return 0
+
+    untagged = [t for t in tracks if not t.get('mood_tags')]
+    if not untagged:
+        print('  Alle Tracks bereits getaggt.')
+        return 0
+
+    print(f'  Tracks zu taggen    : {len(untagged)}')
+    client = anthropic.Anthropic(api_key=api_key)
+    tag_list = ', '.join(_MOOD_TAGS)
+    batch_size = 20
+    tagged_count = 0
+    total_batches = (len(untagged) + batch_size - 1) // batch_size
+
+    for batch_idx in range(0, len(untagged), batch_size):
+        batch = untagged[batch_idx:batch_idx + batch_size]
+        lines = []
+        for j, t in enumerate(batch):
+            genres_preview = ', '.join(t.get('genres_raw', [])[:3])
+            lines.append(
+                f'{j+1}. "{t["song"]}" by {t["artist"]}'
+                f' | genres: {genres_preview}'
+                f' | BPM: {t["bpm"]} | Energy: {t["energy"]} | Valence: {t["valence"]}'
+            )
+
+        prompt = (
+            f'Assign up to 4 WOD (CrossFit workout) mood tags to each track.\n'
+            f'Use ONLY tags from this list: {tag_list}\n\n'
+            f'Return exactly one line per track in format: <number>: tag1, tag2, tag3\n'
+            f'No explanations, no extra text.\n\n'
+            + '\n'.join(lines)
+        )
+
+        try:
+            msg = client.messages.create(
+                model=_AI_MODEL,
+                max_tokens=512,
+                messages=[{'role': 'user', 'content': prompt}]
+            )
+            for line in msg.content[0].text.strip().split('\n'):
+                line = line.strip()
+                if not line:
+                    continue
+                m = re.match(r'^(\d+):\s*(.+)$', line)
+                if not m:
+                    continue
+                idx = int(m.group(1)) - 1
+                if idx < 0 or idx >= len(batch):
+                    continue
+                raw = [tag.strip().lower() for tag in m.group(2).split(',')]
+                valid = [tag for tag in raw if tag in _MOOD_TAGS][:4]
+                batch[idx]['mood_tags'] = valid
+                if valid:
+                    tagged_count += 1
+        except Exception as e:
+            print(f'  Batch {batch_idx // batch_size + 1} Fehler: {e}')
+
+        for t in batch:
+            if not t.get('mood_tags'):
+                t['mood_tags'] = []
+
+        nr = batch_idx // batch_size + 1
+        print(f'  Batch {nr}/{total_batches} ({min(batch_idx + batch_size, len(untagged))}/{len(untagged)})')
+
+    return tagged_count
+
+
+# ===== A — AI-GENRE-VERGABE =====
+_AI_SYSTEM_PROMPT = """\
+Du klassifizierst Musik-Tracks für einen WOD-Workout-Playlist-Builder.
+
+Erlaubte Genre-Gruppen (exakt so zurückgeben):
+- EDM / Electronic
+- Pop & New Wave
+- Rock
+- Metal & Hard Rock
+- Synthwave / Electronica
+- Ska & Reggae
+- Moderne Deutsche Musik
+- Hip Hop & R&B
+- Punk
+- Funk & Disco
+- Deutschrock / NDW / Schlager
+- Blues & Soul
+
+Regeln:
+1. Antworte NUR mit einem JSON-Objekt:
+   {"genre": "<eine der 12 Gruppen>", "confident": true}
+   ODER {"genre": null, "confident": false}
+2. Setze confident=true NUR wenn du zu mindestens 99% sicher bist.
+3. Wenn der Songtitel einen Remix-/Edit-Hinweis enthält (z.B. "Remix", "Club Mix", \
+"Radio Edit", "Bootleg", "Instrumental", "Mix"), priorisiere den Stil des Remixes \
+über den Originalstil des Künstlers.
+4. Songtitel + Künstler + BPM sind deine Grundlage. BPM ist unterstützendes Signal.
+5. Erfinde keine Genres. Wenn ambivalent oder unbekannt: genre=null.
+6. Gib ausschließlich das JSON-Objekt zurück, ohne Erklärung.\
+"""
+
+
+def tag_genres_ai(tracks):
+    """
+    AI-Genre-Vergabe für Tracks mit open_genre=1 (kein Spotify-Genre) oder
+    open_genre=4 (vererbt, Titelprüfung kann abweichendes Genre erkennen).
+    Überspringt Tracks mit open_genre=2/3 (bereits gepflegt).
+    Setzt bei Treffer: genres_raw=[kanonisches Keyword], genre, bpmg, open_genre=2.
+    """
+    try:
+        import anthropic as _anthropic
+    except ImportError:
+        print('  anthropic-Paket fehlt — AI-Genre übersprungen.')
+        print('  Installation: pip install anthropic')
+        return 0
+
+    api_key_file = 'anthropic_api_key.txt'
+    if not os.path.exists(api_key_file):
+        print(f'  {api_key_file} nicht gefunden — AI-Genre übersprungen.')
+        return 0
+    with open(api_key_file, encoding='utf-8') as f:
+        api_key = f.read().strip()
+    if not api_key:
+        print(f'  {api_key_file} ist leer — AI-Genre übersprungen.')
+        return 0
+
+    candidates = [t for t in tracks if t.get('open_genre') in (1, 4)]
+    if not candidates:
+        print('  Keine Kandidaten (open_genre=1 oder 4).')
+        return 0
+
+    n1 = sum(1 for t in candidates if t.get('open_genre') == 1)
+    n4 = sum(1 for t in candidates if t.get('open_genre') == 4)
+    print(f'  Kandidaten         : {len(candidates)}  (open_genre=1: {n1}, =4: {n4})')
+
+    client = _anthropic.Anthropic(api_key=api_key)
+    tagged = 0
+    errors = 0
+
+    for i, t in enumerate(candidates):
+        user_msg = (
+            f'Songtitel: {t.get("song", "")}\n'
+            f'Künstler:  {t.get("artist", "")}\n'
+            f'BPM:       {t.get("bpm", 0)}'
+        )
+        prev_og = t.get('open_genre', 1)
+        try:
+            resp = client.messages.create(
+                model=_AI_MODEL,
+                max_tokens=48,
+                system=_AI_SYSTEM_PROMPT,
+                messages=[{'role': 'user', 'content': user_msg}],
+            )
+            raw = resp.content[0].text.strip()
+            m = re.search(r'\{[^{}]+\}', raw)
+            if not m:
+                raise ValueError('kein JSON in Antwort')
+            result = json.loads(m.group(0))
+            genre = result.get('genre')
+            if result.get('confident') and genre in _ALLOWED_GENRES:
+                # 1 oder 4 → 2
+                canonical = _GENRE_CANONICAL[genre]
+                t['genres_raw'] = [canonical]
+                t['genre']      = genre
+                t['bpmg']       = bpm_group(t.get('bpm', 0))
+                t['open_genre'] = 2
+                tagged += 1
+            elif prev_og == 1:
+                # API hat geantwortet, kein Fund — 1 → 5
+                # State 4 bleibt 4 (geerbtes Genre ist besser als kein Genre)
+                t['open_genre'] = 5
+        except Exception:
+            errors += 1
+            # Netzwerk-/Parse-Fehler ≠ AI-Aussage → open_genre unverändert
+
+        if (i + 1) % 25 == 0 or (i + 1) == len(candidates):
+            print(f'  Fortschritt        : {i + 1}/{len(candidates)}'
+                  f'  zugeordnet={tagged}  fehler={errors}')
+
+    return tagged
+
+
+# ===== R — REKLASSIFIZIERUNG (kein CSV-Import) =====
+def _reclassify_only():
+    """
+    Reklassifizierungs-Modus: keine CSVs vorhanden.
+    Liest cflu_tracks.js, wendet Keyword-Tabellen neu an, schreibt zurück.
+    Nützlich nach Genre-Korrekturen ohne erneuten CSV-Import.
+    """
+    print('  Modus: Reklassifizierung (keine CSVs gefunden)')
+    existing = load_existing()
+    if not existing:
+        print('  Keine bestehenden Tracks in cflu_tracks.js — nichts zu tun.')
+        return (0, 0, 0)
+
+    tracks = list(existing.values())
+    changed = 0
+    for t in tracks:
+        genres_str = ', '.join(t.get('genres_raw', []))
+        parent_str = ', '.join(t.get('parent_genres', []))
+        bpm = t.get('bpm', 0)
+        album_date = t.get('album_date') or ''
+        new_genre = classify(genres_str, parent_str, bpm, album_date)
+        new_bpmg = bpm_group(bpm)
+        if t.get('genre') != new_genre or t.get('bpmg') != new_bpmg:
+            t['genre'] = new_genre
+            t['bpmg'] = new_bpmg
+            changed += 1
+        if 'mood_tags' not in t:
+            t['mood_tags'] = []
+        # open_genre backfill: 0=importiert, 1=kein Genre in Spotify
+        if 'open_genre' not in t:
+            t['open_genre'] = 0 if t.get('genres_raw') else 1
+
+    print(f'  Tracks gesamt      : {len(tracks)}')
+    print(f'  Reklassifiziert    : {changed}')
+
+    print('\n[G] Genre-Vererbung')
+    count_inherited = inherit_genres(tracks)
+    print(f'  Genres vererbt     : {count_inherited}')
+
+    print('\n[A] AI-Genre')
+    tag_genres_ai(tracks)
+
+    print('\n[C] Cleanup')
+    tracks = dedup_pool(tracks)
+
+    print('\n[M] Mood Tags')
+    mood_count = tag_moods(tracks)
+    if mood_count > 0:
+        print(f'  Tracks neu getaggt : {mood_count}')
+
+    stats = compute_stats(tracks)
+
+    track_lines = ',\n'.join(
+        json.dumps(t, ensure_ascii=False, separators=(',', ':')) for t in tracks
+    )
+    stat_lines = ',\n'.join(
+        json.dumps(k, ensure_ascii=False) + ':' + json.dumps(v, ensure_ascii=False, separators=(',', ':'))
+        for k, v in stats.items()
+    )
+    file_content = (
+        f'const TRACK_DATA={{\n'
+        f'"tracks":[\n{track_lines}\n],\n'
+        f'"stats":{{\n{stat_lines}\n}}'
+        f'}};\n'
+    )
+    with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
+        f.write(file_content)
+
+    kb = len(file_content.encode('utf-8')) // 1024
+    print(f'\ncflu_tracks.js geschrieben ({kb} KB, {len(tracks)} Tracks)')
+    print('\nGenre-Verteilung:')
+    gc = defaultdict(int)
+    for t in tracks:
+        gc[t['genre']] += 1
+    for g in sorted(gc, key=lambda x: -gc[x]):
+        print(f'  {g}: {gc[g]}')
+    print()
+    return (0, changed, len(tracks))
+
+
 # ===== HAUPTFUNKTION =====
-def build(import_only=False):
+def build(rebuild=False):
     print()
     print('CFLU Pool Builder — ETL-Pipeline')
     print('=' * 40)
-    if import_only:
-        print('  Modus: Import-Only (bestehende Tracks werden nicht überschrieben)')
+    print(f'  Modus: {"Rebuild (bestehende Tracks werden aktualisiert)" if rebuild else "Ergänzen (bestehende Tracks bleiben unverändert)"}')
 
-    # E — Extract
+    # E — Extract (FileNotFoundError → Reklassifizierungs-Modus)
     print('\n[E] Extract')
-    extracted = extract()
+    try:
+        extracted = extract()
+    except FileNotFoundError:
+        return _reclassify_only()
 
     # T — Transform
     print('\n[T] Transform')
@@ -491,11 +873,26 @@ def build(import_only=False):
         print(f'  Bestehende Tracks  : {len(existing)}')
     else:
         print('  Kein bestehender Pool — wird neu erstellt.')
-    tracks, count_new, count_updated = merge(transformed, existing, import_only=import_only)
+    tracks, count_new, count_updated = merge(transformed, existing, rebuild=rebuild)
+
+    # G — Genre-Vererbung (open_genre 1→4)
+    print('\n[G] Genre-Vererbung')
+    count_inherited = inherit_genres(tracks)
+    print(f'  Genres vererbt     : {count_inherited}')
+
+    # A — AI-Genre (open_genre 1/4→2, optional)
+    print('\n[A] AI-Genre')
+    tag_genres_ai(tracks)
 
     # C — Cleanup
     print('\n[C] Cleanup')
     tracks = dedup_pool(tracks)
+
+    # M — Mood Tags (optional, requires anthropic_api_key.txt + anthropic package)
+    print('\n[M] Mood Tags')
+    mood_count = tag_moods(tracks)
+    if mood_count > 0:
+        print(f'  Tracks neu getaggt : {mood_count}')
 
     # Stats berechnen
     stats = compute_stats(tracks)
@@ -533,4 +930,5 @@ if __name__ == '__main__':
     # L-03: Work from script's directory so relative paths (Playlists/, cflu_tracks.js) work
     # regardless of CWD when launched from terminal, batch file, or systemd.
     os.chdir(pathlib.Path(__file__).parent)
-    build()
+    import sys
+    build(rebuild='--rebuild' in sys.argv)

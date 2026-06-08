@@ -1,4 +1,4 @@
-// BPM step-chart and bidirectional hover sync
+// chart.js — BPM step-chart and bidirectional hover sync; reads state, writes canvas only; no Spotify, no generation logic
 import { state } from './state.js';
 
 export function drawChart(wodCount) {
@@ -101,10 +101,11 @@ export function _drawChart(wodCount, hoverIdx) {
   }
 
   // Fill — split at WOD/Cool-Down boundary
+  const acc = getComputedStyle(document.documentElement).getPropertyValue('--acc').trim() || '#ffffff';
   const grad = ctx.createLinearGradient(pad.l, 0, W - pad.r, 0);
   const sp = wodDur / totalDur;
-  grad.addColorStop(0, 'rgba(29,185,84,.12)');
-  grad.addColorStop(Math.min(sp, .99), 'rgba(29,185,84,.12)');
+  grad.addColorStop(0, acc + '1f');
+  grad.addColorStop(Math.min(sp, .99), acc + '1f');
   if (wodCount < state.bpmChartData.length) {
     grad.addColorStop(Math.min(sp + .001, 1), 'rgba(168,85,247,.08)');
     grad.addColorStop(1, 'rgba(168,85,247,.08)');
@@ -114,7 +115,7 @@ export function _drawChart(wodCount, hoverIdx) {
 
   // Step line
   ctx.beginPath(); stepPath(ctx, false);
-  ctx.strokeStyle = '#1db954'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.strokeStyle = acc; ctx.lineWidth = 2; ctx.stroke();
 
   // WOD end marker
   const wodTargetSec = Math.min(state.wodMinutes * 60, totalDur);
@@ -126,7 +127,7 @@ export function _drawChart(wodCount, hoverIdx) {
   pts.forEach((p, i) => {
     ctx.beginPath();
     ctx.arc(p.x, p.y, i === hoverIdx ? 5 : 3, 0, Math.PI * 2);
-    ctx.fillStyle = i === hoverIdx ? '#fff' : p.cd ? '#a855f7' : '#1db954';
+    ctx.fillStyle = i === hoverIdx ? '#fff' : p.cd ? '#a855f7' : acc;
     ctx.fill();
     if (i === hoverIdx) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke(); }
   });

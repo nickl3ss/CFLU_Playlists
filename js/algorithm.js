@@ -1,6 +1,5 @@
-// Core playlist generation algorithm
-// TRACK_DATA is accessed lazily inside functions so this module is safe to import
-// in test environments that don't load cflu_tracks.js.
+// algorithm.js — playlist generation only; no DOM, no state writes, no Spotify calls
+// TRACK_DATA accessed lazily — safe to import in Node.js tests without cflu_tracks.js
 import { GERMAN_GENRES, PHASE_CONFIG, CAM_ZONE1, CAM_ZONE2 } from './config.js';
 import { getNeighboursWeighted, getRoleBonus, getSubgenres, bridgeTagsForMain } from './genres.js';
 import { bpmGroup, neighbour, titleKey, titleDuplicate, camStrictOk, camCompat, calcPhaseScore, calcSortScore, isHalfDouble, camelotZoneDistance } from './utils.js';
@@ -258,6 +257,8 @@ export function buildUp(pool, startT, usedIds, usedTitleKeys, usedArtists, targe
   return result;
 }
 
+// buildDown is intentionally a simple BPM-descending loop rather than _pick()-based:
+// Cool-Down only needs "go lower", no 4-stage genre/subgenre/bridge lookup required.
 export function buildDown(pool, endT, usedIds, usedTitleKeys, usedArtists, count) {
   const result = [];
   let cur = endT;

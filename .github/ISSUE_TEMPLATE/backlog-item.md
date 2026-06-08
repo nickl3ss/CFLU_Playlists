@@ -14,5 +14,10 @@ assignees: ""
 ## Algorithmus / Umsetzung
 <!-- Optional: konkrete Schritte oder Pseudocode -->
 
+## Betroffene Module
+<!-- Welche Module werden geändert? Welche explizit NICHT? -->
+- Ändert:
+- Berührt nicht:
+
 ## Akzeptanzkriterium
 - [ ] ...

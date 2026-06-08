@@ -1,3 +1,4 @@
+# cflu_server.py — HTTP server + /api/upload-csv endpoint only; no ETL logic (delegates to CFLU_Pool_Build)
 """
 cflu_server.py
 ==============
@@ -91,7 +92,7 @@ class CFLUHandler(SimpleHTTPRequestHandler):
                 f.write(content.removeprefix('﻿'))
 
             from CFLU_Pool_Build import build
-            count_new, count_updated, total = build(import_only=True)
+            count_new, count_updated, total = build()
 
             self._respond(200, {
                 'ok': True,

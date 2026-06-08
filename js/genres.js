@@ -1,5 +1,4 @@
-// Central genre configuration — single source of truth for all genre logic
-// No imports, no side effects. Pure data + pure helper functions.
+// genres.js — GENRE_CONFIG SSOT; pure data + pure helpers; no DOM, no imports, no side effects
 
 export const GENRE_CONFIG = {
 

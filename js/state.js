@@ -1,5 +1,4 @@
-// Single mutable application state object.
-// Exported by reference — all modules share the same object.
+// state.js — single mutable app state; never import app.js or algorithm.js (would create cycles)
 export const state = {
   currentPhase: 'C',
   selMode: 'filter',

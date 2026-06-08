@@ -1,4 +1,4 @@
-// Spotify PKCE auth and playlist export
+// spotify.js — PKCE auth and playlist export; Client ID must NEVER go to localStorage (Key Invariant 2); max 100 tracks (Invariant 3)
 import { state } from './state.js';
 
 const REDIRECT_URI = 'http://127.0.0.1:8888/CFLU_WOD_Builder.html';

@@ -1,4 +1,4 @@
-// Pure helper functions — no DOM, no state, no TRACK_DATA dependency
+// utils.js — pure helper functions; no DOM, no state writes, no TRACK_DATA; safe to import in Node.js tests
 import { BPM_GROUPS, BPM_RANGES, SUFFIX_RE, PHASE_CONFIG } from './config.js';
 import { bridgeTagsForMain } from './genres.js';
 
@@ -103,6 +103,8 @@ export function calcPhaseScore(t, phase) {
   if (!cfg) return 50;
   const scores = [];
   if (cfg.bpmCore) {
+    // BPM pushed twice: intentional double weight so BPM dominates the phase score
+    // (every phase has bpmCore, so this always applies)
     scores.push(trapezScore(t.bpm, cfg.bpmCore, cfg.bpm));
     scores.push(trapezScore(t.bpm, cfg.bpmCore, cfg.bpm));
   } else {
@@ -125,14 +127,16 @@ export function isHalfDouble(bpm1, bpm2, tol = 3) {
   return Math.abs(bpm1 * 2 - bpm2) <= tol || Math.abs(bpm1 - bpm2 * 2) <= tol;
 }
 
-// calcSortScore — linear combination of calibrated-by-use components (all on 0–200 scale):
-//   camPoints   [0,100,200]  Camelot compatibility is the primary sort criterion;
-//                            green = same or adjacent key (200) outweighs phase score differences.
-//   phasePoints [0–200]      calcPhaseScore (0–100) × 2, so phase fitness equals Camelot weight.
-//   energyPoints [0–100]     direct energy value; secondary tie-breaker.
-//   bridge      [0,50]       bonus for bridge-subgenre tracks; smaller than energy to avoid over-promotion.
-//   penalties   (≤0)         soft deltas: Δenergy ×-2 outside ±15, Δloud ×-5 outside ±3,
-//                            Δvalence ×-1 outside ±20, Δdance ×-1 outside ±15 (B/C only).
+// calcSortScore — linear combination of calibrated-by-use components:
+//   camPoints    [0,100,200]  Camelot compatibility; green outweighs all other differences.
+//   phasePoints  [0–200]      calcPhaseScore (0–100) × 2, equal weight to Camelot.
+//   energyPoints [0–100]      direct energy value; secondary tie-breaker.
+//   bridge       [0,50]       bonus for bridge-subgenre tracks.
+//   dEnergy      (≤0)         penalty: Δenergy ×-2 outside ±15.
+//   loudScore    [0,7]        reward: 7 at same loudness, 0 at diff ≥7 dB.
+//   valenceScore [0,6]        reward: 6 at same valence, 0 at diff ≥30.
+//   danceScore   [0,5]        reward: 5 at same danceability (B/C only), 0 at diff ≥25.
+//   moodScore    [0,8]        reward: proportional tag overlap from mood_tags field.
 export function calcSortScore(t, cur, phase) {
   const cs = {green: 200, yellow: 100, red: 0, unknown: 0};
   const camPoints    = cs[camCompat(cur.camelot, t.camelot)] || 0;
@@ -146,11 +150,13 @@ export function calcSortScore(t, cur, phase) {
     if (t.genres_raw.some(tag => tags.includes(tag))) bridge = 50;
   }
 
-  const dEnergy  = (t.energy  != null && cur.energy  != null) ? Math.max(0, Math.abs(t.energy  - cur.energy)  - 15) * -2 : 0;
-  const dLoud    = (t.loud    != null && cur.loud    != null) ? Math.max(0, Math.abs(t.loud    - cur.loud)    - 3)  * -5 : 0;
-  const dValence = (t.valence != null && cur.valence != null) ? Math.max(0, Math.abs(t.valence - cur.valence) - 20) * -1 : 0;
-  const dDance   = (phase === 'B' || phase === 'C') && t.dance != null && cur.dance != null
-    ? Math.max(0, Math.abs(t.dance - cur.dance) - 15) * -1 : 0;
+  const dEnergy    = (t.energy  != null && cur.energy  != null) ? Math.max(0, Math.abs(t.energy  - cur.energy)  - 15) * -2 : 0;
+  const loudScore  = (t.loud    != null && cur.loud    != null) ? Math.max(0, 7 - Math.abs(t.loud    - cur.loud))                                    : 0;
+  const valScore   = (t.valence != null && cur.valence != null) ? Math.max(0, Math.round(6 * (30 - Math.abs(t.valence - cur.valence)) / 30))         : 0;
+  const danceScore = (phase === 'B' || phase === 'C') && t.dance != null && cur.dance != null
+    ? Math.max(0, Math.round(5 * (25 - Math.abs(t.dance - cur.dance)) / 25)) : 0;
+  const moodScore  = Array.isArray(t.mood_tags) && Array.isArray(cur.mood_tags) && cur.mood_tags.length && t.mood_tags.length
+    ? Math.round(8 * t.mood_tags.filter(tag => cur.mood_tags.includes(tag)).length / Math.min(t.mood_tags.length, cur.mood_tags.length)) : 0;
 
-  return camPoints + phasePoints + energyPoints + bpmPenalty + bridge + dEnergy + dLoud + dValence + dDance;
+  return camPoints + phasePoints + energyPoints + bpmPenalty + bridge + dEnergy + loudScore + valScore + danceScore + moodScore;
 }

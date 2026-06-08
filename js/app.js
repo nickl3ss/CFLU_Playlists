@@ -1,4 +1,4 @@
-// UI handlers, generation, rendering, and event wiring
+// app.js — UI wiring only; no business logic here — delegate to algorithm.js, spotify.js, chart.js etc.
 import { PHASE_CONFIG, MIN_POOL_SIZE, BPM_STOPS, JUMP_STOPS,
          POS_BPM, CAM_COLOR, CAM_ZONE1, CAM_ZONE2, DUR_STEPS } from './config.js';
 import { getNeighbours } from './genres.js';
@@ -307,7 +307,7 @@ function updatePoolGenreBadge() {
   }
 }
 
-function onTrackSelect(sel, _mode) {
+function onTrackSelect(sel) {
   const opt = sel.options[sel.selectedIndex];
   if (!opt) return;
   const allTracks = getPool('Going Wild');
@@ -800,7 +800,7 @@ function makeRow(idx, t, num, delta, cc, isCd, isRef) {
   const psCls = ps >= 80 ? 'ps-green' : ps >= 50 ? 'ps-yellow' : 'ps-red';
   const m = (field, v) => `<div class="tr-meta" style="color:${_metaColor(field, v)}">${v ?? '—'}</div>`;
   row.innerHTML = `
-    <div class="tr-num">${num}${isRef ? '<br><span style="font-size:.55rem;color:var(--acc)">REF</span>' : ''}</div>
+    <div class="tr-num">${num}${isRef ? '<br><span class="ref-label">REF</span>' : ''}</div>
     <div><div class="tr-song" title="${t.song}">${song}</div><div class="tr-artist" title="${t.artist}">${artist}</div></div>
     <div><div class="tr-bpm">${t.bpm}</div>${delta > 0 ? `<div class="tr-bpm-delta">+${delta}</div>` : ''}</div>
     <div class="tr-cam"><span class="cam-dot" style="background:${CAM_COLOR[cc]}"></span>${t.camelot || '—'}</div>
@@ -902,9 +902,9 @@ function init() {
   onPhaseSelect('C');
 
   // Spotify callback — if returning from OAuth, skip the login modal
-  const _params = new URLSearchParams(window.location.search);
-  const hasOAuthCode  = _params.has('code');
-  const hasPoolUpdate = _params.has('pool_updated');
+  const urlParams = new URLSearchParams(window.location.search);
+  const hasOAuthCode  = urlParams.has('code');
+  const hasPoolUpdate = urlParams.has('pool_updated');
   if (hasPoolUpdate) history.replaceState({}, '', window.location.pathname);
   checkSpotifyCallback();
 
@@ -931,15 +931,15 @@ function init() {
   });
 
   // Dynamic pool info — set from TRACK_DATA at runtime
-  const _allTracks = getAllTracks();
-  const _genreCount = Object.keys(getGenreStats()).length;
-  document.getElementById('direct-search').placeholder = `Alle ${_allTracks.length.toLocaleString('de-DE')} Tracks durchsuchen...`;
-  const _pi = document.getElementById('pool-info');
-  _pi.textContent = `${_allTracks.length.toLocaleString('de-DE')} Tracks · ${_genreCount} Genre-Gruppen`;
+  const allTracks  = getAllTracks();
+  const genreCount = Object.keys(getGenreStats()).length;
+  document.getElementById('direct-search').placeholder = `Alle ${allTracks.length.toLocaleString('de-DE')} Tracks durchsuchen...`;
+  const poolInfoEl = document.getElementById('pool-info');
+  poolInfoEl.textContent = `${allTracks.length.toLocaleString('de-DE')} Tracks · ${genreCount} Genre-Gruppen`;
   if (hasPoolUpdate) {
-    _pi.textContent += ' · ✓ Pool aktualisiert';
-    _pi.style.color = 'var(--acc)';
-    setTimeout(() => { _pi.style.color = ''; _pi.textContent = _pi.textContent.replace(' · ✓ Pool aktualisiert', ''); }, 4000);
+    poolInfoEl.textContent += ' · ✓ Pool aktualisiert';
+    poolInfoEl.style.color = 'var(--acc)';
+    setTimeout(() => { poolInfoEl.style.color = ''; poolInfoEl.textContent = poolInfoEl.textContent.replace(' · ✓ Pool aktualisiert', ''); }, 4000);
   }
 
   // Pre-fill Client ID from local file, then show login modal (unless OAuth callback or pool reload)

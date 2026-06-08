@@ -1,10 +1,11 @@
-// All application constants — no DOM, no state, no TRACK_DATA dependency
+// config.js — all application constants; no DOM, no state, no TRACK_DATA; never import other app modules
 
 export const GERMAN_GENRES = ['Moderne Deutsche Musik', 'Deutschrock / NDW / Schlager'];
 export const BPM_GROUPS = ['A','B','C','D','E','F','G','H','I'];
 export const BPM_RANGES = {A:[0,90],B:[90,110],C:[110,120],D:[120,130],E:[130,140],F:[140,150],G:[150,160],H:[160,175],I:[175,999]};
 export const CAM_ZONE1 = new Set(['8B','9B','10B','11B','12B','1B']);
 export const CAM_ZONE2 = new Set(['8A','9A','10A','11A','12A','1A']);
+// Keep in sync with SUFFIX_RE in CFLU_Pool_Build.py
 export const SUFFIX_RE = /[\s\-–(]*(radio\s*edit|single\s*edit|album\s*version|original\s*mix|club\s*mix|extended\s*(mix|version)?|long\s*version|remaster(ed)?.*|feat\..*|ft\..*|live.*|acoustic.*|mono.*|stereo.*)[^)]*\)?/gi;
 export const MIN_POOL_SIZE = 15;
 

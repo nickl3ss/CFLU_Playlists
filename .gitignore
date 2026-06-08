@@ -3,6 +3,9 @@
 # Spotify Client ID (lokal, nicht ins Repo)
 cflu_client_id.txt
 
+# Anthropic API Key (lokal, nicht ins Repo)
+anthropic_api_key.txt
+
 # Check-script für Webspace als Test für Transformation auf Webspace (lokal, nicht ins Repo)
 check.php
 
@@ -34,14 +37,14 @@ desktop.ini
 # Generierte Playlist-Exports
 Playlists/
 
-# Claude Code — lokal, nicht ins Repo
-CLAUDE.md
+# Claude Code — root CLAUDE.md ist getrackt; lokale Override-Dateien bleiben lokal
+docs/CLAUDE.md
 _fix_issues.py
 .claude/
 
 # Archivierte Dateien — lokal als Referenz, nicht im Repo
 archive/
-Methodik/
+/Methodik/
 
 # Interne Entwicklungs-Prompts
 claude_code_prompt_playlist_generator.md

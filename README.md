@@ -19,11 +19,13 @@ Architecture, algorithm details and ADR decisions → [`docs/PROJECT.md`](docs/P
 
 ## Quick Start
 
-Double-click **`CFLU_Start.bat`**.
+**Windows:** Double-click **`CFLU_Start.bat`**.
 
-What it does automatically:
-1. Checks Python is installed
-2. If CSVs are present in `Playlists/` — rebuilds `cflu_tracks.js` from scratch
+**macOS / Linux:** Run **`./CFLU_Start.sh`** in a terminal.
+
+What both launchers do automatically:
+1. Checks Python is installed (`py -3` on Windows, `python3` on Linux/macOS)
+2. Runs `CFLU_Pool_Build.py` — rebuilds the track pool from any CSVs in `Playlists/`; if no CSVs are present, re-applies genre classification to the existing pool
 3. Starts `python cflu_server.py` (custom HTTP server on port 8888)
 4. Opens `http://127.0.0.1:8888/CFLU_WOD_Builder.html` in the default browser
 
@@ -114,16 +116,19 @@ python CFLU_Pool_Build.py
 |-------|------|------|-------------|
 | **PLB** | Pool Builder | `CFLU_Pool_Build.py` | Python ETL pipeline: reads `Playlists/*.csv`, generates `cflu_tracks.js` |
 | **WOD** | WOD Generator | `CFLU_WOD_Builder.html` + `js/` | Main app: playlist logic, scoring, UI, Spotify export |
-| **TRK** | Track Store | `cflu_tracks.js` | Auto-generated track pool (do not edit manually) |
-| **TST** | Test Suite | `js/cflu_tests.js` · `CFLU_Tests.html` | Dual-mode: `node js/cflu_tests.js` (CLI) · Browser renderer (281 tests) |
+| **TRK** | Track Store | `cflu_tracks.js` | Auto-generated track pool — tracked in repo; do not edit manually |
+| **TST** | Test Suite | `js/cflu_tests.js` · `CFLU_Tests.html` | Dual-mode: `node js/cflu_tests.js` (CLI) · Browser renderer |
 
 ## File Overview
 
 ```
 CFLU_WOD_Builder.html   ← [WOD] Main UI (markup only)
-cflu_tracks.js          ← [TRK] Auto-generated track pool (gitignored after rebuild)
+cflu_tracks.js          ← [TRK] Auto-generated track pool (tracked in repo; do not edit manually)
 CFLU_Tests.html         ← [TST] Browser renderer — thin shell, imports js/cflu_tests.js
 CFLU_Start.bat          ← Windows launcher
+CFLU_Start.sh           ← macOS/Linux launcher
+cflu_server.py          ← [PLB] Custom HTTP server (port 8888, POST /api/upload-csv)
+cflu.service            ← Linux systemd user-service (auto-start on login)
 CFLU_Pool_Build.py      ← [PLB] Pool builder (Playlists/*.csv → cflu_tracks.js)
 package.json            ← {"type":"module"} — enables node js/cflu_tests.js
 CLAUDE.md               ← Workflow rules for Claude Code sessions
@@ -132,8 +137,33 @@ js/
   cflu_tests.js         ← [TST] Canonical test class (dual-mode: Node.js + browser export)
   config · state · utils · algorithm · chart · spotify · app  ← [WOD] ES modules
 docs/PROJECT.md         ← Architecture & ADR decisions
+docs/references/        ← Background research: WOD music theory, genre network analysis
 
 ```
+
+### Linux — Autostart as a systemd service
+
+To have the app start automatically on login (Linux only):
+
+```bash
+# Copy the service file to your systemd user directory
+mkdir -p ~/.config/systemd/user
+cp cflu.service ~/.config/systemd/user/
+
+# Edit the path inside the service file to match your installation directory
+nano ~/.config/systemd/user/cflu.service
+
+# Enable and start
+systemctl --user enable cflu
+systemctl --user start cflu
+
+# Check status
+systemctl --user status cflu
+```
+
+The browser still needs to be opened manually to `http://127.0.0.1:8888/CFLU_WOD_Builder.html`.
+
+---
 
 ### Running the tests
 
