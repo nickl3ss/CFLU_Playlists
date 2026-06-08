@@ -80,6 +80,23 @@ app.js (importiert alle Module, verdrahtet Events)
 
 Offene Items → GitHub Issues (https://github.com/nickl3ss/CFLU_Playlists/issues)
 
+### 2026-06-08 — AI-Genre: Verbesserte Kontextualisierung + --reclassify-ai Flag (#109)
+
+#### `CFLU_Pool_Build.py`
+
+- **`_AI_SYSTEM_PROMPT` — Rule 3 präzisiert:** Unterscheidung zwischen explizit genre-wechselnden Remix-Labels (Club Mix, Trance Edit, EDM Remix…) und generischen Labels (Extended Mix, Shotgun Mix, Radio Edit, Remaster). Generische Labels behalten das Genre des Originalkünstlers. Behebt Fehlklassifikation von „White Wedding - Shotgun Mix" als EDM/Electronic.
+- **`_AI_SYSTEM_PROMPT` — Rule 7 neu:** Bekannte Genres / Geerbte Genres als starkes Prior — Änderung nur bei explizit genre-wechselndem Remix-Label erlaubt.
+- **`tag_genres_ai()` — Kontext-Anreicherung pro Track:**
+  - Album + Albumjahr im Prompt
+  - Bekannte Genres des Künstlers aus dem Pool (open_genre 0/2/4) — `artist_known_genres`-Dict vor der Loop
+  - Geerbte Genres (open_genre=4) explizit als Prior
+- **`reset_ai_genres()` (neu):** Setzt open_genre=2 → 1, leert genres_raw; open_genre=3/4 unberührt.
+- **`--reclassify-ai` Flag:** Ruft `reset_ai_genres()` nach Merge auf, startet dann G+A-Phasen neu. Funktioniert in `build()` und `_reclassify_only()`.
+- **`clean_song()`:** Trailing `/` aus Scraping-Artefakten wird jetzt entfernt (`.strip(' /')`).
+- **Erstes Ergebnis:** 405 open_genre=2-Tracks zurückgesetzt, 412 neu klassifiziert, 0 Fehler.
+
+---
+
 ### 2026-06-08 — ETL Extract: Bekannte IDs vor Transform überspringen (#108)
 
 #### `CFLU_Pool_Build.py` — `build()`

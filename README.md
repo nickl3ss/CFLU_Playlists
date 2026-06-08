@@ -2,7 +2,7 @@
 
 > CrossFit Ludwigshafen — Local class-phase playlist generator with Spotify export
 
-Builds rule-based playlists for all four phases of a CrossFit class from the track pool across 12 genre groups. Select a class phase, pick a reference song, configure duration — and get a scored, Camelot-compatible playlist with direct Spotify export.
+Builds rule-based playlists for all four phases of a CrossFit class from the track pool across 10 genre groups. Select a class phase, pick a reference song, configure duration — and get a scored, Camelot-compatible playlist with direct Spotify export.
 
 Architecture, algorithm details and ADR decisions → [`docs/PROJECT.md`](docs/PROJECT.md)
 

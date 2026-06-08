@@ -232,8 +232,11 @@ gh issue close <nr> --reason "completed" --comment "AC: ✓ ... ✓ ... ✓ ..."
                     add-only: skips IDs already in pool before Transform (--rebuild: all IDs processed)
 [T] Transform       CSV rows → track dicts; genres_raw empty allowed (open_genre=1)
 [L] Load & Merge    add-only (default) or full-update (--rebuild); preserves dynamic fields
+[*] Reset AI        --reclassify-ai only: resets open_genre=2 → 1, clears genres_raw
+                    (explicit opt-in; not part of --rebuild)
 [G] Genre inherit   open_genre=1 → 4: borrow genres_raw from same-artist tracks
 [A] AI Genre        open_genre=1/4 → 2 or 5; BYOK via anthropic_api_key.txt; Claude Haiku
+                    context per track: album+year, known artist genres from pool, inherited genres
 [C] Cleanup         deduplication (artist+title key; locked=1 wins)
 [M] Mood Tags       Claude Haiku batch tagging; skips already-tagged tracks
 ```
@@ -266,5 +269,5 @@ gh issue close <nr> --reason "completed" --comment "AC: ✓ ... ✓ ... ✓ ..."
 6. Phase 4 (BPM escalation) intentionally ignores energy filter and BPM groups
 7. `cflu_tracks.js` must be loaded BEFORE the ES modules (`<script>` in `<head>`)
 8. `CFLU_Start.bat` / `CFLU_Start.sh` always run pool build on startup — no CSV means reclassify-only mode
-9. `open_genre=2/3/5` never overwritten by rebuild — preserve logic in `merge()` is mandatory
+9. `open_genre=2/3/5` never overwritten by `--rebuild` — preserve logic in `merge()` is mandatory; `--reclassify-ai` is an explicit opt-in that intentionally resets state-2 for re-classification
 10. `tag_genres_ai()` only sets `open_genre=5` when API actually responded (not on network/parse errors)
