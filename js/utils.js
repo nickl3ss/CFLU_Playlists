@@ -127,6 +127,16 @@ export function isHalfDouble(bpm1, bpm2, tol = 3) {
   return Math.abs(bpm1 * 2 - bpm2) <= tol || Math.abs(bpm1 - bpm2 * 2) <= tol;
 }
 
+export function calcEraScore(t, cur) {
+  const parseYear = d => { if (!d) return null; const y = parseInt(d); return isNaN(y) ? null : y; };
+  const y1 = parseYear(t.album_date), y2 = parseYear(cur.album_date);
+  if (y1 === null || y2 === null) return 0;
+  const diff = Math.abs(y1 - y2);
+  if (diff <= 5) return 30;
+  if (diff >= 15) return 0;
+  return Math.round(30 * (1 - (diff - 5) / 10));
+}
+
 // calcSortScore — linear combination of calibrated-by-use components:
 //   camPoints    [0,100,200]  Camelot compatibility; green outweighs all other differences.
 //   phasePoints  [0–200]      calcPhaseScore (0–100) × 2, equal weight to Camelot.
@@ -138,6 +148,7 @@ export function isHalfDouble(bpm1, bpm2, tol = 3) {
 //   danceScore   [0,5]        reward: 5 at same danceability (B/C only), 0 at diff ≥25.
 //   moodScore    [0,8]        reward: proportional tag overlap from mood_tags field.
 //   colorScore   [0,10]       reward: similar Everynoise avg_color (sonic texture proximity).
+//   eraScore     [0,30]       reward: ≤5yr gap = 30, linear decay to 0 at ≥15yr gap.
 function _colorDist(h1, h2) {
   if (!h1 || !h2 || h1.length < 7 || h2.length < 7) return 0;
   const p = h => [parseInt(h.slice(1,3),16)/255, parseInt(h.slice(3,5),16)/255, parseInt(h.slice(5,7),16)/255];
@@ -167,6 +178,7 @@ export function calcSortScore(t, cur, phase) {
     ? Math.round(8 * t.mood_tags.filter(tag => cur.mood_tags.includes(tag)).length / Math.min(t.mood_tags.length, cur.mood_tags.length)) : 0;
   const colorScore = (t.avg_color && cur.avg_color)
     ? Math.max(0, Math.round(10 * (1 - _colorDist(t.avg_color, cur.avg_color) / 1.732))) : 0;
+  const eraScore   = calcEraScore(t, cur);
 
-  return camPoints + phasePoints + energyPoints + bpmPenalty + bridge + dEnergy + loudScore + valScore + danceScore + moodScore + colorScore;
+  return camPoints + phasePoints + energyPoints + bpmPenalty + bridge + dEnergy + loudScore + valScore + danceScore + moodScore + colorScore + eraScore;
 }

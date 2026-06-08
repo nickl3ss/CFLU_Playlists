@@ -4,7 +4,7 @@
 
 import { bpmGroup, groupIdx, neighbour, fmtDur, fmtMin, titleKey, titleDuplicate,
          camCompat, camStrictOk, lerpColor, toHex, toRgb,
-         attrScore, calcPhaseScore, calcSortScore, trapezScore, isHalfDouble,
+         attrScore, calcPhaseScore, calcSortScore, calcEraScore, trapezScore, isHalfDouble,
          camelotZoneDistance } from './utils.js';
 import { GENRE_CONFIG, getNeighboursWeighted, getNeighbours, bridgeTags,
          bridgeTagsForMain, getSubgenres, getRoleBonus } from './genres.js';
@@ -1156,6 +1156,34 @@ describe('calcSortScore — colorScore [0,10]', () => {
     const diff = calcSortScore(withColor,cur,'C') - calcSortScore(noColor,cur,'C');
     expect(diff).toBeGreaterThanOrEqual(0);
     expect(diff).toBeLessThanOrEqual(10);
+  });
+});
+
+describe('calcEraScore — Ära-Kohärenz [0,30]', () => {
+  const mk = (year) => ({ album_date: year ? `${year}-01-01` : null });
+  it('Gleiche Jahreszahl → 30',             () => expect(calcEraScore(mk(2005), mk(2005))).toBe(30));
+  it('Diff = 5 Jahre → 30',                () => expect(calcEraScore(mk(2000), mk(2005))).toBe(30));
+  it('Diff = 10 Jahre → 15',               () => expect(calcEraScore(mk(1990), mk(2000))).toBe(15));
+  it('Diff = 15 Jahre → 0',                () => expect(calcEraScore(mk(1985), mk(2000))).toBe(0));
+  it('Diff = 20 Jahre → 0',                () => expect(calcEraScore(mk(1980), mk(2000))).toBe(0));
+  it('Diff = 7 Jahre → 24',                () => expect(calcEraScore(mk(1993), mk(2000))).toBe(24));
+  it('t ohne album_date → 0',              () => expect(calcEraScore(mk(null), mk(2000))).toBe(0));
+  it('cur ohne album_date → 0',            () => expect(calcEraScore(mk(2000), mk(null))).toBe(0));
+  it('Beide ohne album_date → 0',          () => expect(calcEraScore(mk(null),  mk(null))).toBe(0));
+  it('Richtung egal (t - cur vs cur - t)', () => expect(calcEraScore(mk(2010), mk(2000))).toBe(calcEraScore(mk(2000), mk(2010))));
+  it('eraScore integriert in calcSortScore: Same era > weit entfernt', () => {
+    const base = { id:'x', song:'S', artist:'A', bpm:124, camelot:'10B', energy:76, dur:200, genre:'Rock', bpmg:'D' };
+    const cur  = Object.assign({}, base, { id:'c', camelot:'9B', album_date:'2000-01-01' });
+    const same = Object.assign({}, base, { album_date:'2002-01-01' });
+    const far  = Object.assign({}, base, { album_date:'1970-01-01' });
+    expect(calcSortScore(same, cur, 'C')).toBeGreaterThan(calcSortScore(far, cur, 'C'));
+  });
+  it('eraScore = 30 in calcSortScore bei diff ≤ 5', () => {
+    const base = { id:'x', song:'S', artist:'A', bpm:124, camelot:'10B', energy:76, dur:200, genre:'Rock', bpmg:'D' };
+    const cur  = Object.assign({}, base, { id:'c', camelot:'9B', album_date:'2000-01-01' });
+    const same = Object.assign({}, base, { album_date:'2003-01-01' });
+    const none = Object.assign({}, base, { album_date: null });
+    expect(calcSortScore(same, cur, 'C') - calcSortScore(none, cur, 'C')).toBe(30);
   });
 });
 
