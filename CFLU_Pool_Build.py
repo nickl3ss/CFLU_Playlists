@@ -28,7 +28,7 @@ from collections import defaultdict
 # ===== KONFIGURATION =====
 PLAYLISTS_DIR = 'Playlists'
 OUTPUT_FILE = 'cflu_tracks.js'
-GERMAN_GENRES = ['Moderne Deutsche Musik', 'Deutschrock / NDW / Schlager']
+GERMAN_GENRES = ['Deutsche Musik']
 
 # ===== SUFFIX-BEREINIGUNG =====
 SUFFIX_RE = re.compile(
@@ -66,7 +66,7 @@ _SYNTH_KEYWORDS    = ['synthwave', 'vaporwave', 'chillwave', 'outrun', 'retrowav
                       'darksynth', 'dreamwave', 'trip-hop', 'downtempo', 'new age', 'ambient',
                       'lo-fi', 'darkwave', 'industrial', 'ebm', 'dark ambient']
 _DANCE_POP_KEYS    = ['tropical house', 'dance pop']
-_BLUES_EXCLUDE     = ['hip-hop', 'hip hop', 'rap', 'r&b', 'funk', 'disco', 'metal', 'soul', 'motown']
+_BLUES_EXCLUDE     = ['hip-hop', 'hip hop', 'rap', 'metal']
 _BLUES_KEYWORDS    = ['classic blues', 'traditional blues', 'chicago blues', 'delta blues',
                       'modern blues', 'british blues', 'texas blues',
                       'soul jazz', 'vocal jazz', 'smooth jazz', 'nu jazz', 'jazz fusion', 'acid jazz']
@@ -78,12 +78,28 @@ _ROCK_KEYWORDS     = ['rock', 'hard rock', 'klassischer rock', 'classic rock', '
                       'alternative rock', 'indie rock', 'grunge', 'post-punk',
                       'mellow gold', 'permanent wave', 'emo', 'neo mellow', 'lilith',
                       'folk rock', 'celtic rock', 'keltische musik', 'bluesrock']
-_HIP_HOP_KEYWORDS  = ['hip-hop', 'hip hop', 'rap', 'r&b', 'old school', 'east coast', 'west coast',
-                      'trap', 'grime', 'urban contemporary', 'new jack swing', 'crunk',
-                      'hip pop', 'jazz rap', 'jazz beats']
-_FUNK_KEYWORDS     = ['funk', 'disco', 'soul', 'motown', 'boogie', 'jazz funk', 'funk rock']
+# Hip Hop / Rap — rap-specific tags; r&b is intentionally absent (routes to Funk, Soul & R&B)
+_HIP_HOP_KEYWORDS  = ['hip-hop', 'hip hop', 'rap', 'old school', 'east coast', 'west coast',
+                      'trap', 'grime', 'crunk', 'hip pop', 'jazz rap', 'jazz beats',
+                      'drill', 'phonk', 'g-funk']
+# Funk, Soul & R&B — covers disco/funk/soul/r&b/blues lineage
+_FUNK_SOUL_KEYWORDS = ['funk', 'disco', 'soul', 'motown', 'boogie', 'jazz funk', 'funk rock',
+                       'r&b', 'urban contemporary', 'new jack swing', 'quiet storm']
 _POP_KEYWORDS      = ['pop', 'new wave', 'electro swing', 'new romantic', 'synthpop',
                       'singer-songwriter', 'country', 'europop', 'boy band', 'girl group']
+
+# Tracks with these subgenres are excluded from the pool entirely.
+_EXCLUDED_SUBGENRES = {'weihnachten'}
+
+# Maps deprecated genre names to their replacements after a taxonomy rename.
+# Applies post-merge to fix AI-classified (open_genre=2) tracks with old names.
+_GENRE_RENAME = {
+    'Funk & Disco':                 'Funk, Soul & R&B',
+    'Blues & Soul':                 'Funk, Soul & R&B',
+    'Moderne Deutsche Musik':       'Deutsche Musik',
+    'Deutschrock / NDW / Schlager': 'Deutsche Musik',
+    # 'Hip Hop & R&B' is not listed here — those tracks are re-classified below
+}
 
 # Muss mit BPM_RANGES in js/config.js identisch bleiben.
 _BPM_GROUPS = [('A',0,90),('B',90,110),('C',110,120),('D',120,130),('E',130,140),
@@ -95,18 +111,16 @@ _BPM_GROUPS = [('A',0,90),('B',90,110),('C',110,120),('D',120,130),('E',130,140)
 _AI_MODEL = 'claude-haiku-4-5-20251001'
 
 _GENRE_CANONICAL = {
-    'EDM / Electronic':             'edm',
-    'Pop & New Wave':               'pop',
-    'Rock':                         'rock',
-    'Metal & Hard Rock':            'metal',
-    'Synthwave / Electronica':      'synthwave',
-    'Ska & Reggae':                 'reggae',
-    'Moderne Deutsche Musik':       'deutschpop',
-    'Hip Hop & R&B':                'hip hop',
-    'Punk':                         'punk',
-    'Funk & Disco':                 'funk',
-    'Deutschrock / NDW / Schlager': 'deutschrock',
-    'Blues & Soul':                 'classic blues',
+    'EDM / Electronic':      'edm',
+    'Pop & New Wave':        'pop',
+    'Rock':                  'rock',
+    'Metal & Hard Rock':     'metal',
+    'Synthwave / Electronica': 'synthwave',
+    'Ska & Reggae':          'reggae',
+    'Deutsche Musik':        'deutschpop',
+    'Hip Hop / Rap':         'hip hop',
+    'Punk':                  'punk',
+    'Funk, Soul & R&B':      'soul',
 }
 _ALLOWED_GENRES = list(_GENRE_CANONICAL.keys())
 
@@ -123,12 +137,11 @@ def is_modern_year(album_date_str):
 
 
 def classify(genres_str, parent_str, bpm, album_date_str=''):
-    """Gibt eine der 12 Genre-Gruppen zurück. Keyword-Tabellen → Modul-Ebene."""
+    """Gibt eine der 10 Genre-Gruppen zurück. Keyword-Tabellen → Modul-Ebene."""
     genres = genres_str.lower()
     parent = parent_str.lower()
 
     is_german = any(kw in genres for kw in GERMAN_KEYWORDS)
-    is_modern = is_modern_year(album_date_str)
 
     # Ska & Reggae (vor Punk — ska-punk Gewichtung)
     if any(x in genres for x in _SKA_TRIGGER):
@@ -152,17 +165,17 @@ def classify(genres_str, parent_str, bpm, album_date_str=''):
     if any(x in genres for x in _DANCE_POP_KEYS):
         return 'EDM / Electronic' if bpm >= 118 else 'Pop & New Wave'
 
-    if is_german and is_modern:
-        return 'Moderne Deutsche Musik'
+    # Deutsche Musik: beide alten Buckets zusammengeführt (modern/nicht-modern)
     if is_german:
-        return 'Deutschrock / NDW / Schlager'
+        return 'Deutsche Musik'
 
+    # Blues → Funk, Soul & R&B (harte Ausschlüsse: hip-hop/rap/metal verdrängen blues)
     if 'blues' in parent and 'rock' not in parent and not any(x in genres for x in _BLUES_EXCLUDE):
-        return 'Blues & Soul'
+        return 'Funk, Soul & R&B'
     if any(x in genres for x in _BLUES_KEYWORDS) and 'metal' not in genres:
-        return 'Blues & Soul'
+        return 'Funk, Soul & R&B'
     if 'blues' in genres and 'rock' not in genres and 'metal' not in genres:
-        return 'Blues & Soul'
+        return 'Funk, Soul & R&B'
 
     if any(x in genres for x in _METAL_KEYWORDS):
         return 'Metal & Hard Rock'
@@ -170,24 +183,27 @@ def classify(genres_str, parent_str, bpm, album_date_str=''):
     if any(x in genres for x in _ROCK_KEYWORDS):
         return 'Rock'
 
+    # Hip Hop / Rap vor Funk,Soul&R&B — wenn hip-hop-Tag vorhanden, immer Hip Hop/Rap
     if any(x in genres for x in _HIP_HOP_KEYWORDS):
-        return 'Hip Hop & R&B'
+        return 'Hip Hop / Rap'
 
-    if any(x in genres for x in _FUNK_KEYWORDS):
-        return 'Funk & Disco'
+    if any(x in genres for x in _FUNK_SOUL_KEYWORDS):
+        return 'Funk, Soul & R&B'
 
     if any(x in genres for x in _POP_KEYWORDS) or 'pop' in parent or 'rock' in parent:
         return 'Pop & New Wave'
 
     # Parent-Genre-Fallbacks
     if 'blues' in parent and 'rock' not in parent:
-        return 'Blues & Soul'
+        return 'Funk, Soul & R&B'
     if 'electronic' in parent:
         return 'EDM / Electronic' if bpm >= 118 else 'Synthwave / Electronica'
     if 'reggae' in parent:
         return 'Ska & Reggae'
-    if 'r&b' in parent or 'hip hop' in parent:
-        return 'Hip Hop & R&B'
+    if 'hip hop' in parent:
+        return 'Hip Hop / Rap'
+    if 'r&b' in parent:
+        return 'Funk, Soul & R&B'
 
     return 'Pop & New Wave'
 
@@ -304,6 +320,9 @@ def transform(extracted):
             popularity = safe_int(row.get('Popularity', ''), 'popularity')
 
             genres_raw = split_tags(row.get('Genres', ''))
+            # Tracks with excluded subgenres (e.g. weihnachten) are dropped before classify()
+            if any(g in _EXCLUDED_SUBGENRES for g in genres_raw):
+                raise ValueError('excluded_subgenre')
             # empty genres are valid — classify() falls back to 'Pop & New Wave'
 
             dance        = safe_int(row.get('Dance', ''),          'dance')
@@ -497,6 +516,31 @@ def merge(transformed, existing, rebuild=False):
     return list(merged.values()), count_new, count_updated
 
 
+def migrate_deprecated_genres(tracks):
+    """Renames tracks whose genre field uses a pre-taxonomy-refactor name.
+    Tracks with the old 'Hip Hop & R&B' are re-classified so the split
+    (Hip Hop/Rap vs Funk,Soul&R&B) is applied correctly.
+    """
+    migrated = 0
+    for t in tracks:
+        g = t.get('genre', '')
+        if g in _GENRE_RENAME:
+            t['genre'] = _GENRE_RENAME[g]
+            migrated += 1
+        elif g == 'Hip Hop & R&B':
+            new_g = classify(
+                ', '.join(t.get('genres_raw', [])),
+                ', '.join(t.get('parent_genres', [])),
+                t.get('bpm', 0),
+                t.get('album_date') or '',
+            )
+            t['genre'] = new_g if new_g else 'Hip Hop / Rap'
+            migrated += 1
+    if migrated:
+        print(f'  Genre-Migration     : {migrated} Tracks auf neues Schema aktualisiert')
+    return migrated
+
+
 # ===== G — GENRE-VERERBUNG =====
 def inherit_genres(tracks):
     """
@@ -667,12 +711,10 @@ Erlaubte Genre-Gruppen (exakt so zurückgeben):
 - Metal & Hard Rock
 - Synthwave / Electronica
 - Ska & Reggae
-- Moderne Deutsche Musik
-- Hip Hop & R&B
+- Deutsche Musik
+- Hip Hop / Rap
 - Punk
-- Funk & Disco
-- Deutschrock / NDW / Schlager
-- Blues & Soul
+- Funk, Soul & R&B
 
 Regeln:
 1. Antworte NUR mit einem JSON-Objekt:
@@ -782,6 +824,7 @@ def _reclassify_only():
         return (0, 0, 0)
 
     tracks = list(existing.values())
+    migrate_deprecated_genres(tracks)
     changed = 0
     for t in tracks:
         genres_str = ', '.join(t.get('genres_raw', []))
@@ -874,6 +917,7 @@ def build(rebuild=False):
     else:
         print('  Kein bestehender Pool — wird neu erstellt.')
     tracks, count_new, count_updated = merge(transformed, existing, rebuild=rebuild)
+    migrate_deprecated_genres(tracks)
 
     # G — Genre-Vererbung (open_genre 1→4)
     print('\n[G] Genre-Vererbung')

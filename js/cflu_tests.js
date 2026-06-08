@@ -755,7 +755,7 @@ describe('buildAlternating — Midpoint Alternating-Build', () => {
 //  GENRE_CONFIG Struktur
 // ============================================================
 describe('GENRE_CONFIG — Struktur', () => {
-  it('Genau 12 Main Genres', () => expect(GENRE_CONFIG.mainGenres.length).toBe(12));
+  it('Genau 10 Main Genres', () => expect(GENRE_CONFIG.mainGenres.length).toBe(10));
   it('Jedes Main hat neighbours[]', () => {
     GENRE_CONFIG.mainGenres.forEach(m => expect(Array.isArray(m.neighbours)).toBeTruthy());
   });
@@ -764,8 +764,8 @@ describe('GENRE_CONFIG — Struktur', () => {
     GENRE_CONFIG.mainGenres.forEach(m => m.neighbours.forEach(n => expect(valid.has(n.weight)).toBeTruthy()));
   });
   it('Genau 20 Bridge-Subgenres', () => expect(Object.keys(GENRE_CONFIG.bridgeSubgenres).length).toBe(20));
-  it('4 Bridges definiert (A/B/C/D)', () => {
-    expect(Object.keys(GENRE_CONFIG.bridges)).toEqual(['A','B','C','D']);
+  it('Kein bridges-Key (entfernt)', () => {
+    expect('bridges' in GENRE_CONFIG).toBe(false);
   });
   it('pickerStrategy.escalation hat 4 Stufen', () => expect(GENRE_CONFIG.pickerStrategy.escalation.length).toBe(4));
   it('Genau 1 warmup-Genre', () => {
@@ -774,16 +774,16 @@ describe('GENRE_CONFIG — Struktur', () => {
   it('Genau 1 cooldown-Genre', () => {
     expect(GENRE_CONFIG.mainGenres.filter(m => m.role === 'cooldown').length).toBe(1);
   });
-  it('10 peak-Genres', () => {
-    expect(GENRE_CONFIG.mainGenres.filter(m => m.role === 'peak').length).toBe(10);
+  it('8 peak-Genres', () => {
+    expect(GENRE_CONFIG.mainGenres.filter(m => m.role === 'peak').length).toBe(8);
   });
   it('Synthwave ist warmup', () => {
     const sw = GENRE_CONFIG.mainGenres.find(m => m.id === 'Synthwave / Electronica');
     expect(sw.role).toBe('warmup');
   });
-  it('Blues & Soul ist cooldown', () => {
-    const bs = GENRE_CONFIG.mainGenres.find(m => m.id === 'Blues & Soul');
-    expect(bs.role).toBe('cooldown');
+  it('Funk, Soul & R&B ist cooldown', () => {
+    const fs = GENRE_CONFIG.mainGenres.find(m => m.id === 'Funk, Soul & R&B');
+    expect(fs.role).toBe('cooldown');
   });
 });
 
@@ -796,7 +796,7 @@ describe('getNeighboursWeighted / getNeighbours', () => {
     const nb = getNeighboursWeighted('EDM / Electronic');
     for (let i = 1; i < nb.length; i++) expect(nb[i].weight).toBeLessThanOrEqual(nb[i-1].weight);
   });
-  it('Blues & Soul hat 3 Neighbours', () => expect(getNeighbours('Blues & Soul').length).toBe(3));
+  it('Funk, Soul & R&B hat 4 Neighbours', () => expect(getNeighbours('Funk, Soul & R&B').length).toBe(4));
   it('Unbekanntes Genre → []', () => expect(getNeighboursWeighted('Unbekannt')).toHaveLength(0));
   it('getNeighbours gibt string[] zurück', () => {
     const nb = getNeighbours('Rock');
@@ -820,7 +820,7 @@ describe('bridgeTags / bridgeTagsForMain', () => {
     expect(tags).toContain('skate punk');
   });
   it('Metal↔Hip Hop: rap metal + nu metal', () => {
-    const tags = bridgeTags('Metal & Hard Rock', 'Hip Hop & R&B');
+    const tags = bridgeTags('Metal & Hard Rock', 'Hip Hop / Rap');
     expect(tags).toContain('rap metal');
     expect(tags).toContain('nu metal');
   });
@@ -895,7 +895,7 @@ describe('calcPhaseScore — BPM-Trapez-Gewichtung', () => {
 // ============================================================
 describe('calcSortScore — Bridge-Bonus', () => {
   const cur = {bpm:120, camelot:'9B', energy:72, genre:'Metal & Hard Rock'};
-  const base = mkT({id:'br1',song:'Bridge',artist:'A',bpm:124,camelot:'10B',energy:76,dur:200,genre:'Hip Hop & R&B',bpmg:'D'});
+  const base = mkT({id:'br1',song:'Bridge',artist:'A',bpm:124,camelot:'10B',energy:76,dur:200,genre:'Hip Hop / Rap',bpmg:'D'});
 
   it('Track mit Bridge-Tag erhält höheren Score', () => {
     const withBridge    = Object.assign({}, base, {genres_raw: ['rap metal']});
@@ -908,8 +908,8 @@ describe('calcSortScore — Bridge-Bonus', () => {
     expect(calcSortScore(wb,cur,'C') - calcSortScore(wo,cur,'C')).toBe(50);
   });
   it('Grünes Camelot ohne Bridge schlägt gelbes Camelot mit Bridge', () => {
-    const greenNoBridge  = mkT({id:'g1',song:'G',artist:'A',bpm:124,camelot:'10B',energy:76,dur:200,genre:'Hip Hop & R&B',bpmg:'D',genres_raw:[]});
-    const yellowWithBridge = mkT({id:'y1',song:'Y',artist:'A',bpm:124,camelot:'11B',energy:76,dur:200,genre:'Hip Hop & R&B',bpmg:'D',genres_raw:['rap metal']});
+    const greenNoBridge  = mkT({id:'g1',song:'G',artist:'A',bpm:124,camelot:'10B',energy:76,dur:200,genre:'Hip Hop / Rap',bpmg:'D',genres_raw:[]});
+    const yellowWithBridge = mkT({id:'y1',song:'Y',artist:'A',bpm:124,camelot:'11B',energy:76,dur:200,genre:'Hip Hop / Rap',bpmg:'D',genres_raw:['rap metal']});
     expect(calcSortScore(greenNoBridge,cur,'C')).toBeGreaterThan(calcSortScore(yellowWithBridge,cur,'C'));
   });
 });
@@ -974,7 +974,7 @@ describe('pickNext — Subgenre-Eskalation', () => {
 // ============================================================
 describe('getRoleBonus', () => {
   it('warmup-Genre in Phase A → +0.3', () => expect(getRoleBonus('Synthwave / Electronica', 'A')).toBe(0.3));
-  it('cooldown-Genre in Phase D → +0.3', () => expect(getRoleBonus('Blues & Soul', 'D')).toBe(0.3));
+  it('cooldown-Genre in Phase D → +0.3', () => expect(getRoleBonus('Funk, Soul & R&B', 'D')).toBe(0.3));
   it('peak-Genre in Phase A → -0.2', () => expect(getRoleBonus('Rock', 'A')).toBe(-0.2));
   it('peak-Genre in Phase D → -0.2', () => expect(getRoleBonus('EDM / Electronic', 'D')).toBe(-0.2));
   it('warmup-Genre in Phase C → 0', () => expect(getRoleBonus('Synthwave / Electronica', 'C')).toBe(0));
@@ -1018,6 +1018,112 @@ describe('camelotZoneDistance — Abstand zu Zone 1/2 (#99)', () => {
   it('Ungültiger Key → 99', () => expect(camelotZoneDistance('nan')).toBe(99));
   it('Zone-2-Key 1A → 0', () => expect(camelotZoneDistance('1A')).toBe(0));
   it('2A (1 Schritt von 1A Zone2) → 1', () => expect(camelotZoneDistance('2A')).toBe(1));
+});
+
+// ============================================================
+//  calcSortScore — Erweiterte Scoring-Komponenten (#103)
+// ============================================================
+describe('calcSortScore — loudScore [0,7]', () => {
+  // Note: loud also appears in calcPhaseScore, so total diffs are ≥ the loudScore delta alone.
+  const cur = mkT({id:'cur',song:'Cur',artist:'A',bpm:120,camelot:'9B',energy:72,dur:210,genre:'Rock',bpmg:'D',loud:-7});
+  const base = mkT({id:'b',song:'B',artist:'A',bpm:124,camelot:'10B',energy:76,dur:200,genre:'Rock',bpmg:'D'});
+  it('Same loudness → höchster Score', () => {
+    const same = Object.assign({},base,{loud:-7}), diff = Object.assign({},base,{loud:-14});
+    expect(calcSortScore(same,cur,'C')).toBeGreaterThan(calcSortScore(diff,cur,'C'));
+  });
+  it('Score sinkt monoton mit steigender Lautstärke-Differenz', () => {
+    const s0 = Object.assign({},base,{camelot:'10B',loud:-7});
+    const s4 = Object.assign({},base,{camelot:'10B',loud:-11});
+    const s7 = Object.assign({},base,{camelot:'10B',loud:-14});
+    expect(calcSortScore(s0,cur,'C')).toBeGreaterThan(calcSortScore(s4,cur,'C'));
+    expect(calcSortScore(s4,cur,'C')).toBeGreaterThan(calcSortScore(s7,cur,'C'));
+  });
+  it('Score-Differenz ist mindestens +7 bei diff=0 vs diff=7', () => {
+    const s0 = Object.assign({},base,{camelot:'10B',loud:-7});
+    const s7 = Object.assign({},base,{camelot:'10B',loud:-14});
+    expect(calcSortScore(s0,cur,'C') - calcSortScore(s7,cur,'C')).toBeGreaterThanOrEqual(7);
+  });
+  it('cur ohne loud → loudScore-Differenz entfällt', () => {
+    const curNoLoud = Object.assign({},cur,{loud:null});
+    const t0 = Object.assign({},base,{loud:-7}), t7 = Object.assign({},base,{loud:-14});
+    const diffWithLoud    = calcSortScore(t0,cur,'C') - calcSortScore(t7,cur,'C');
+    const diffWithoutLoud = calcSortScore(t0,curNoLoud,'C') - calcSortScore(t7,curNoLoud,'C');
+    expect(diffWithLoud).toBeGreaterThan(diffWithoutLoud);
+  });
+});
+
+describe('calcSortScore — valenceScore [0,6]', () => {
+  const cur = mkT({id:'cur',song:'Cur',artist:'A',bpm:120,camelot:'9B',energy:72,dur:210,genre:'Rock',bpmg:'D',valence:65});
+  const base = mkT({id:'b',song:'B',artist:'A',bpm:124,camelot:'10B',energy:76,dur:200,genre:'Rock',bpmg:'D'});
+  it('Gleiche Valence → höchster Score', () => {
+    const same = Object.assign({},base,{valence:65}), far = Object.assign({},base,{valence:35});
+    expect(calcSortScore(same,cur,'C')).toBeGreaterThan(calcSortScore(far,cur,'C'));
+  });
+  it('Score-Differenz ist mindestens +6 bei diff=0 vs diff=30', () => {
+    const s0  = Object.assign({},base,{camelot:'10B',valence:65});
+    const s30 = Object.assign({},base,{camelot:'10B',valence:95});
+    expect(calcSortScore(s0,cur,'C') - calcSortScore(s30,cur,'C')).toBeGreaterThanOrEqual(6);
+  });
+  it('Score sinkt monoton mit steigender Valence-Differenz', () => {
+    const s0  = Object.assign({},base,{camelot:'10B',valence:65});
+    const s15 = Object.assign({},base,{camelot:'10B',valence:80});
+    const s30 = Object.assign({},base,{camelot:'10B',valence:95});
+    expect(calcSortScore(s0,cur,'C')).toBeGreaterThan(calcSortScore(s15,cur,'C'));
+    expect(calcSortScore(s15,cur,'C')).toBeGreaterThan(calcSortScore(s30,cur,'C'));
+  });
+});
+
+describe('calcSortScore — danceScore [0,5] (B/C only)', () => {
+  const cur = mkT({id:'cur',song:'Cur',artist:'A',bpm:120,camelot:'9B',energy:72,dur:210,genre:'Rock',bpmg:'D',dance:60});
+  const base = mkT({id:'b',song:'B',artist:'A',bpm:124,camelot:'10B',energy:76,dur:200,genre:'Rock',bpmg:'D'});
+  it('Phase B: gleiche Danceability → höherer Score als Differenz 25', () => {
+    const same = Object.assign({},base,{dance:60}), far = Object.assign({},base,{dance:85});
+    expect(calcSortScore(same,cur,'B')).toBeGreaterThan(calcSortScore(far,cur,'B'));
+  });
+  it('Phase C: Score-Differenz mindestens +5 bei diff=0 vs diff=25', () => {
+    const s0  = Object.assign({},base,{camelot:'10B',dance:60});
+    const s25 = Object.assign({},base,{camelot:'10B',dance:85});
+    expect(calcSortScore(s0,cur,'C') - calcSortScore(s25,cur,'C')).toBeGreaterThanOrEqual(5);
+  });
+  it('Phase A: zwei Tracks mit dance in [30,60] → gleiches Score (kein danceScore)', () => {
+    const phACur = mkT({id:'phac',song:'C',artist:'A',bpm:95,camelot:'9B',energy:35,dur:210,genre:'Synthwave / Electronica',bpmg:'B',dance:45});
+    const t40 = mkT({id:'t40',song:'T40',artist:'A',bpm:98,camelot:'10B',energy:38,dur:200,genre:'Rock',bpmg:'B',dance:40});
+    const t55 = mkT({id:'t55',song:'T55',artist:'A',bpm:98,camelot:'10B',energy:38,dur:200,genre:'Rock',bpmg:'B',dance:55});
+    expect(calcSortScore(t40,phACur,'A')).toBe(calcSortScore(t55,phACur,'A'));
+  });
+});
+
+describe('calcSortScore — moodScore [0,8]', () => {
+  const cur  = mkT({id:'cur',song:'Cur',artist:'A',bpm:120,camelot:'9B',energy:72,dur:210,genre:'Rock',bpmg:'D',mood_tags:['aggressive','pump-up','anthem']});
+  const base = mkT({id:'b',song:'B',artist:'A',bpm:124,camelot:'10B',energy:76,dur:200,genre:'Rock',bpmg:'D'});
+  it('Volle Überlappung → höherer Score als keine Überlappung', () => {
+    const full = Object.assign({},base,{mood_tags:['aggressive','pump-up','anthem']});
+    const none = Object.assign({},base,{mood_tags:['chill','smooth','emotional']});
+    expect(calcSortScore(full,cur,'C')).toBeGreaterThan(calcSortScore(none,cur,'C'));
+  });
+  it('Volle Überlappung → moodScore = 8', () => {
+    const full = Object.assign({},base,{camelot:'10B',mood_tags:['aggressive','pump-up','anthem']});
+    const none = Object.assign({},base,{camelot:'10B',mood_tags:[]});
+    expect(calcSortScore(full,cur,'C') - calcSortScore(none,cur,'C')).toBe(8);
+  });
+  it('Kein mood_tags Feld → kein Fehler, moodScore = 0', () => {
+    const noTags = Object.assign({},base,{camelot:'10B'});
+    const withTags = Object.assign({},base,{camelot:'10B',mood_tags:['aggressive','pump-up','anthem']});
+    const diff = calcSortScore(withTags,cur,'C') - calcSortScore(noTags,cur,'C');
+    expect(diff).toBe(8);
+  });
+  it('cur ohne mood_tags → moodScore = 0', () => {
+    const curNoMood = Object.assign({},cur,{mood_tags:[]});
+    const withTags = Object.assign({},base,{mood_tags:['aggressive','pump-up','anthem']});
+    const noTags   = Object.assign({},base,{mood_tags:[]});
+    expect(calcSortScore(withTags,curNoMood,'C')).toBe(calcSortScore(noTags,curNoMood,'C'));
+  });
+  it('Teilüberlappung → zwischen 0 und 8', () => {
+    const partial = Object.assign({},base,{mood_tags:['aggressive','chill']});
+    const score = calcSortScore(partial,cur,'C') - calcSortScore(Object.assign({},base,{mood_tags:[]}),cur,'C');
+    expect(score).toBeGreaterThan(0);
+    expect(score).toBeLessThan(8);
+  });
 });
 
 // ============================================================
