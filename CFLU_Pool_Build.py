@@ -971,13 +971,22 @@ def build(rebuild=False):
     except FileNotFoundError:
         return _reclassify_only()
 
+    # Load existing pool early so [T] skips already-known IDs (add-only mode only).
+    # In --rebuild mode all tracks are re-transformed, so no skip.
+    existing = load_existing()
+    if not rebuild and existing:
+        before = len(extracted)
+        extracted = {tid: row for tid, row in extracted.items() if tid not in existing}
+        skipped = before - len(extracted)
+        if skipped:
+            print(f'  Bekannte IDs        : {skipped} übersprungen — {len(extracted)} neu')
+
     # T — Transform
     print('\n[T] Transform')
     transformed = transform(extracted)
 
     # L — Load & Merge
     print('\n[L] Load & Merge')
-    existing = load_existing()
     if existing:
         print(f'  Bestehende Tracks  : {len(existing)}')
     else:

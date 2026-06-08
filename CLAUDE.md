@@ -229,6 +229,7 @@ gh issue close <nr> --reason "completed" --comment "AC: ✓ ... ✓ ... ✓ ..."
 
 ```
 [E] Extract         reads Playlists/**/*.csv recursively; FileNotFoundError → _reclassify_only()
+                    add-only: skips IDs already in pool before Transform (--rebuild: all IDs processed)
 [T] Transform       CSV rows → track dicts; genres_raw empty allowed (open_genre=1)
 [L] Load & Merge    add-only (default) or full-update (--rebuild); preserves dynamic fields
 [G] Genre inherit   open_genre=1 → 4: borrow genres_raw from same-artist tracks
