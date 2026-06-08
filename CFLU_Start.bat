@@ -58,24 +58,14 @@ exit /b 1
 echo  [OK] %PY_VER%  ^(Befehl: %PYTHON%^)
 
 :: ---- Track-Pool aktualisieren -------------------------------
-set CSV_FOUND=0
-for %%f in (Playlists\*.csv) do set CSV_FOUND=1
-
-if "%CSV_FOUND%"=="1" goto :do_pool_build
-echo  [HINWEIS] Keine CSV-Dateien in Playlists\ - bestehendes %JS_FILE% wird verwendet.
-goto :pool_done
-
-:do_pool_build
 echo.
-echo  Aktualisiere Track-Pool aus Playlists\*.csv ...
+echo  Aktualisiere Track-Pool ...
 %PYTHON% CFLU_Pool_Build.py
 if errorlevel 1 (
     echo  [WARNUNG] Pool-Update fehlgeschlagen. Bestehendes %JS_FILE% wird verwendet.
 ) else (
     echo  [OK] Track-Pool aktualisiert.
 )
-
-:pool_done
 
 :: ---- JS-Datenbasis pruefen ----------------------------------
 if not exist "%JS_FILE%" (

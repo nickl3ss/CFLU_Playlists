@@ -38,17 +38,12 @@ fi
 echo " [OK] $PY_VER  (Befehl: $PYTHON)"
 
 # ---- Track-Pool aktualisieren ---------------------------------
-CSV_COUNT=$(find Playlists -maxdepth 2 -name "*.csv" 2>/dev/null | wc -l)
-if [ "$CSV_COUNT" -gt 0 ]; then
-    echo ""
-    echo " Aktualisiere Track-Pool aus Playlists/*.csv ..."
-    if "$PYTHON" CFLU_Pool_Build.py; then
-        echo " [OK] Track-Pool aktualisiert."
-    else
-        echo " [WARNUNG] Pool-Update fehlgeschlagen. Bestehendes $JS_FILE wird verwendet."
-    fi
+echo ""
+echo " Aktualisiere Track-Pool ..."
+if "$PYTHON" CFLU_Pool_Build.py; then
+    echo " [OK] Track-Pool aktualisiert."
 else
-    echo " [HINWEIS] Keine CSV-Dateien in Playlists/ - bestehendes $JS_FILE wird verwendet."
+    echo " [WARNUNG] Pool-Update fehlgeschlagen. Bestehendes $JS_FILE wird verwendet."
 fi
 
 # ---- JS-Datenbasis prüfen ------------------------------------
