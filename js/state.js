@@ -17,7 +17,7 @@ export const state = {
   lockCamFilter: false,
   generatedWod: [],
   generatedCd: [],
-  crossfadeSec: 0,
+  crossfadeSec: 20,
   spToken: null,
   spUserId: null,
   spTokenExpiry: 0,
