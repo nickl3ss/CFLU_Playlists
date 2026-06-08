@@ -80,6 +80,18 @@ app.js (importiert alle Module, verdrahtet Events)
 
 Offene Items → GitHub Issues (https://github.com/nickl3ss/CFLU_Playlists/issues)
 
+### 2026-06-08 — ETL Extract: Bekannte IDs vor Transform überspringen (#108)
+
+#### `CFLU_Pool_Build.py` — `build()`
+
+- `load_existing()` wird nun zwischen [E] Extract und [T] Transform aufgerufen.
+- Add-only-Modus: bereits im Pool vorhandene Spotify-IDs werden aus `extracted` gefiltert, bevor `transform()` läuft — nur echte neue Tracks werden transformiert.
+- `--rebuild`-Modus: kein Skip; alle IDs aus den CSVs werden weiterhin transformiert (Preserve-Logik in `merge()` bleibt aktiv).
+- [E]-Ausgabe: `Bekannte IDs: N übersprungen — M neu` wenn Tracks übersprungen wurden.
+- Keine doppelte Datei-Ladung: `load_existing()` wird einmal aufgerufen und das Ergebnis für [L] Merge wiederverwendet.
+
+---
+
 ### 2026-06-08 — Pool Builder: Genre-Management, AI-Klassifikation, ETL-Erweiterungen (#103)
 
 #### ETL-Pipeline (`CFLU_Pool_Build.py`)
