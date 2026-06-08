@@ -16,4 +16,5 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"cflu_server.py" = ["B904"]  # raise-without-from-inside-except — intentional bare except
+"cflu_server.py" = ["B904"]         # raise-without-from-inside-except — intentional bare except
+"CFLU_Pool_Build.py" = ["B904"]     # same intentional pattern: re-raise with better message

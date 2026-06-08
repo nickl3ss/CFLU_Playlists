@@ -137,6 +137,14 @@ export function isHalfDouble(bpm1, bpm2, tol = 3) {
 //   valenceScore [0,6]        reward: 6 at same valence, 0 at diff ≥30.
 //   danceScore   [0,5]        reward: 5 at same danceability (B/C only), 0 at diff ≥25.
 //   moodScore    [0,8]        reward: proportional tag overlap from mood_tags field.
+//   colorScore   [0,10]       reward: similar Everynoise avg_color (sonic texture proximity).
+function _colorDist(h1, h2) {
+  if (!h1 || !h2 || h1.length < 7 || h2.length < 7) return 0;
+  const p = h => [parseInt(h.slice(1,3),16)/255, parseInt(h.slice(3,5),16)/255, parseInt(h.slice(5,7),16)/255];
+  const [r1,g1,b1] = p(h1), [r2,g2,b2] = p(h2);
+  return Math.sqrt((r1-r2)**2 + (g1-g2)**2 + (b1-b2)**2);
+}
+
 export function calcSortScore(t, cur, phase) {
   const cs = {green: 200, yellow: 100, red: 0, unknown: 0};
   const camPoints    = cs[camCompat(cur.camelot, t.camelot)] || 0;
@@ -157,6 +165,8 @@ export function calcSortScore(t, cur, phase) {
     ? Math.max(0, Math.round(5 * (25 - Math.abs(t.dance - cur.dance)) / 25)) : 0;
   const moodScore  = Array.isArray(t.mood_tags) && Array.isArray(cur.mood_tags) && cur.mood_tags.length && t.mood_tags.length
     ? Math.round(8 * t.mood_tags.filter(tag => cur.mood_tags.includes(tag)).length / Math.min(t.mood_tags.length, cur.mood_tags.length)) : 0;
+  const colorScore = (t.avg_color && cur.avg_color)
+    ? Math.max(0, Math.round(10 * (1 - _colorDist(t.avg_color, cur.avg_color) / 1.732))) : 0;
 
-  return camPoints + phasePoints + energyPoints + bpmPenalty + bridge + dEnergy + loudScore + valScore + danceScore + moodScore;
+  return camPoints + phasePoints + energyPoints + bpmPenalty + bridge + dEnergy + loudScore + valScore + danceScore + moodScore + colorScore;
 }

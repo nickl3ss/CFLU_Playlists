@@ -9,14 +9,14 @@ Usage:
     python cflu_server.py [PORT]   (default: 8888)
 """
 
-import sys
 import json
 import os
-import re
 import pathlib
+import re
+import socketserver
+import sys
 from datetime import datetime
 from http.server import SimpleHTTPRequestHandler
-import socketserver
 
 # L-03: Work from the script's own directory regardless of CWD at launch.
 os.chdir(pathlib.Path(__file__).parent)

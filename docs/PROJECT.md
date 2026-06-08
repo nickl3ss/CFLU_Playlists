@@ -15,7 +15,7 @@ Lokaler, regelbasierter Playlist-Generator für alle vier Phasen eines CrossFit-
 | C1 | Pool Builder | `CFLU_Pool_Build.py` | ETL-Pipeline: liest `Playlists/**/*.csv` rekursiv, dedup per Spotify Track-ID, schreibt `cflu_tracks.js`. Phasen: E-T-L-G-A-C-M. Standard: Add-only (`--rebuild` für vollständigen Update). |
 | C2 | WOD Builder UI | `CFLU_WOD_Builder.html` + `js/` + `css/` | Haupt-UI: Song-Auswahl, Playlist-Generierung, BPM-Chart, Spotify-Export |
 | C3 | Track Data | `cflu_tracks.js` | Auto-generierter Track-Pool (non-module global `TRACK_DATA`) |
-| C4 | Tests | `js/cflu_tests.js` + `CFLU_Tests.html` | Kanonische Testklasse (dual-mode): `node js/cflu_tests.js` → stdout + Exit-Code; Browser: `CFLU_Tests.html` importiert und rendert. 281 Tests. |
+| C4 | Tests | `js/cflu_tests.js` + `CFLU_Tests.html` | Kanonische Testklasse (dual-mode): `node js/cflu_tests.js` → stdout + Exit-Code; Browser: `CFLU_Tests.html` importiert und rendert. 301 Tests. |
 
 ### JS-Module (C2 intern)
 
@@ -24,7 +24,7 @@ Lokaler, regelbasierter Playlist-Generator für alle vier Phasen eines CrossFit-
 | `js/config.js` | Konstanten: PHASE_CONFIG, BPM_RANGES, DUR_STEPS, Farb-Stops |
 | `js/state.js` | Mutabler App-Zustand (currentPhase, selectedTrack, poolGenre, Token, …) |
 | `js/utils.js` | Pure Helpers: bpmGroup, camCompat, calcPhaseScore, titleDuplicate, camelotZoneDistance, … |
-| `js/genres.js` | GENRE_CONFIG: 12 Main Genres, gewichteter Neighbour-Graph, Bridge-Subgenres, Rollen-Affinität |
+| `js/genres.js` | GENRE_CONFIG: 10 Main Genres (Everynoise-derived neighbour weights), Bridge-Subgenres, Rollen-Affinität |
 | `js/algorithm.js` | Kern: pickNext/pickPrev (4-stufig), buildUp/Down/Plateau/Decreasing/Alternating |
 | `js/chart.js` | BPM-Step-Chart + bidirektionale Hover-Synchronisation |
 | `js/spotify.js` | Spotify PKCE Auth, Token-Expiry (55 min), Logout, Playlist-Export |
@@ -133,6 +133,48 @@ Penalties durch bounded Rewards ersetzt; neuer `moodScore`:
 | valScore | Penalty | Reward: 6 bei Δvalence=0, 0 bei Δ≥30 | [0, 6] |
 | danceScore | Penalty | Reward: 5 bei Δdance=0, 0 bei Δ≥25 (nur Phase B/C) | [0, 5] |
 | moodScore | — | Anteil gemeinsamer `mood_tags` × 8 | [0, 8] |
+
+---
+
+### 2026-06-08 — Everynoise Integration: datengetriebene Nachbarn + Farbmatching (#107)
+
+#### `scripts/build_genre_config.py` (neu)
+
+Einmaliges Build-Script, das `js/genres.js` aus Everynoise-Koordinatendaten generiert.
+
+- Lädt `data/everynoise_genre_attrs.csv` (5 453 Genres; gecacht, kein Auto-Refresh)
+- Normalisiert `x`, `y` per Min-Max über alle Genres (y-Achse sonst 10× dominanter als x)
+- Berechnet 5D-Centroids pro Haupt-Genre (x_n, y_n, R_n, G_n, B_n) aus gematchten `genres_raw` aller Tracks
+- 5D-Distanz: `√(Δx² + Δy² + 0.5·ΔR² + 0.5·ΔG² + 0.5·ΔB²)` — Farbe mit Gewicht 0.5
+- Nachbar-Gewichtung rank-basiert: 1→1.0, 2→0.7, 3+→0.5; min. 3, max. 5 Nachbarn
+- **Deutsche Musik override**: kulturelle/sprachliche Nähe ≠ sonische in Everynoise; Nachbarn bleiben manuell kuratiert
+- Coverage-Report: 79% aller `genres_raw`-Tags in Everynoise gefunden
+- Rebuild: `python scripts/build_genre_config.py` (--refresh erzwingt Re-Download)
+
+**Everynoise-Datenquelle:** `data/everynoise_genre_attrs.csv` — gecacht, im Repo getrackt für reproduzierbare Offline-Builds. Schema: `genre, x, y, hex_colour`.
+
+#### `CFLU_Pool_Build.py` — `enrich_colors()`
+
+Neuer ETL-Schritt nach [C] Cleanup (beide Pfade: `build()` + `_reclassify_only()`):
+
+- Berechnet `avg_color` pro Track = Mittelwert-RGB aller gematchten `genres_raw`-Farben aus Everynoise
+- 3-Phasen-Matching: exakt → Bindestrich-Normalisierung → Wort-Split (z. B. "schwedischer pop" → "pop")
+- 90% der Tracks erhielten `avg_color`; Rest: `null` (kein Match → kein Fehler, kein colorScore)
+
+#### `js/utils.js` — `colorScore` in `calcSortScore`
+
+Neue Scoring-Komponente:
+
+| Komponente | Bereich | Formel |
+|------------|---------|--------|
+| colorScore | [0, 10] | `10 × (1 − RGB-Distanz / √3)` — belohnt ähnliche Everynoise-Farbe |
+
+Gibt 0 wenn `avg_color` auf Kandidat oder `cur` fehlt — kein Fehler, kein Einfluss.
+
+#### Taxonomie-Cleanup (#106-Folgearbeit)
+
+- `js/config.js`: `GERMAN_GENRES` auf `['Deutsche Musik']` aktualisiert (war noch alte Namen)
+- `pyproject.toml`: `CFLU_Pool_Build.py` zu B904-Ausnahmen hinzugefügt (gleicher intentionaler Re-raise-Pattern wie cflu_server.py)
 
 ---
 

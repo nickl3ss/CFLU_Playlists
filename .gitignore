@@ -13,6 +13,8 @@ check.php
 Spotify_Source.xlsx
 *.xlsx
 *.csv
+# Everynoise reference data — tracked for reproducible offline builds
+!data/everynoise_genre_attrs.csv
 
 # Generierte Datenbasis (aus Build-Script erzeugt)
 cflu_tracks.json

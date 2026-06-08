@@ -791,21 +791,21 @@ describe('GENRE_CONFIG — Struktur', () => {
 //  getNeighboursWeighted + getNeighbours
 // ============================================================
 describe('getNeighboursWeighted / getNeighbours', () => {
-  it('EDM hat 4 Neighbours', () => expect(getNeighboursWeighted('EDM / Electronic').length).toBe(4));
+  it('EDM hat 5 Neighbours', () => expect(getNeighboursWeighted('EDM / Electronic').length).toBe(5));
   it('Neighbours sortiert nach weight desc', () => {
     const nb = getNeighboursWeighted('EDM / Electronic');
     for (let i = 1; i < nb.length; i++) expect(nb[i].weight).toBeLessThanOrEqual(nb[i-1].weight);
   });
-  it('Funk, Soul & R&B hat 4 Neighbours', () => expect(getNeighbours('Funk, Soul & R&B').length).toBe(4));
+  it('Funk, Soul & R&B hat 5 Neighbours', () => expect(getNeighbours('Funk, Soul & R&B').length).toBe(5));
   it('Unbekanntes Genre → []', () => expect(getNeighboursWeighted('Unbekannt')).toHaveLength(0));
   it('getNeighbours gibt string[] zurück', () => {
     const nb = getNeighbours('Rock');
     expect(Array.isArray(nb)).toBeTruthy();
     nb.forEach(n => expect(typeof n).toBe('string'));
   });
-  it('Rock hat Metal & Hard Rock als stärksten Neighbour (weight 1.0)', () => {
+  it('Rock hat Ska & Reggae als stärksten Neighbour (weight 1.0)', () => {
     const nb = getNeighboursWeighted('Rock');
-    expect(nb[0].mainId).toBe('Metal & Hard Rock');
+    expect(nb[0].mainId).toBe('Ska & Reggae');
     expect(nb[0].weight).toBe(1.0);
   });
 });
@@ -1123,6 +1123,39 @@ describe('calcSortScore — moodScore [0,8]', () => {
     const score = calcSortScore(partial,cur,'C') - calcSortScore(Object.assign({},base,{mood_tags:[]}),cur,'C');
     expect(score).toBeGreaterThan(0);
     expect(score).toBeLessThan(8);
+  });
+});
+
+describe('calcSortScore — colorScore [0,10]', () => {
+  const cur  = mkT({id:'cur',song:'Cur',artist:'A',bpm:120,camelot:'9B',energy:72,dur:210,genre:'Rock',bpmg:'D',avg_color:'#c27f56'});
+  const base = mkT({id:'b',song:'B',artist:'A',bpm:124,camelot:'10B',energy:76,dur:200,genre:'Rock',bpmg:'D'});
+  it('Gleiche Farbe → colorScore = 10', () => {
+    const same = Object.assign({},base,{camelot:'10B',avg_color:'#c27f56'});
+    const none = Object.assign({},base,{camelot:'10B'});
+    expect(calcSortScore(same,cur,'C') - calcSortScore(none,cur,'C')).toBe(10);
+  });
+  it('Ähnliche Farbe → höherer Score als entfernte Farbe', () => {
+    const near = Object.assign({},base,{avg_color:'#c07050'});
+    const far  = Object.assign({},base,{avg_color:'#1010f0'});
+    expect(calcSortScore(near,cur,'C')).toBeGreaterThan(calcSortScore(far,cur,'C'));
+  });
+  it('Kein avg_color auf Kandidat → colorScore = 0, kein Fehler', () => {
+    const noColor = Object.assign({},base,{camelot:'10B'});
+    const withColor = Object.assign({},base,{camelot:'10B',avg_color:'#c27f56'});
+    expect(calcSortScore(noColor,cur,'C')).toBeLessThanOrEqual(calcSortScore(withColor,cur,'C'));
+  });
+  it('Kein avg_color auf cur → colorScore = 0', () => {
+    const curNoColor = Object.assign({},cur,{avg_color:null});
+    const withColor  = Object.assign({},base,{camelot:'10B',avg_color:'#c27f56'});
+    const noColor    = Object.assign({},base,{camelot:'10B'});
+    expect(calcSortScore(withColor,curNoColor,'C')).toBe(calcSortScore(noColor,curNoColor,'C'));
+  });
+  it('colorScore liegt im Bereich [0,10]', () => {
+    const withColor = Object.assign({},base,{camelot:'10B',avg_color:'#ff0000'});
+    const noColor   = Object.assign({},base,{camelot:'10B'});
+    const diff = calcSortScore(withColor,cur,'C') - calcSortScore(noColor,cur,'C');
+    expect(diff).toBeGreaterThanOrEqual(0);
+    expect(diff).toBeLessThanOrEqual(10);
   });
 });
 

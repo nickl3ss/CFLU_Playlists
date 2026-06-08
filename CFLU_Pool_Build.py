@@ -18,17 +18,18 @@ Verwendung:
 """
 
 import csv
-import json
-import re
-import os
 import glob
+import json
+import os
 import pathlib
+import re
 from collections import defaultdict
 
 # ===== KONFIGURATION =====
 PLAYLISTS_DIR = 'Playlists'
 OUTPUT_FILE = 'cflu_tracks.js'
 GERMAN_GENRES = ['Deutsche Musik']
+_EVERYNOISE_CSV = pathlib.Path(__file__).parent / 'data' / 'everynoise_genre_attrs.csv'
 
 # ===== SUFFIX-BEREINIGUNG =====
 SUFFIX_RE = re.compile(
@@ -409,7 +410,7 @@ def load_existing():
     """Liest cflu_tracks.js → Dict {id: track}. Normalisiert fehlendes locked auf 0."""
     if not os.path.exists(OUTPUT_FILE):
         return {}
-    with open(OUTPUT_FILE, 'r', encoding='utf-8') as f:
+    with open(OUTPUT_FILE, encoding='utf-8') as f:
         content = f.read().strip()
     prefix = 'const TRACK_DATA='
     if content.startswith(prefix):
@@ -541,6 +542,69 @@ def migrate_deprecated_genres(tracks):
     return migrated
 
 
+# ===== COLOUR ENRICHMENT =====
+
+def _load_everynoise_colors() -> dict:
+    """Load Everynoise CSV → {genre_lower: '#rrggbb'}. Returns {} if CSV absent."""
+    if not _EVERYNOISE_CSV.exists():
+        return {}
+    colors: dict = {}
+    with open(_EVERYNOISE_CSV, encoding='utf-8', newline='') as f:
+        for row in csv.DictReader(f):
+            name = row.get('genre', '').strip().lower()
+            hex_col = row.get('hex_colour', '').strip()
+            if name and len(hex_col) == 7:
+                colors[name] = hex_col
+    return colors
+
+
+def _match_color_tag(tag: str, colors: dict) -> str | None:
+    """3-pass Everynoise match (exact → hyphen swap → word split)."""
+    key = tag.strip().lower()
+    if key in colors:
+        return colors[key]
+    alt = key.replace(' ', '-')
+    if alt in colors:
+        return colors[alt]
+    alt2 = key.replace('-', ' ')
+    if alt2 in colors:
+        return colors[alt2]
+    for word in re.split(r'[\s\-]+', key):
+        if word in colors:
+            return colors[word]
+    return None
+
+
+def enrich_colors(tracks: list) -> int:
+    """
+    Computes avg_color per track = mean RGB of Everynoise hex colours for
+    matched genres_raw tags. Sets t['avg_color'] = '#rrggbb' or None.
+    Returns count of tracks that received a non-None avg_color.
+    """
+    colors = _load_everynoise_colors()
+    if not colors:
+        print('  avg_color           : Everynoise CSV nicht gefunden — übersprungen')
+        return 0
+
+    enriched = 0
+    for t in tracks:
+        matched_hexes = []
+        for raw_tag in t.get('genres_raw', []):
+            hex_col = _match_color_tag(raw_tag, colors)
+            if hex_col:
+                matched_hexes.append(hex_col)
+        if matched_hexes:
+            r = sum(int(h[1:3], 16) for h in matched_hexes) // len(matched_hexes)
+            g = sum(int(h[3:5], 16) for h in matched_hexes) // len(matched_hexes)
+            b = sum(int(h[5:7], 16) for h in matched_hexes) // len(matched_hexes)
+            t['avg_color'] = f'#{r:02x}{g:02x}{b:02x}'
+            enriched += 1
+        else:
+            t['avg_color'] = None
+    print(f'  avg_color           : {enriched}/{len(tracks)} Tracks mit Farbdaten')
+    return enriched
+
+
 # ===== G — GENRE-VERERBUNG =====
 def inherit_genres(tracks):
     """
@@ -629,7 +693,7 @@ def tag_moods(tracks):
         print('  Installation: pip install anthropic')
         return 0
 
-    with open(key_path, 'r', encoding='utf-8') as f:
+    with open(key_path, encoding='utf-8') as f:
         api_key = f.read().strip()
     if not api_key:
         print('  anthropic_api_key.txt ist leer — Mood-Tagging übersprungen.')
@@ -856,6 +920,8 @@ def _reclassify_only():
     print('\n[C] Cleanup')
     tracks = dedup_pool(tracks)
 
+    enrich_colors(tracks)
+
     print('\n[M] Mood Tags')
     mood_count = tag_moods(tracks)
     if mood_count > 0:
@@ -931,6 +997,9 @@ def build(rebuild=False):
     # C — Cleanup
     print('\n[C] Cleanup')
     tracks = dedup_pool(tracks)
+
+    # Colour enrichment (requires data/everynoise_genre_attrs.csv)
+    enrich_colors(tracks)
 
     # M — Mood Tags (optional, requires anthropic_api_key.txt + anthropic package)
     print('\n[M] Mood Tags')
