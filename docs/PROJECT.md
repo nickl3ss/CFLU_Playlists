@@ -15,15 +15,15 @@ Lokaler, regelbasierter Playlist-Generator für alle vier Phasen eines CrossFit-
 | C1 | Pool Builder | `CFLU_Pool_Build.py` | ETL-Pipeline: liest `Playlists/**/*.csv` rekursiv, dedup per Spotify Track-ID, schreibt `cflu_tracks.js`. Phasen: E-T-L-C-G-A-[Color]-M. Standard: Add-only (`--rebuild` für vollständigen Update). `parent_genres` intern für `classify()` benötigt, aber nicht in `cflu_tracks.js` geschrieben (`_JS_EXCLUDE_FIELDS`). |
 | C2 | WOD Builder UI | `CFLU_WOD_Builder.html` + `js/` + `css/` | Haupt-UI: Song-Auswahl, Playlist-Generierung, BPM-Chart, Spotify-Export |
 | C3 | Track Data | `cflu_tracks.js` | Auto-generierter Track-Pool (non-module global `TRACK_DATA`) |
-| C4 | Tests | `js/cflu_tests.js` + `CFLU_Tests.html` | Kanonische Testklasse (dual-mode): `node js/cflu_tests.js` → stdout + Exit-Code; Browser: `CFLU_Tests.html` importiert und rendert. 313 Tests. |
+| C4 | Tests | `js/cflu_tests.js` + `CFLU_Tests.html` | Kanonische Testklasse (dual-mode): `node js/cflu_tests.js` → stdout + Exit-Code; Browser: `CFLU_Tests.html` importiert und rendert. 334 Tests. |
 
 ### JS-Module (C2 intern)
 
 | Modul | Verantwortung |
 |-------|---------------|
-| `js/config.js` | Konstanten: PHASE_CONFIG, BPM_RANGES, DUR_STEPS, Farb-Stops |
+| `js/config.js` | Konstanten: PHASE_CONFIG, BPM_RANGES, DUR_STEPS, Farb-Stops, `bpmStopsForPhase(phase)` |
 | `js/state.js` | Mutabler App-Zustand (currentPhase, selectedTrack, poolGenre, lockCamFilter, Token, …) |
-| `js/utils.js` | Pure Helpers: bpmGroup, camCompat, calcPhaseScore, calcEraScore, calcSortScore, titleDuplicate, camelotZoneDistance, … |
+| `js/utils.js` | Pure Helpers: bpmGroup, camCompat, calcPhaseScore, calcEraScore, calcSortScore, titleDuplicate, camelotZoneDistance, `bpmHint`, … |
 | `js/genres.js` | GENRE_CONFIG: 10 Main Genres (Everynoise-derived neighbour weights), Bridge-Subgenres, Rollen-Affinität |
 | `js/algorithm.js` | Kern: pickNext/pickPrev (4-stufig), buildUp/Down/Plateau/Decreasing/Alternating |
 | `js/chart.js` | BPM-Step-Chart + bidirektionale Hover-Synchronisation |
@@ -81,6 +81,37 @@ app.js (importiert alle Module, verdrahtet Events)
 ## Changelog
 
 Offene Items → GitHub Issues (https://github.com/nickl3ss/CFLU_Playlists/issues)
+
+### 2026-06-09 — BPM Slider: phasen-aware Farben, Smooth Gradient, Hint-Text (#130, #131)
+
+#### `js/config.js` — `bpmStopsForPhase(phase)` (#130, #131)
+
+- Neue exportierte Funktion `bpmStopsForPhase(phase)`: berechnet Gradient-Stops aus `PHASE_CONFIG[phase].bpm` (gelbe Akzeptanzzone) und `bpmCore` (grüne Idealzone) dynamisch pro Phase
+- **#130:** Hard-cut-Architektur (doppelte `p`-Werte): Farben wechseln abrupt; Grünzone war fest auf ~83–91 BPM hardcodiert (keine Phasenabhängigkeit)
+- **#131:** Smooth-Gradient-Umbau: einzelner Stop pro Zonengrenze → CSS interpoliert linear → `RED → YEL → GRN ▓▓▓ GRN → YEL → RED` Bell-Kurve
+- Phase D (Cool-Down, `bpm[0]=60` = Slider-Minimum): erster Stop startet direkt mit `YEL` — kein unnötiger roter Bereich vor dem Slider-Start
+- Fallback auf `BPM_STOPS` bei ungültiger Phase
+
+#### `js/app.js` — `onBpmSlider` + Init (#130)
+
+- `onBpmSlider`: übergibt jetzt `bpmStopsForPhase(state.currentPhase)` statt statischen `BPM_STOPS`
+- Redundanter statischer BPM-Slider-Init vor `onPhaseSelect('C')` entfernt — `onPhaseSelect` ruft `onBpmSlider` intern auf
+
+#### `js/utils.js` — `bpmHint(v, phase)` (#131)
+
+- Neue exportierte Funktion `bpmHint(v, phase)`: gibt phasen-spezifischen deutschen Hinweistext zurück — 5 Zonen je Phase (unter Akzeptanz / untere Gelb-Zone / Ideal / obere Gelb-Zone / über Akzeptanz)
+- Von `app.js` nach `utils.js` verschoben (pure Funktion, keine DOM-Abhängigkeit → testbar)
+
+| Phase | Unter bpm | Untere Zone | Idealbereich | Obere Zone | Über bpm |
+|-------|-----------|-------------|--------------|-----------|----------|
+| A | Zu langsam für Prep | Untere Grenze | Idealbereich Prep ✓ | Obere Grenze | Zu schnell für Prep |
+| B | Zu langsam für Skill | Ruhiger Einstieg | Idealbereich Skill ✓ | Obere Grenze | Zu schnell für Skill |
+| C | Zu langsam für WOD | Aufbau-Bereich | WOD-Idealbereich ✓ | Finisher-Bereich | Grenzbereich |
+| D | Zu langsam | Sehr ruhig | Idealbereich Cool-Down ✓ | Noch akzeptabel | Zu schnell für Cool-Down |
+
+- 21 neue Tests (11 für `bpmStopsForPhase`, 10 für `bpmHint`); Gesamtzahl: 334
+
+---
 
 ### 2026-06-09 — Dokumentation, Admin-Panel, Explicit-Badge, ETL-Optimierungen
 
