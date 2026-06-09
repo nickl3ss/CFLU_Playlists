@@ -225,7 +225,7 @@ gh issue close <nr> --reason "completed" --comment "AC: ✓ ... ✓ ... ✓ ..."
 
 ---
 
-## Pool Builder — ETL Phases (E-T-L-G-A-C-M)
+## Pool Builder — ETL Phases (E-T-L-C-G-A-M)
 
 ```
 [E] Extract         reads Playlists/**/*.csv recursively; FileNotFoundError → _reclassify_only()
@@ -234,10 +234,10 @@ gh issue close <nr> --reason "completed" --comment "AC: ✓ ... ✓ ... ✓ ..."
 [L] Load & Merge    add-only (default) or full-update (--rebuild); preserves dynamic fields
 [*] Reset AI        --reclassify-ai only: resets open_genre=2 → 1, clears genres_raw
                     (explicit opt-in; not part of --rebuild)
+[C] Cleanup         deduplication (artist+title key; locked=1 wins) — runs before G+A
 [G] Genre inherit   open_genre=1 → 4: borrow genres_raw from same-artist tracks
 [A] AI Genre        open_genre=1/4 → 2 or 5; BYOK via anthropic_api_key.txt; Claude Haiku
                     context per track: album+year, known artist genres from pool, inherited genres
-[C] Cleanup         deduplication (artist+title key; locked=1 wins)
 [M] Mood Tags       Claude Haiku batch tagging; skips already-tagged tracks
 ```
 

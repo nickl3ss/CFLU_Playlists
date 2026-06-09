@@ -7,9 +7,9 @@ ETL-Pipeline: Playlists/*.csv → cflu_tracks.js
 E — Extract          : Alle CSVs rekursiv einlesen, Dedup per Spotify Track Id
 T — Transform        : Typ-Cast, Format-Konversion, Genre-Ableitung, Suffix-Bereinigung
 L — Load & Merge     : Bestehende cflu_tracks.js einlesen, mergen, neu schreiben
+C — Cleanup          : Titeldobbletten entfernen (vor G+A — kein API-Call auf Duplikaten)
 G — Genre-Vererbung  : open_genre=1 → 4: genres_raw vom gleichen Künstler erben
 A — AI-Genre         : open_genre=1/4 → 2/5: Claude Haiku Klassifikation (BYOK)
-C — Cleanup          : Titeldobbletten entfernen
 M — Mood Tags        : Claude Haiku Batch-Tagging (BYOK)
 
 Verwendung:
@@ -967,15 +967,15 @@ def _reclassify_only(reclassify_ai=False):
         count_reset = reset_ai_genres(tracks)
         print(f'  open_genre=2 zurückgesetzt: {count_reset}')
 
+    print('\n[C] Cleanup')
+    tracks = dedup_pool(tracks)
+
     print('\n[G] Genre-Vererbung')
     count_inherited = inherit_genres(tracks)
     print(f'  Genres vererbt     : {count_inherited}')
 
     print('\n[A] AI-Genre')
     tag_genres_ai(tracks)
-
-    print('\n[C] Cleanup')
-    tracks = dedup_pool(tracks)
 
     enrich_colors(tracks)
 
@@ -1051,11 +1051,15 @@ def build(rebuild=False, reclassify_ai=False):
     tracks, count_new, count_updated = merge(transformed, existing, rebuild=rebuild)
     migrate_deprecated_genres(tracks)
 
-    # Reset AI genres before G+A if requested
+    # Reset AI genres before C+G+A if requested
     if reclassify_ai:
         print('\n[Reset AI-Genres]')
         count_reset = reset_ai_genres(tracks)
         print(f'  open_genre=2 zurückgesetzt: {count_reset}')
+
+    # C — Cleanup (vor G+A: kein API-Call auf Doubletten)
+    print('\n[C] Cleanup')
+    tracks = dedup_pool(tracks)
 
     # G — Genre-Vererbung (open_genre 1→4)
     print('\n[G] Genre-Vererbung')
@@ -1065,10 +1069,6 @@ def build(rebuild=False, reclassify_ai=False):
     # A — AI-Genre (open_genre 1/4→2, optional)
     print('\n[A] AI-Genre')
     tag_genres_ai(tracks)
-
-    # C — Cleanup
-    print('\n[C] Cleanup')
-    tracks = dedup_pool(tracks)
 
     # Colour enrichment (requires data/everynoise_genre_attrs.csv)
     enrich_colors(tracks)

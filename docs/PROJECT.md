@@ -12,7 +12,7 @@ Lokaler, regelbasierter Playlist-Generator für alle vier Phasen eines CrossFit-
 
 | ID | Name | Pfad | Verantwortung |
 |----|------|------|---------------|
-| C1 | Pool Builder | `CFLU_Pool_Build.py` | ETL-Pipeline: liest `Playlists/**/*.csv` rekursiv, dedup per Spotify Track-ID, schreibt `cflu_tracks.js`. Phasen: E-T-L-G-A-C-M. Standard: Add-only (`--rebuild` für vollständigen Update). |
+| C1 | Pool Builder | `CFLU_Pool_Build.py` | ETL-Pipeline: liest `Playlists/**/*.csv` rekursiv, dedup per Spotify Track-ID, schreibt `cflu_tracks.js`. Phasen: E-T-L-C-G-A-M. Standard: Add-only (`--rebuild` für vollständigen Update). |
 | C2 | WOD Builder UI | `CFLU_WOD_Builder.html` + `js/` + `css/` | Haupt-UI: Song-Auswahl, Playlist-Generierung, BPM-Chart, Spotify-Export |
 | C3 | Track Data | `cflu_tracks.js` | Auto-generierter Track-Pool (non-module global `TRACK_DATA`) |
 | C4 | Tests | `js/cflu_tests.js` + `CFLU_Tests.html` | Kanonische Testklasse (dual-mode): `node js/cflu_tests.js` → stdout + Exit-Code; Browser: `CFLU_Tests.html` importiert und rendert. 313 Tests. |
@@ -179,10 +179,11 @@ Neues Pflichtfeld in jedem Track. Dokumentiert die Herkunft der Genre-Klassifika
 
 **Preserve-Logik in `merge()` (rebuild-safe):** States `2`, `3`, `5` bleiben durch `--rebuild` erhalten — `genres_raw` und `genre` werden für state-2 ebenfalls restauriert. State `4` wird bei jedem Rebuild neu berechnet.
 
-#### ETL-Phasen (E-T-L-G-A-C-M)
+#### ETL-Phasen (E-T-L-C-G-A-M)
 
 | Phase | Neu | Beschreibung |
 |-------|-----|--------------|
+| `[C]` Cleanup | ✓ | Titeldobbletten entfernen (artist+title-Key; locked=1 gewinnt) — läuft vor G+A, kein API-Call für Doubletten |
 | `[G]` Genre-Vererbung | ✓ | `open_genre=1` → `4`: `genres_raw` vom gleichen Künstler erben (sucht in states `0`, `2`, `4`) |
 | `[A]` AI-Genre | ✓ | `open_genre=1/4` → `2` oder `5`: Claude Haiku, 99%-Confidence-Gate, Songtitel vor Künstler priorisiert, BYOK via `anthropic_api_key.txt`; state-4 bleibt `4` bei kein Fund |
 
