@@ -4,7 +4,7 @@ import { PHASE_CONFIG, MIN_POOL_SIZE, JUMP_STOPS,
          bpmStopsForPhase } from './config.js';
 import { getNeighbours } from './genres.js';
 import { state } from './state.js';
-import { titleKey, fmtDur, fmtMin, lerpColor, toHex, camCompat, calcPhaseScore } from './utils.js';
+import { titleKey, fmtDur, fmtMin, lerpColor, toHex, camCompat, calcPhaseScore, bpmHint } from './utils.js';
 import { getAllTracks, getPool, getPhasePool, getPhasePoolWithNeighbours, getGenreStats,
          registerTrack, addTrack, pickNext, buildUp, buildDown,
          buildPlateau, buildDecreasing, buildAlternating } from './algorithm.js';
@@ -21,15 +21,7 @@ function updateSliderStyle(slider, stops, minV, maxV) {
   slider.style.setProperty('--thumb-color', hex);
   return c;
 }
-function bpmHint(v) {
-  if (v < 90) return 'Zu langsam für WOD';
-  if (v < 110) return 'Warm-Up Zone';
-  if (v < 120) return 'Moderat';
-  if (v <= 170) return 'WOD-Idealbereich ✓';
-  if (v <= 185) return 'Hoch — gut für Finisher';
-  if (v <= 199) return 'Sehr hoch';
-  return 'Grenzbereich';
-}
+
 function jumpHint(v) {
   if (v <= 5) return 'Standard ✓ (DJ-Norm ≤5 BPM)';
   if (v <= 8) return 'Akzeptabel (≤5 % bei 160 BPM)';
@@ -218,7 +210,7 @@ function onBpmSlider(el) {
   const v = +el.value;
   document.getElementById('bpm-val-display').textContent = v + ' BPM';
   document.getElementById('bpm-val-display').style.color = toHex(c);
-  document.getElementById('bpm-hint-display').textContent = bpmHint(v);
+  document.getElementById('bpm-hint-display').textContent = bpmHint(v, state.currentPhase);
   updateFilterList();
 }
 

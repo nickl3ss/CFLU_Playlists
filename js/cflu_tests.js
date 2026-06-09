@@ -5,7 +5,7 @@
 import { bpmGroup, groupIdx, neighbour, fmtDur, fmtMin, titleKey, titleDuplicate,
          camCompat, camStrictOk, lerpColor, toHex, toRgb,
          attrScore, calcPhaseScore, calcSortScore, calcEraScore, trapezScore, isHalfDouble,
-         camelotZoneDistance } from './utils.js';
+         camelotZoneDistance, bpmHint } from './utils.js';
 import { GENRE_CONFIG, getNeighboursWeighted, getNeighbours, bridgeTags,
          bridgeTagsForMain, getSubgenres, getRoleBonus } from './genres.js';
 import { getPhasePool, getPhasePoolWithNeighbours } from './algorithm.js';
@@ -1229,6 +1229,42 @@ describe('bpmStopsForPhase — Phase-spezifische BPM-Slider-Farben', () => {
   it('Phase D: erster Stop startet bei p=0 (bpmLo=60 = Slider-Minimum)', () => {
     const stops = bpmStopsForPhase('D');
     expect(stops[0].p).toBe(0);
+  });
+});
+
+// ============================================================
+//  bpmHint — Phasen-spezifische Hinweistexte
+// ============================================================
+describe('bpmHint — BPM-Hinweistext je Phase', () => {
+  it('Phase C: unter bpm[0]=125 → Zu langsam für WOD', () => {
+    expect(bpmHint(120, 'C')).toBe('Zu langsam für WOD');
+  });
+  it('Phase C: 130 (zwischen bpm[0]=125 und bpmCore[0]=140) → Aufbau-Bereich', () => {
+    expect(bpmHint(130, 'C')).toBe('Aufbau-Bereich');
+  });
+  it('Phase C: 145 (im Kern 140–175) → WOD-Idealbereich ✓', () => {
+    expect(bpmHint(145, 'C')).toBe('WOD-Idealbereich ✓');
+  });
+  it('Phase C: 180 (zwischen bpmCore[1]=175 und bpm[1]=195) → Finisher-Bereich', () => {
+    expect(bpmHint(180, 'C')).toBe('Finisher-Bereich');
+  });
+  it('Phase C: 200 (über bpm[1]=195) → Grenzbereich', () => {
+    expect(bpmHint(200, 'C')).toBe('Grenzbereich');
+  });
+  it('Phase D: 75 (im Kern 65–85) → Idealbereich Cool-Down ✓', () => {
+    expect(bpmHint(75, 'D')).toBe('Idealbereich Cool-Down ✓');
+  });
+  it('Phase D: 92 (zwischen bpmCore[1]=85 und bpm[1]=100) → Noch akzeptabel', () => {
+    expect(bpmHint(92, 'D')).toBe('Noch akzeptabel');
+  });
+  it('Phase A: 100 (im Kern 90–105) → Idealbereich Prep ✓', () => {
+    expect(bpmHint(100, 'A')).toBe('Idealbereich Prep ✓');
+  });
+  it('Phase A: 80 (unter bpm[0]=85) → Zu langsam für Prep', () => {
+    expect(bpmHint(80, 'A')).toBe('Zu langsam für Prep');
+  });
+  it('ungültige Phase → leerer String', () => {
+    expect(bpmHint(120, 'X')).toBe('');
   });
 });
 

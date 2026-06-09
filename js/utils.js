@@ -182,3 +182,23 @@ export function calcSortScore(t, cur, phase) {
 
   return camPoints + phasePoints + energyPoints + bpmPenalty + bridge + dEnergy + loudScore + valScore + danceScore + moodScore + colorScore + eraScore;
 }
+
+const _BPM_HINTS = {
+  A: ['Zu langsam für Prep', 'Untere Grenze', 'Idealbereich Prep ✓', 'Obere Grenze', 'Zu schnell für Prep'],
+  B: ['Zu langsam für Skill', 'Ruhiger Einstieg', 'Idealbereich Skill ✓', 'Obere Grenze', 'Zu schnell für Skill'],
+  C: ['Zu langsam für WOD', 'Aufbau-Bereich', 'WOD-Idealbereich ✓', 'Finisher-Bereich', 'Grenzbereich'],
+  D: ['Zu langsam', 'Sehr ruhig', 'Idealbereich Cool-Down ✓', 'Noch akzeptabel', 'Zu schnell für Cool-Down'],
+};
+// Returns a zone-specific hint label for the BPM slider based on the active phase's acceptable/ideal ranges.
+export function bpmHint(v, phase) {
+  const cfg = PHASE_CONFIG[phase];
+  if (!cfg) return '';
+  const [bLo, bHi] = cfg.bpm;
+  const [cLo, cHi] = cfg.bpmCore;
+  const [h0, h1, h2, h3, h4] = _BPM_HINTS[phase];
+  if (v < bLo)  return h0;
+  if (v < cLo)  return h1;
+  if (v <= cHi) return h2;
+  if (v <= bHi) return h3;
+  return h4;
+}

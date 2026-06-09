@@ -50,7 +50,8 @@ export const BPM_STOPS = [
   {p:.69,...GRN},{p:.78,...YEL},{p:.88,...YEL},{p:1,...RED},
 ];
 
-// Returns gradient stops matching the yellow (bpm) and green (bpmCore) zones for a given phase.
+// Returns gradient stops for a smooth RED→YEL→GRN→YEL→RED bell curve matching a phase's BPM zones.
+// Single stop per boundary → CSS interpolates linearly between them (no hard cuts).
 // Slider range is always 60–220 BPM.
 export function bpmStopsForPhase(phase) {
   const cfg = PHASE_CONFIG[phase];
@@ -60,14 +61,12 @@ export function bpmStopsForPhase(phase) {
   const [bLo, bHi] = cfg.bpm;
   const [cLo, cHi] = cfg.bpmCore;
   const stops = [];
-  if (bLo > SMIN) { stops.push({p: 0, ...RED}); stops.push({p: p(bLo), ...RED}); }
-  stops.push({p: p(bLo), ...YEL});
-  stops.push({p: p(cLo), ...YEL});
-  stops.push({p: p(cLo), ...GRN});
-  stops.push({p: p(cHi), ...GRN});
-  stops.push({p: p(cHi), ...YEL});
-  stops.push({p: p(bHi), ...YEL});
-  if (bHi < SMAX) { stops.push({p: p(bHi), ...RED}); stops.push({p: 1, ...RED}); }
+  if (bLo > SMIN) { stops.push({p: 0, ...RED}); }
+  stops.push({p: p(bLo), ...YEL});   // RED fades into YEL at acceptable-zone start
+  stops.push({p: p(cLo), ...GRN});   // YEL fades into GRN at ideal-zone start
+  stops.push({p: p(cHi), ...GRN});   // solid GRN through ideal zone
+  stops.push({p: p(bHi), ...YEL});   // GRN fades into YEL at ideal-zone end
+  if (bHi < SMAX) { stops.push({p: 1, ...RED}); }  // YEL fades into RED at acceptable-zone end
   return stops;
 }
 // Green = 5-8 BPM (DJ-Norm ≤5%), Yellow = 8-12 BPM, Red = >12 BPM (range 5-20)
