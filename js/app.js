@@ -245,7 +245,7 @@ function updateFilterList() {
     const ps = calcPhaseScore(t, state.currentPhase);
     const o = document.createElement('option');
     o.value = t.id || t.song;
-    o.textContent = `[${ps}] ${t.artist} — ${t.song} — ${t.bpm} BPM — ${t.camelot} — E:${t.energy}`;
+    o.textContent = `[${ps}]${t.explicit ? ' [E]' : ''} ${t.artist} — ${t.song} — ${t.bpm} BPM — ${t.camelot} — E:${t.energy}`;
     o._track = t;
     sel.appendChild(o);
   });
@@ -272,7 +272,7 @@ function onDirectSearch() {
     const ps = calcPhaseScore(t, state.currentPhase);
     const o = document.createElement('option');
     o.value = t.id || t.song;
-    o.textContent = `[${ps}] ${t.artist} — ${t.song} — ${t.bpm} BPM — ${t.camelot} — E:${t.energy}`;
+    o.textContent = `[${ps}]${t.explicit ? ' [E]' : ''} ${t.artist} — ${t.song} — ${t.bpm} BPM — ${t.camelot} — E:${t.energy}`;
     o._track = t;
     sel.appendChild(o);
   });
