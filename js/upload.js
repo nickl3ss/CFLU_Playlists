@@ -1,4 +1,4 @@
-// upload.js — pure CSV-upload helpers; no DOM, no state, no imports; safe to import in Node.js tests
+// upload.js — CSV upload UI (standalone <script> in HTML) + exported pure helpers (Node.js-safe)
 export function sanitizeFilename(name) {
   // eslint-disable-next-line no-control-regex -- intentional: NTFS-illegal control chars
   return name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '').replace(/\s+/g, ' ').trim() || 'Upload';

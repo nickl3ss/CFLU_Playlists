@@ -325,8 +325,9 @@
 
 <!-- ===== RIGHT PANEL ===== -->
 <aside class="right-panel" id="right-panel">
-  <button class="rp-tab" id="rp-tab" aria-label="Spotify & CSV Upload" title="Spotify & CSV Upload">⚙</button>
+  <button class="rp-tab" id="rp-tab" aria-label="Admin &amp; Info" title="Admin &amp; Info">⚙</button>
   <div class="rp-scroll">
+    <div class="rp-header">Admin &amp; Info</div>
 
     <!-- SPOTIFY VERBINDUNG -->
     <div class="sb-label" style="margin-bottom:12px">Spotify Verbindung</div>
@@ -363,6 +364,50 @@
       <div class="upload-format-hint">Soundiiz / Chosic Export · Pflichtfelder: Song, Artist, BPM, Camelot, Energy, Duration, Spotify Track Id</div>
     </div>
 
+    <!-- DATENQUELLEN -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+      <div class="sb-label" style="margin-bottom:10px">Datenquellen</div>
+      <div class="rp-sources">
+        <a href="https://www.spotify.com" target="_blank" rel="noopener" class="rp-source-link">
+          <span class="rp-source-name">Spotify</span>
+          <span class="rp-source-desc">Track-Daten, BPM, Camelot, Audio-Features, Playlist-Export</span>
+        </a>
+        <a href="https://www.chosic.com" target="_blank" rel="noopener" class="rp-source-link">
+          <span class="rp-source-name">Chosic</span>
+          <span class="rp-source-desc">Playlist-Analyse und CSV-Export für den Pool-Import</span>
+        </a>
+        <a href="https://everynoise.com" target="_blank" rel="noopener" class="rp-source-link">
+          <span class="rp-source-name">Every Noise at Once</span>
+          <span class="rp-source-desc">Genre-Klassifikation, Nachbar-Gewichte und Farbkodierung</span>
+        </a>
+        <a href="https://claude.ai/code" target="_blank" rel="noopener" class="rp-source-link">
+          <span class="rp-source-name">Claude Code</span>
+          <span class="rp-source-desc">KI-Entwicklungsassistent — Anthropic</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- IMPRESSUM & DATENSCHUTZ -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+      <div class="sb-label" style="margin-bottom:10px">Impressum</div>
+      <div class="rp-legal">
+        <p><strong>Angaben gemäß § 5 TMG</strong><br>
+        CrossFit Ludwigshafen<br>
+        <!-- Straße, Hausnummer, PLZ hier eintragen --></p>
+        <p><strong>Kontakt</strong><br>
+        <!-- E-Mail-Adresse hier eintragen --></p>
+        <p><strong>Datenschutz</strong><br>
+        Diese App verarbeitet keine personenbezogenen Daten auf einem Server. Die Spotify-Verbindung
+        erfolgt via OAuth&nbsp;2.0&nbsp;PKCE ausschließlich im Browser — kein Zugriffstoken wird dauerhaft
+        gespeichert (sessionStorage, bereinigt nach Callback gemäß Art.&nbsp;5&nbsp;DSGVO).
+        Hochgeladene CSV-Dateien dienen ausschließlich dem lokalen Pool-Build und werden nicht
+        weitergegeben.</p>
+        <p><strong>Haftungsausschluss</strong><br>
+        Trotz sorgfältiger Kontrolle übernehmen wir keine Haftung für Inhalte externer Links.
+        Für den Inhalt verlinkter Seiten sind ausschließlich deren Betreiber verantwortlich.</p>
+      </div>
+    </div>
+
   </div>
 </aside>
 
@@ -373,7 +418,7 @@
       <div class="modal-title">Mit Spotify verbinden</div>
       <button class="modal-close" id="modal-close-btn" aria-label="Schließen">✕</button>
     </div>
-    <p class="modal-desc">Verbinde jetzt mit Spotify, um Audio-Previews zu hören und die fertige Playlist direkt zu exportieren.<br>Die Verbindung kann auch später jederzeit über das ⚙-Panel rechts hergestellt werden.</p>
+    <p class="modal-desc">Verbinde jetzt mit Spotify, um Audio-Previews zu hören und die fertige Playlist direkt zu exportieren.<br>Die Verbindung kann auch später jederzeit über das Admin&nbsp;&amp;&nbsp;Info-Panel rechts hergestellt werden.</p>
     <div class="sp-row" style="margin-bottom:6px">
       <input type="text" id="modal-sp-cid" placeholder="Spotify Client ID..." autocomplete="off">
     </div>

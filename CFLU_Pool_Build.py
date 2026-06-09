@@ -10,7 +10,11 @@ L — Load & Merge     : Bestehende cflu_tracks.js einlesen, mergen, neu schreib
 C — Cleanup          : Titeldobbletten entfernen (vor G+A — kein API-Call auf Duplikaten)
 G — Genre-Vererbung  : open_genre=1 → 4: genres_raw vom gleichen Künstler erben
 A — AI-Genre         : open_genre=1/4 → 2/5: Claude Haiku Klassifikation (BYOK)
+* — Color Enrich     : avg_color pro Track aus Everynoise-Hex-Daten (läuft nach A, vor M)
 M — Mood Tags        : Claude Haiku Batch-Tagging (BYOK)
+
+Hinweis: parent_genres wird intern von classify() benötigt, aber nicht in cflu_tracks.js
+geschrieben (_JS_EXCLUDE_FIELDS). Im Browser nicht benötigt.
 
 Verwendung:
     python CFLU_Pool_Build.py           # Add-only (bestehende Tracks unverändert)
@@ -30,6 +34,13 @@ PLAYLISTS_DIR = 'Playlists'
 OUTPUT_FILE = 'cflu_tracks.js'
 GERMAN_GENRES = ['Deutsche Musik']
 _EVERYNOISE_CSV = pathlib.Path(__file__).parent / 'data' / 'everynoise_genre_attrs.csv'
+
+# Fields kept in memory during ETL but not written to cflu_tracks.js (unused in browser)
+_JS_EXCLUDE_FIELDS = frozenset({'parent_genres'})
+
+def _track_for_js(t: dict) -> dict:
+    """Strips ETL-internal fields before JSON serialisation to cflu_tracks.js."""
+    return {k: v for k, v in t.items() if k not in _JS_EXCLUDE_FIELDS}
 
 # ===== SUFFIX-BEREINIGUNG =====
 SUFFIX_RE = re.compile(
@@ -987,7 +998,7 @@ def _reclassify_only(reclassify_ai=False):
     stats = compute_stats(tracks)
 
     track_lines = ',\n'.join(
-        json.dumps(t, ensure_ascii=False, separators=(',', ':')) for t in tracks
+        json.dumps(_track_for_js(t), ensure_ascii=False, separators=(',', ':')) for t in tracks
     )
     stat_lines = ',\n'.join(
         json.dumps(k, ensure_ascii=False) + ':' + json.dumps(v, ensure_ascii=False, separators=(',', ':'))
@@ -1084,7 +1095,7 @@ def build(rebuild=False, reclassify_ai=False):
 
     # Schreiben — ein Track pro Zeile für Lesbarkeit
     track_lines = ',\n'.join(
-        json.dumps(t, ensure_ascii=False, separators=(',', ':')) for t in tracks
+        json.dumps(_track_for_js(t), ensure_ascii=False, separators=(',', ':')) for t in tracks
     )
     stat_lines = ',\n'.join(
         json.dumps(k, ensure_ascii=False) + ':' + json.dumps(v, ensure_ascii=False, separators=(',', ':'))

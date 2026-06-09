@@ -229,6 +229,15 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
 .rp-tab{position:absolute;left:-33px;top:50%;transform:translateY(-50%);width:33px;height:64px;background:var(--bg2);border:1px solid var(--border);border-right:none;border-radius:8px 0 0 8px;color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:var(--fz-lg);transition:color .15s,background .15s;padding:0}
 .rp-tab:hover{color:var(--text);background:var(--bg3)}
 .rp-scroll{flex:1;overflow-y:auto;padding:20px}
+.rp-header{font-size:var(--fz-md);font-weight:700;color:var(--text);padding-bottom:16px;border-bottom:1px solid var(--border);margin-bottom:16px;letter-spacing:.03em}
+.rp-sources{display:flex;flex-direction:column;gap:6px}
+.rp-source-link{display:block;padding:8px 10px;background:var(--bg3);border-radius:6px;text-decoration:none;border:1px solid var(--border);transition:border-color .15s}
+.rp-source-link:hover{border-color:var(--acc)}
+.rp-source-name{display:block;font-size:var(--fz-sm);font-weight:600;color:var(--text)}
+.rp-source-desc{display:block;font-size:var(--fz-xs);color:var(--text3);margin-top:2px}
+.rp-legal{font-size:var(--fz-xs);color:var(--text3);line-height:1.6}
+.rp-legal p{margin:0 0 10px}
+.rp-legal strong{color:var(--text2)}
 
 /* ===== CSV UPLOAD ===== */
 .upload-drop{display:block;background:var(--bg3);border:1px dashed var(--border);border-radius:8px;padding:16px;text-align:center;cursor:pointer;transition:border-color .15s}

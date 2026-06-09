@@ -12,7 +12,7 @@ Lokaler, regelbasierter Playlist-Generator für alle vier Phasen eines CrossFit-
 
 | ID | Name | Pfad | Verantwortung |
 |----|------|------|---------------|
-| C1 | Pool Builder | `CFLU_Pool_Build.py` | ETL-Pipeline: liest `Playlists/**/*.csv` rekursiv, dedup per Spotify Track-ID, schreibt `cflu_tracks.js`. Phasen: E-T-L-C-G-A-M. Standard: Add-only (`--rebuild` für vollständigen Update). |
+| C1 | Pool Builder | `CFLU_Pool_Build.py` | ETL-Pipeline: liest `Playlists/**/*.csv` rekursiv, dedup per Spotify Track-ID, schreibt `cflu_tracks.js`. Phasen: E-T-L-C-G-A-[Color]-M. Standard: Add-only (`--rebuild` für vollständigen Update). `parent_genres` intern für `classify()` benötigt, aber nicht in `cflu_tracks.js` geschrieben (`_JS_EXCLUDE_FIELDS`). |
 | C2 | WOD Builder UI | `CFLU_WOD_Builder.html` + `js/` + `css/` | Haupt-UI: Song-Auswahl, Playlist-Generierung, BPM-Chart, Spotify-Export |
 | C3 | Track Data | `cflu_tracks.js` | Auto-generierter Track-Pool (non-module global `TRACK_DATA`) |
 | C4 | Tests | `js/cflu_tests.js` + `CFLU_Tests.html` | Kanonische Testklasse (dual-mode): `node js/cflu_tests.js` → stdout + Exit-Code; Browser: `CFLU_Tests.html` importiert und rendert. 313 Tests. |
@@ -44,7 +44,7 @@ genres.js  (importiert: config.js)
 algorithm.js (importiert: config.js, state.js, utils.js, genres.js)
 chart.js     (importiert: state.js)
 spotify.js   (importiert: state.js)
-upload.js    (importiert: –, genutzt von cflu_server.py + app.js)
+upload.js    (importiert: –; standalone &lt;script&gt; in HTML; exportierte Funktionen genutzt von cflu_tests.js)
      ↓
 app.js (importiert alle Module, verdrahtet Events)
 ```
@@ -65,6 +65,8 @@ app.js (importiert alle Module, verdrahtet Events)
 | 8 | Testklasse als dual-mode JS-Modul (`js/cflu_tests.js`) | Trennung von Test-Logik und HTML-Rendering: `js/cflu_tests.js` ist die kanonische Testklasse (importierbar von Node.js + Browser); `CFLU_Tests.html` ist nur noch ein Rendering-Shell (~90 Zeilen). Ermöglicht `node js/cflu_tests.js` ohne Browser/Server für Claude Code und CI. `package.json` mit `{"type":"module"}` aktiviert ES-Modul-Support in Node.js. | 2026-06-06 |
 | 9 | ETL-Default: Add-only statt Full-Update | Bestehende Tracks im Pool sollen durch ein reguläres Startup-Build nicht überschrieben werden — insbesondere AI-gepflegte (`open_genre=2`) und manuell gepflegte Felder (`open_genre=3`, `mood_tags`) müssen erhalten bleiben. `--rebuild` erzwingt vollständigen Update und schützt dynamische Felder explizit in `merge()`. | 2026-06-08 |
 | 10 | `open_genre`-State-Machine für Genre-Herkunft | Spotify liefert Genres nur auf Artist-Ebene — manche Tracks haben keine Genres (z. B. wenig bekannte Künstler, Remixe mit anderer Artist-ID). Statt diese Tracks zu verwerfen, wird der Herkunftszustand in `open_genre` getrackt und schrittweise verbessert: Vererbung → AI → Manuell. Reherstelungssicherheit durch Preserve-Logik in `merge()`. | 2026-06-08 |
+| 11 | ETL: [C] Cleanup vor [G] Genre-Vererbung und [A] AI-Genre | Doubletten-Entfernung läuft zuerst, damit kein Claude-Haiku-API-Call auf Tracks verschwendet wird, die anschließend durch Dedup entfernt werden — spart Kosten und Zeit. | 2026-06-09 |
+| 12 | `genres_raw[0]` als Proxy für das entscheidende Genre-Tag | `classify()` speichert nicht, welcher `genres_raw`-Tag die Klassifikation ausgelöst hat. `genres_raw[0]` wird als Näherung für die Farb- und Fett-Darstellung im UI verwendet. Für AI-klassifizierte Tracks (`open_genre=2`) ist dies exakt. Issue #122 verfolgt die saubere Lösung. | 2026-06-09 |
 
 ---
 
@@ -79,6 +81,45 @@ app.js (importiert alle Module, verdrahtet Events)
 ## Changelog
 
 Offene Items → GitHub Issues (https://github.com/nickl3ss/CFLU_Playlists/issues)
+
+### 2026-06-09 — Dokumentation, Admin-Panel, Explicit-Badge, ETL-Optimierungen
+
+#### `CFLU_WOD_Builder.html` + `css/cflu_style.css` — Admin & Info Panel (#126)
+
+- Rechtes Panel umbenannt: „Spotify & CSV Upload" → **Admin & Info** (Tab-Button, Modal-Text, aria-label)
+- Panel-Header ergänzt
+- **Quellen-Sektion** hinzugefügt: Spotify, Chosic, Every Noise at Once, Claude Code — je mit Link und Kurzbeschreibung; Card-Style-Links (`.rp-source-link`)
+- **Impressum-Sektion** hinzugefügt: Angaben gemäß § 5 TMG, Datenschutzhinweis (OAuth PKCE sessionStorage-only, kein Server-Speicher), Haftungsausschluss
+
+#### `js/app.js` + `css/cflu_style.css` — Explicit-Badge (#124, #125)
+
+- Playlist-Zeile: Songs mit `explicit: true` zeigen weißes `E`-Badge (`.explicit-badge`) als Prefix zum Titel
+- Filter-Liste + Direktsuche: Optionstext zeigt `[E]` zwischen Phase-Score und Künstlername
+
+#### `js/app.js` + `css/cflu_style.css` — Everynoise-Genre in Playlist-Zeile (#120, #121, #123)
+
+- Neue Genre-Zeile unterhalb Artist: `<Main-Genre>: <genres_raw-Tags>` — Haupt-Genre in `var(--text2)`, erstes `genres_raw`-Tag fett in `avg_color`, weitere Tags in `var(--text2)`
+- `genres_raw[0]` als farbig+fettes „Pick-Genre" (ADR 12); `t.genre` als Plaintext-Prefix
+- CSS: `.tr-genres`, `.tr-genre-main`, `.tr-genre-tags`; Artist-Schrift leicht größer (`--fz-sm`), Genre-Zeile kleiner (`--fz-xs`)
+
+#### `js/chart.js` — BPM-Tooltip (#4)
+
+- Song-Name im Hover-Tooltip nicht mehr auf 20 Zeichen abgeschnitten — `measureText`-basierte Breite passt sich automatisch an
+
+#### `CFLU_Pool_Build.py` — ETL-Reihenfolge + parent_genres-Strip (#117, #127)
+
+- `[C]` Cleanup (Dedup) läuft jetzt vor `[G]` Genre-Vererbung und `[A]` AI-Genre — kein Claude-Haiku-Call auf Doubletten (ADR 11)
+- `_track_for_js()`: `parent_genres` wird nicht mehr in `cflu_tracks.js` geschrieben (`_JS_EXCLUDE_FIELDS`) — im Browser ungenutzt; intern von `classify()` weiterhin verwendet
+
+#### Architektur & Dokumentation (#128)
+
+- `upload.js` Modul-Contract korrigiert: hat `_initUpload()` mit DOM-Zugriff; als standalone `<script>` in HTML geladen
+- ETL-Phasen-Tabelle um `[*] Color Enrich` ergänzt (CLAUDE.md + PROJECT.md)
+- Key Invariants 5+6: „Phase 4" → „`_pick()` stage 4" (kein UI-Phasenbuchstabe)
+- ADR 11 + 12 ergänzt
+- CI (`tests.yml`): `npm install` + `npm run lint` vor dem Test-Lauf
+
+---
 
 ### 2026-06-08 — CSS-Designsystem + Launcher-Vereinfachung (#115)
 

@@ -55,7 +55,7 @@
     ├── algorithm.js            # Playlist generation — no DOM, no state writes
     ├── chart.js                # BPM chart — reads state, writes canvas only
     ├── spotify.js              # PKCE auth + export — no token in localStorage (Invariant 2)
-    ├── upload.js               # Pure CSV upload helpers — no DOM, no state
+    ├── upload.js               # CSV upload UI (standalone <script> in HTML) + exported pure helpers (Node.js-safe)
     └── app.js                  # UI wiring — imports all modules; no business logic
 ```
 
@@ -238,6 +238,7 @@ gh issue close <nr> --reason "completed" --comment "AC: ✓ ... ✓ ... ✓ ..."
 [G] Genre inherit   open_genre=1 → 4: borrow genres_raw from same-artist tracks
 [A] AI Genre        open_genre=1/4 → 2 or 5; BYOK via anthropic_api_key.txt; Claude Haiku
                     context per track: album+year, known artist genres from pool, inherited genres
+[*] Color Enrich    avg_color per track from Everynoise hex data — runs after A, before M; no label
 [M] Mood Tags       Claude Haiku batch tagging; skips already-tagged tracks
 ```
 
@@ -265,8 +266,8 @@ gh issue close <nr> --reason "completed" --comment "AC: ✓ ... ✓ ... ✓ ..."
 2. Client ID must **not** be stored in localStorage; sessionStorage only temporarily for the OAuth redirect flow — cleaned up immediately after callback (`pkce_v` + `sp_cid`)
 3. Spotify export: max. 100 tracks per batch (API limit) — always hard-cap
 4. BPM must never go backwards in phase B/C (ascending phases)
-5. BPM groups: max. ±1 step per move (except BPM escalation phase 4)
-6. Phase 4 (BPM escalation) intentionally ignores energy filter and BPM groups
+5. BPM groups: max. ±1 step per move (except _pick() stage 4 BPM escalation)
+6. _pick() stage 4 (BPM escalation) intentionally ignores energy filter and BPM groups — last resort within _pick(), not a UI phase
 7. `cflu_tracks.js` must be loaded BEFORE the ES modules (`<script>` in `<head>`)
 8. `CFLU_Start.bat` / `CFLU_Start.sh` always run pool build on startup — no CSV means reclassify-only mode
 9. `open_genre=2/3/5` never overwritten by `--rebuild` — preserve logic in `merge()` is mandatory; `--reclassify-ai` is an explicit opt-in that intentionally resets state-2 for re-classification
