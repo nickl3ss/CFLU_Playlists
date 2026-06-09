@@ -238,6 +238,8 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
 .rp-legal{font-size:var(--fz-xs);color:var(--text3);line-height:1.6}
 .rp-legal p{margin:0 0 10px}
 .rp-legal strong{color:var(--text2)}
+.rp-contact-link{color:var(--text2);text-decoration:none;border-bottom:1px dotted var(--border)}
+.rp-contact-link:hover{color:var(--text)}
 
 /* ===== CSV UPLOAD ===== */
 .upload-drop{display:block;background:var(--bg3);border:1px dashed var(--border);border-radius:8px;padding:16px;text-align:center;cursor:pointer;transition:border-color .15s}

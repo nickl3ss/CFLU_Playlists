@@ -92,4 +92,13 @@ function _initUpload() {
   });
 }
 
-if (typeof document !== 'undefined') _initUpload();
+function _initContactLinks() {
+  // Assembles email from split data-attributes so no user@domain pattern appears in HTML source.
+  document.querySelectorAll('a.rp-contact-link[data-u][data-h][data-t]').forEach(el => {
+    const email = `${el.dataset.u}@${el.dataset.h}.${el.dataset.t}`;
+    el.href = `mailto:${email}`;
+    el.textContent = email;
+  });
+}
+
+if (typeof document !== 'undefined') { _initUpload(); _initContactLinks(); }
