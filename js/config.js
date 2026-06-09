@@ -49,6 +49,27 @@ export const BPM_STOPS = [
   {p:0,...RED},{p:.19,...RED},{p:.31,...YEL},{p:.38,...GRN},
   {p:.69,...GRN},{p:.78,...YEL},{p:.88,...YEL},{p:1,...RED},
 ];
+
+// Returns gradient stops matching the yellow (bpm) and green (bpmCore) zones for a given phase.
+// Slider range is always 60–220 BPM.
+export function bpmStopsForPhase(phase) {
+  const cfg = PHASE_CONFIG[phase];
+  if (!cfg) return BPM_STOPS;
+  const SMIN = 60, SMAX = 220, range = SMAX - SMIN;
+  const p = v => (v - SMIN) / range;
+  const [bLo, bHi] = cfg.bpm;
+  const [cLo, cHi] = cfg.bpmCore;
+  const stops = [];
+  if (bLo > SMIN) { stops.push({p: 0, ...RED}); stops.push({p: p(bLo), ...RED}); }
+  stops.push({p: p(bLo), ...YEL});
+  stops.push({p: p(cLo), ...YEL});
+  stops.push({p: p(cLo), ...GRN});
+  stops.push({p: p(cHi), ...GRN});
+  stops.push({p: p(cHi), ...YEL});
+  stops.push({p: p(bHi), ...YEL});
+  if (bHi < SMAX) { stops.push({p: p(bHi), ...RED}); stops.push({p: 1, ...RED}); }
+  return stops;
+}
 // Green = 5-8 BPM (DJ-Norm ≤5%), Yellow = 8-12 BPM, Red = >12 BPM (range 5-20)
 export const JUMP_STOPS = [
   {p:0,...GRN},{p:.2,...GRN},{p:.27,...YEL},{p:.47,...YEL},{p:.53,...RED},{p:1,...RED},

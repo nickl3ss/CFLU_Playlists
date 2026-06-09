@@ -13,6 +13,7 @@ import { addTrack, pickNext, pickPrev,
          buildUp, buildDown, buildPlateau, buildDecreasing, buildAlternating } from './algorithm.js';
 import { state } from './state.js';
 import { sanitizeFilename, extractPlaylistName, formatUploadSuccess, classifyUploadResult } from './upload.js';
+import { bpmStopsForPhase, PHASE_CONFIG, RED, YEL, GRN } from './config.js';
 
 // ============================================================
 //  MINI TEST FRAMEWORK
@@ -1184,6 +1185,50 @@ describe('calcEraScore — Ära-Kohärenz [0,30]', () => {
     const same = Object.assign({}, base, { album_date:'2003-01-01' });
     const none = Object.assign({}, base, { album_date: null });
     expect(calcSortScore(same, cur, 'C') - calcSortScore(none, cur, 'C')).toBe(30);
+  });
+});
+
+// ============================================================
+//  bpmStopsForPhase — Phase-spezifische Slider-Stops
+// ============================================================
+describe('bpmStopsForPhase — Phase-spezifische BPM-Slider-Farben', () => {
+  const SMIN = 60, SMAX = 220, range = SMAX - SMIN;
+  const p = v => (v - SMIN) / range;
+
+  for (const phase of ['A', 'B', 'C', 'D']) {
+    it(`Phase ${phase}: grüne Zone liegt bei bpmCore [${PHASE_CONFIG[phase].bpmCore}]`, () => {
+      const stops = bpmStopsForPhase(phase);
+      const [cLo, cHi] = PHASE_CONFIG[phase].bpmCore;
+      // Find a stop that is GRN and sits at p(cLo)
+      const greenStart = stops.find(s => Math.abs(s.p - p(cLo)) < 0.001 && s.r === GRN.r && s.g === GRN.g && s.b === GRN.b);
+      const greenEnd   = stops.find(s => Math.abs(s.p - p(cHi)) < 0.001 && s.r === GRN.r && s.g === GRN.g && s.b === GRN.b);
+      expect(!!greenStart).toBe(true);
+      expect(!!greenEnd).toBe(true);
+    });
+
+    it(`Phase ${phase}: gelbe Zone beginnt bei bpm[0] = ${PHASE_CONFIG[phase].bpm[0]}`, () => {
+      const stops = bpmStopsForPhase(phase);
+      const [bLo] = PHASE_CONFIG[phase].bpm;
+      const yelAtBlo = stops.find(s => Math.abs(s.p - p(bLo)) < 0.001 && s.r === YEL.r && s.g === YEL.g && s.b === YEL.b);
+      expect(!!yelAtBlo).toBe(true);
+    });
+  }
+
+  it('ungültige Phase → Fallback auf BPM_STOPS', () => {
+    const stops = bpmStopsForPhase('X');
+    expect(stops.length).toBeGreaterThan(0);
+  });
+
+  it('Phase C: letzter Stop bei p=1 ist RED', () => {
+    const stops = bpmStopsForPhase('C');
+    const last = stops[stops.length - 1];
+    expect(last.p).toBe(1);
+    expect(last.r).toBe(RED.r);
+  });
+
+  it('Phase D: erster Stop startet bei p=0 (bpmLo=60 = Slider-Minimum)', () => {
+    const stops = bpmStopsForPhase('D');
+    expect(stops[0].p).toBe(0);
   });
 });
 

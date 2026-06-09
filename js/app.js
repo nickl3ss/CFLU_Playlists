@@ -1,6 +1,7 @@
 // app.js — UI wiring only; no business logic here — delegate to algorithm.js, spotify.js, chart.js etc.
-import { PHASE_CONFIG, MIN_POOL_SIZE, BPM_STOPS, JUMP_STOPS,
-         POS_BPM, CAM_COLOR, CAM_ZONE1, CAM_ZONE2, DUR_STEPS } from './config.js';
+import { PHASE_CONFIG, MIN_POOL_SIZE, JUMP_STOPS,
+         POS_BPM, CAM_COLOR, CAM_ZONE1, CAM_ZONE2, DUR_STEPS,
+         bpmStopsForPhase } from './config.js';
 import { getNeighbours } from './genres.js';
 import { state } from './state.js';
 import { titleKey, fmtDur, fmtMin, lerpColor, toHex, camCompat, calcPhaseScore } from './utils.js';
@@ -213,7 +214,7 @@ function onGenreChange() {
 }
 
 function onBpmSlider(el) {
-  const c = updateSliderStyle(el, BPM_STOPS, 60, 220);
+  const c = updateSliderStyle(el, bpmStopsForPhase(state.currentPhase), 60, 220);
   const v = +el.value;
   document.getElementById('bpm-val-display').textContent = v + ' BPM';
   document.getElementById('bpm-val-display').style.color = toHex(c);
@@ -930,8 +931,7 @@ function init() {
     if (e.key === 'Escape') closeLoginModal();
   });
 
-  // Init slider styles
-  updateSliderStyle(document.getElementById('bpm-slider'), BPM_STOPS, 60, 220);
+  // Init slider styles — jump slider must be painted explicitly; bpm-slider is painted by onPhaseSelect('C') below
   updateSliderStyle(document.getElementById('jump-slider'), JUMP_STOPS, 5, 20);
 
   // Populate genre dropdowns from track data (must run before onPhaseSelect reads the select)
