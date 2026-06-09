@@ -140,7 +140,7 @@ export function _drawChart(wodCount, hoverIdx) {
     ctx.beginPath(); ctx.moveTo(p.x, pad.t); ctx.lineTo(p.x, H - pad.b); ctx.stroke();
     ctx.setLineDash([]);
     const t = state.bpmChartData[hoverIdx];
-    const label = t.bpm + ' BPM — ' + t.song.slice(0, 20);
+    const label = t.bpm + ' BPM — ' + t.song;
     ctx.font = 'bold 9px IBM Plex Mono,monospace';
     const tw = ctx.measureText(label).width;
     const tx = Math.min(Math.max(p.x - tw / 2, pad.l), W - pad.r - tw);

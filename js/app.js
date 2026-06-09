@@ -807,6 +807,13 @@ function makeRow(idx, t, num, delta, cc, isCd, isRef) {
   const engColor = t.energy >= 90 ? '#1db954' : t.energy >= 75 ? '#a855f7' : t.energy >= 60 ? '#f7c948' : '#535353';
   const song   = t.song.length > 32 ? t.song.slice(0, 30) + '…' : t.song;
   const artist = t.artist.length > 28 ? t.artist.slice(0, 26) + '…' : t.artist;
+  const genreColor = t.avg_color || 'var(--text2)';
+  const genreTags = t.genres_raw && t.genres_raw.length
+    ? `: <span class="tr-genre-tags">${t.genres_raw.slice(0, 3).join(', ')}</span>`
+    : '';
+  const genreHtml = t.genre
+    ? `<div class="tr-genres"><span class="tr-genre-main" style="color:${genreColor}">${t.genre}</span>${genreTags}</div>`
+    : '';
   const spLink = t.id && t.id !== 'nan' && t.id
     ? `<svg class="sp-icon" onclick="window.open('https://open.spotify.com/track/${t.id}','_blank')" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="11" fill="#1db954"/><path d="M16.5 16.5c-2.5-1.5-5.5-1.8-9-1" stroke="white" stroke-width="1.4" stroke-linecap="round"/><path d="M17.5 13.5c-3-1.8-7-2-10.5-1" stroke="white" stroke-width="1.4" stroke-linecap="round"/><path d="M18 10c-3.5-2-8-2.2-11.5-1" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>` : '';
   const ps = calcPhaseScore(t, state.currentPhase);
@@ -814,7 +821,7 @@ function makeRow(idx, t, num, delta, cc, isCd, isRef) {
   const m = (field, v) => `<div class="tr-meta" style="color:${_metaColor(field, v)}">${v ?? '—'}</div>`;
   row.innerHTML = `
     <div class="tr-num">${num}${isRef ? '<br><span class="ref-label">REF</span>' : ''}</div>
-    <div><div class="tr-song" title="${t.song}">${song}</div><div class="tr-artist" title="${t.artist}">${artist}</div></div>
+    <div><div class="tr-song" title="${t.song}">${song}</div><div class="tr-artist" title="${t.artist}">${artist}</div>${genreHtml}</div>
     <div><div class="tr-bpm">${t.bpm}</div>${delta > 0 ? `<div class="tr-bpm-delta">+${delta}</div>` : ''}</div>
     <div class="tr-cam"><span class="cam-dot" style="background:${CAM_COLOR[cc]}"></span>${t.camelot || '—'}</div>
     <div class="tr-eng" style="color:${engColor}">${t.energy}</div>
