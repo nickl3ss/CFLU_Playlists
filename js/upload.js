@@ -93,7 +93,11 @@ function _initUpload() {
 }
 
 function _initContactLinks() {
-  // Assembles email from split data-attributes so no user@domain pattern appears in HTML source.
+  // Decode base64-encoded contact fields (name, address) — no plaintext in HTML source.
+  document.querySelectorAll('.rp-encoded[data-b64]').forEach(el => {
+    el.textContent = decodeURIComponent(atob(el.dataset.b64));
+  });
+  // Assemble email from split parts — no user@domain pattern in HTML source.
   document.querySelectorAll('a.rp-contact-link[data-u][data-h][data-t]').forEach(el => {
     const email = `${el.dataset.u}@${el.dataset.h}.${el.dataset.t}`;
     el.href = `mailto:${email}`;

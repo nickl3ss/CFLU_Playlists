@@ -14,7 +14,7 @@ export default [
         location: 'readonly', history: 'readonly',
         fetch: 'readonly', URL: 'readonly', URLSearchParams: 'readonly',
         Blob: 'readonly', FormData: 'readonly', FileReader: 'readonly',
-        crypto: 'readonly', btoa: 'readonly', TextEncoder: 'readonly',
+        crypto: 'readonly', btoa: 'readonly', atob: 'readonly', TextEncoder: 'readonly',
         setTimeout: 'readonly', clearTimeout: 'readonly', requestAnimationFrame: 'readonly',
         alert: 'readonly', getComputedStyle: 'readonly',
         // CFLU global (loaded via non-module <script>)
