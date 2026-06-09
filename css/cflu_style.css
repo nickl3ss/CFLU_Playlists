@@ -169,10 +169,10 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
 .tr-num{font-family:var(--ff-mono);font-size:var(--fz-xs);color:var(--text3);text-align:right}
 .ref-label{font-size:var(--fz-2xs);color:var(--acc)}
 .tr-song{font-weight:600;font-size:var(--fz-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tr-artist{font-size:var(--fz-xs);color:var(--text2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tr-genres{font-size:var(--fz-2xs);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tr-artist{font-size:var(--fz-sm);color:var(--text2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tr-genres{font-size:var(--fz-xs);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tr-genre-main{font-weight:700}
-.tr-genre-tags{color:var(--text3)}
+.tr-genre-tags{color:var(--text2)}
 .tr-bpm{font-family:var(--ff-mono);font-size:var(--fz-sm);font-weight:700;text-align:center}
 .tr-bpm-delta{font-family:var(--ff-mono);font-size:var(--fz-2xs);color:var(--acc);display:block;text-align:center}
 .tr-cam{display:flex;align-items:center;gap:4px;font-family:var(--ff-mono);font-size:var(--fz-xs);font-weight:700}
