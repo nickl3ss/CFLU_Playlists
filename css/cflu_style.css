@@ -169,6 +169,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
 .tr-num{font-family:var(--ff-mono);font-size:var(--fz-xs);color:var(--text3);text-align:right}
 .ref-label{font-size:var(--fz-2xs);color:var(--acc)}
 .tr-song{font-weight:600;font-size:var(--fz-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.explicit-badge{display:inline-block;background:var(--acc);color:#000;font-size:.6rem;font-weight:700;padding:1px 3px;border-radius:2px;margin-right:4px;vertical-align:middle;line-height:1.2}
 .tr-artist{font-size:var(--fz-sm);color:var(--text2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tr-genres{font-size:var(--fz-xs);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tr-genre-main{font-weight:700}
