@@ -16,6 +16,7 @@ let _genreToTracks = new Map();
 // parallel array to starPoints attribute positions: maps index → genre name
 let _starNames = [];
 let _zMin = 0, _zRange = 1;
+let _hoverSphere = null;
 let _initialized = false;
 
 export function initGenreSpace(canvasEl) {
@@ -73,14 +74,6 @@ function _buildStarField() {
   _zMin = zMin;
   _zRange = (zMax - zMin) || 1;
 
-  // Count pool tracks per Everynoise subgenre
-  const genreCount = new Map();
-  for (const t of TRACK_DATA.tracks) {
-    for (const g of (t.genres_raw || [])) {
-      genreCount.set(g, (genreCount.get(g) || 0) + 1);
-    }
-  }
-
   const names = Object.keys(GENRE_MAP);
   const n = names.length;
   const positions = new Float32Array(n * 3);
@@ -92,7 +85,6 @@ function _buildStarField() {
   for (let i = 0; i < n; i++) {
     const name = names[i];
     const g    = GENRE_MAP[name];
-    const cnt  = genreCount.get(name) || 0;
 
     positions[i * 3]     = (g.x - 0.5) * SCALE;
     positions[i * 3 + 1] = (g.y - 0.5) * SCALE;
@@ -102,9 +94,7 @@ function _buildStarField() {
     colors[i * 3 + 1] = g.g / 255;
     colors[i * 3 + 2] = g.b / 255;
 
-    // dim base star; grows brighter with track count
-    const bright = cnt > 0 ? Math.min(1.0, cnt / 15) : 0;
-    sizes[i] = 1.5 + bright * 7;
+    sizes[i] = 2.0;
   }
 
   _starGeometry = new THREE.BufferGeometry();
@@ -120,7 +110,7 @@ function _buildStarField() {
       void main() {
         vColor = customColor;
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
-        gl_PointSize = size * (280.0 / -mv.z);
+        gl_PointSize = size * (80.0 / -mv.z);
         gl_Position  = projectionMatrix * mv;
       }
     `,
@@ -129,7 +119,7 @@ function _buildStarField() {
       void main() {
         float d = length(gl_PointCoord - vec2(0.5));
         if (d > 0.5) discard;
-        float a = 1.0 - smoothstep(0.38, 0.5, d);
+        float a = 1.0 - smoothstep(0.42, 0.5, d);
         gl_FragColor = vec4(vColor, a);
       }
     `,
@@ -189,7 +179,7 @@ export function updatePlaylistMode(wod) {
     mColors[i * 3]     = col.r / 255;
     mColors[i * 3 + 1] = col.g / 255;
     mColors[i * 3 + 2] = col.b / 255;
-    mSizes[i] = 10 + Math.min(tracks.length - 1, 4) * 2;
+    mSizes[i] = 2.0;
   });
 
   const mGeo = new THREE.BufferGeometry();
@@ -205,7 +195,7 @@ export function updatePlaylistMode(wod) {
       void main() {
         vColor = customColor;
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
-        gl_PointSize = size * (280.0 / -mv.z);
+        gl_PointSize = size * (80.0 / -mv.z);
         gl_Position  = projectionMatrix * mv;
       }
     `,
@@ -214,7 +204,7 @@ export function updatePlaylistMode(wod) {
       void main() {
         float d = length(gl_PointCoord - vec2(0.5));
         if (d > 0.5) discard;
-        float a = 1.0 - smoothstep(0.35, 0.5, d);
+        float a = 1.0 - smoothstep(0.42, 0.5, d);
         gl_FragColor = vec4(vColor, a);
       }
     `,
@@ -241,7 +231,37 @@ export function clearPlaylistMode() {
 
 export function resizeGenreSpace() { _onResize(); }
 
+export function highlightGenreStar(genreName) {
+  _clearHoverSphere();
+  if (!_scene || typeof GENRE_MAP === 'undefined') return;
+  const gd = GENRE_MAP[genreName];
+  if (!gd) return;
+  _hoverSphere = new THREE.Mesh(
+    new THREE.SphereGeometry(0.25, 8, 8),
+    new THREE.MeshBasicMaterial({ color: 0xff2020 }),
+  );
+  _hoverSphere.position.set(
+    (gd.x - 0.5) * SCALE,
+    (gd.y - 0.5) * SCALE,
+    ((gd.z - _zMin) / _zRange - 0.5) * SCALE,
+  );
+  _scene.add(_hoverSphere);
+}
+
+export function clearGenreHighlight() {
+  _clearHoverSphere();
+}
+
 // ===== INTERNALS =====
+
+function _clearHoverSphere() {
+  if (_hoverSphere) {
+    _scene.remove(_hoverSphere);
+    _hoverSphere.geometry.dispose();
+    _hoverSphere.material.dispose();
+    _hoverSphere = null;
+  }
+}
 
 function _clearPlaylistObjects() {
   if (_playlistMarkers) {

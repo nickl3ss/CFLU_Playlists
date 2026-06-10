@@ -224,7 +224,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
 .gen-log-copy:hover{border-color:var(--acc);color:var(--acc)}
 
 /* ===== BOTTOM PANEL (log + genre space) ===== */
-.bottom-panel{display:flex;gap:16px;align-items:flex-start;margin-bottom:16px}
+.bottom-panel{display:flex;gap:16px;align-items:stretch;flex-shrink:0;margin-bottom:16px}
 .bottom-panel>.sp-section{flex:0 0 280px;margin-bottom:0}
 
 /* ===== GENRE SPACE ===== */
@@ -233,8 +233,9 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
 /* Full mode: overlay result-area, fills screen before playlist is generated */
 .genre-space--full{position:absolute;inset:0;z-index:10;border-radius:0;border:none;background:var(--bg);padding:16px 20px}
 .genre-space--full #genre-space-canvas{flex:1;width:100%;border-radius:0}
-/* Compact mode: square canvas in bottom-panel next to gen-log */
-.genre-space--compact #genre-space-canvas{width:100%;aspect-ratio:1}
+/* Compact mode: square canvas matches gen-log height, capped at 20% viewport */
+.genre-space--compact{max-height:20vh;max-width:20vh}
+.genre-space--compact #genre-space-canvas{flex:1;aspect-ratio:1;width:auto;min-height:0}
 #genre-space-canvas{display:block;border-radius:6px;cursor:grab}
 #genre-space-canvas:active{cursor:grabbing}
 
