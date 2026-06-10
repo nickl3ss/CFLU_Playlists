@@ -133,7 +133,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
 
 /* ===== MAIN AREA ===== */
 .main-top{padding:20px 24px 0;flex-shrink:0}
-.main-scroll{flex:1;overflow-y:auto;padding:0 24px 24px}
+.main-scroll{flex:1;overflow-y:auto;padding:0 24px 12px}
 .main-scroll::-webkit-scrollbar{width:6px}
 .main-scroll::-webkit-scrollbar-thumb{background:var(--bg5);border-radius:3px}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text3);text-align:center;padding:40px}
@@ -218,21 +218,22 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
 .warn-msg{background:rgba(247,201,72,.08);border:1px solid rgba(247,201,72,.3);border-radius:6px;padding:7px 12px;font-size:var(--fz-sm);color:var(--yellow);margin-bottom:10px;display:none}
 
 /* ===== GENERATION LOG ===== */
-.gen-log-area{width:100%;height:280px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-family:var(--ff-mono);font-size:var(--fz-xs);line-height:1.6;padding:12px 14px;resize:vertical;outline:none;tab-size:2}
+.gen-log-area{width:100%;height:14vh;min-height:80px;max-height:200px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-family:var(--ff-mono);font-size:var(--fz-xs);line-height:1.6;padding:12px 14px;resize:vertical;outline:none;tab-size:2}
 .gen-log-area:focus{border-color:var(--text3)}
 .gen-log-copy{background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;font-family:var(--ff-ui);font-size:var(--fz-md);font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:6px 16px;transition:all .15s}
 .gen-log-copy:hover{border-color:var(--acc);color:var(--acc)}
 
-/* ===== BOTTOM PANEL (log + genre space) ===== */
-.bottom-panel{display:flex;gap:16px;align-items:stretch;flex-shrink:0;margin-bottom:16px}
-.bottom-panel>.sp-section{flex:0 0 280px;margin-bottom:0}
+/* ===== RESULT FOOTER (spotify export + gen-log) ===== */
+#result-footer{flex-shrink:0;padding:0 24px 20px;display:flex;flex-direction:column;gap:12px}
+#result-footer .sp-section{margin-bottom:0}
 
 /* ===== GENRE SPACE ===== */
 /* Base */
 .genre-space-section{flex:1;min-width:0;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column}
 /* Full mode: overlay result-area, fills screen before playlist is generated */
-.genre-space--full{position:absolute;inset:0;z-index:10;border-radius:0;border:none;background:var(--bg);padding:16px 20px}
-.genre-space--full #genre-space-canvas{flex:1;width:100%;border-radius:0}
+.genre-space--full{position:absolute;inset:0;z-index:10;border-radius:0;border:none;background:var(--bg);padding:0}
+.genre-space--full #genre-space-canvas{position:absolute;inset:0;width:100%;height:100%;border-radius:0}
+.genre-space--full .sp-section-title{position:absolute;top:14px;left:20px;z-index:1;margin-bottom:0;pointer-events:none}
 /* Compact mode: square canvas matches gen-log height, capped at 20% viewport */
 .genre-space--compact{max-height:20vh;max-width:20vh}
 .genre-space--compact #genre-space-canvas{flex:1;aspect-ratio:1;width:auto;min-height:0}

@@ -10,7 +10,7 @@ import { getAllTracks, getPool, getPhasePool, getPhasePoolWithNeighbours, getGen
          buildPlateau, buildDecreasing, buildAlternating } from './algorithm.js';
 import { drawChart, highlightFromRow, clearHighlight } from './chart.js';
 import { spotifyLogin, spotifyLogout, checkSpotifyCallback, exportPlaylist } from './spotify.js';
-import { initGenreSpace, updatePlaylistMode, resizeGenreSpace, highlightGenreStar, clearGenreHighlight } from './genre_space.js';
+import { initGenreSpace, updatePlaylistMode, resizeGenreSpace } from './genre_space.js';
 
 // ===== SLIDER UI =====
 function updateSliderStyle(slider, stops, minV, maxV) {
@@ -738,17 +738,9 @@ function renderResult(genre, wod, cd, warns, logText) {
     cd.forEach((t, i) => rows.appendChild(makeRow(wod.length + i, t, wod.length + i + 1, 0, 'unknown', true, false)));
   }
 
-  const allTracks = [...wod, ...cd];
   rows.querySelectorAll('.tr').forEach((row, i) => {
-    row.addEventListener('mouseenter', () => {
-      highlightFromRow(i);
-      const genre = allTracks[i]?.genres_raw?.[0];
-      if (genre) highlightGenreStar(genre);
-    });
-    row.addEventListener('mouseleave', () => {
-      clearHighlight();
-      clearGenreHighlight();
-    });
+    row.addEventListener('mouseenter', () => highlightFromRow(i));
+    row.addEventListener('mouseleave', () => clearHighlight());
   });
 
   if (state.spToken) document.getElementById('sp-export-btn2').style.display = 'block';
@@ -756,16 +748,10 @@ function renderResult(genre, wod, cd, warns, logText) {
 
   document.getElementById('gen-log').value = logText || '';
 
-  // First playlist: move genre space into bottom-panel (compact square next to gen-log)
-  const gsSection = document.getElementById('genre-space-section');
-  if (gsSection.classList.contains('genre-space--full')) {
-    gsSection.classList.remove('genre-space--full');
-    gsSection.classList.add('genre-space--compact');
-    document.getElementById('bottom-panel').appendChild(gsSection);
-  }
+  document.getElementById('genre-space-section').style.display = 'none';
 
   document.getElementById('main-top').style.display = '';
-  document.getElementById('bottom-panel').style.display = '';
+  document.getElementById('result-footer').style.display = '';
 
   state.bpmChartData = [...wod, ...cd];
   requestAnimationFrame(() => {

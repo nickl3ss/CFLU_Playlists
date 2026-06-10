@@ -10,7 +10,32 @@
 
 ## New Since Last Push
 
-> _Empty — no untested changes pending._
+### N1 · Genre Space — Start Screen
+
+| # | Step | Expected |
+|---|------|----------|
+| N1-1 | Load app (no playlist generated) | Genre space fills the entire result area; rotating 3D star cloud visible immediately |
+| N1-2 | Observe rotation for ~10 s | Cloud rotates slowly around all three axes at different speeds — calm, never repeating |
+| N1-3 | Try to drag / zoom the cloud | No interaction; mouse has no effect on the model |
+| N1-4 | Observe dot sizes | Tiny dots (~2px) for genres not in pool; larger dots (up to ~20px) for high-count genres |
+| N1-5 | Cloud visual centre | Cloud centred in the canvas area, not pulled to bottom or side |
+| N1-6 | Section title "● Genre Space" | Visible as overlay in top-left of the cloud, does not push canvas down |
+
+### N2 · Genre Space — Playlist Mode
+
+| # | Step | Expected |
+|---|------|----------|
+| N2-1 | Generate a playlist | Genre space disappears; track list + Spotify Export + Generierungs-Log fill the screen |
+| N2-2 | Generate again | Same — genre space stays hidden |
+
+### N3 · Playlist Screen Layout
+
+| # | Step | Expected |
+|---|------|----------|
+| N3-1 | Generate a playlist | All four sections (BPM chart area, track list, Spotify Export, Generierungs-Log) are same width and left-aligned |
+| N3-2 | Scroll check | No page-level scrollbar; Spotify Export and Generierungs-Log always visible without scrolling |
+| N3-3 | Generierungs-Log height | Log textarea is compact (≈14 vh), not 280 px fixed; resizable by dragging its bottom edge |
+| N3-4 | Resize window vertically | Log height scales with viewport (min 80 px, max 200 px) |
 
 ---
 

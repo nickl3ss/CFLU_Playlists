@@ -1,20 +1,15 @@
-// genre_space.js — 3D genre space star map; reads state, GENRE_MAP, TRACK_DATA; writes canvas only; no Spotify, no generation logic
+// genre_space.js — 3D genre space star map; reads GENRE_MAP, TRACK_DATA; writes canvas only; no Spotify, no generation logic
 import * as THREE from './vendor/three.module.min.js';
-import { OrbitControls } from './vendor/OrbitControls.js';
-import { state } from './state.js';
-import { highlightFromRow, clearHighlight } from './chart.js';
 
 const SCALE = 15;
 
-let _scene, _camera, _renderer, _controls;
+let _scene, _camera, _renderer;
+let _rotGroup = null, _clock = null, _elapsed = 0;
+let _centroid = null;
 let _starPoints, _starGeometry;
 let _playlistMarkers = null, _sequenceLine = null;
-let _canvas = null, _tooltip = null;
-let _raycaster = null, _mouse = null;
-// genre name → array of playlist tracks assigned to that star
+let _canvas = null;
 let _genreToTracks = new Map();
-// parallel array to starPoints attribute positions: maps index → genre name
-let _starNames = [];
 let _zMin = 0, _zRange = 1;
 let _hoverSphere = null;
 let _initialized = false;
@@ -37,26 +32,11 @@ export function initGenreSpace(canvasEl) {
   _renderer.setPixelRatio(window.devicePixelRatio || 1);
   _renderer.setSize(w, h, false);
 
-  _controls = new OrbitControls(_camera, _renderer.domElement);
-  _controls.enableDamping = true;
-  _controls.dampingFactor = 0.06;
-  _controls.minDistance = 3;
-  _controls.maxDistance = 80;
-
-  _raycaster = new THREE.Raycaster();
-  _raycaster.params.Points = { threshold: 0.4 };
-  _mouse = new THREE.Vector2(-9, -9);
+  _rotGroup = new THREE.Group();
+  _scene.add(_rotGroup);
+  _clock = new THREE.Clock();
 
   _buildStarField();
-
-  _tooltip = document.createElement('div');
-  _tooltip.className = 'gs-tooltip';
-  _tooltip.style.display = 'none';
-  canvasEl.parentElement.style.position = 'relative';
-  canvasEl.parentElement.appendChild(_tooltip);
-
-  canvasEl.addEventListener('mousemove', _onMouseMove);
-  canvasEl.addEventListener('mouseleave', _onMouseLeave);
 
   new ResizeObserver(_onResize).observe(canvasEl);
 
@@ -74,28 +54,64 @@ function _buildStarField() {
   _zMin = zMin;
   _zRange = (zMax - zMin) || 1;
 
+  // Count pool tracks per genre for size scaling
+  const genreCount = new Map();
+  for (const t of TRACK_DATA.tracks) {
+    for (const g of (t.genres_raw || [])) {
+      genreCount.set(g, (genreCount.get(g) || 0) + 1);
+    }
+  }
+  let maxCount = 0;
+  for (const cnt of genreCount.values()) {
+    if (cnt > maxCount) maxCount = cnt;
+  }
+
   const names = Object.keys(GENRE_MAP);
   const n = names.length;
   const positions = new Float32Array(n * 3);
   const colors    = new Float32Array(n * 3);
   const sizes     = new Float32Array(n);
 
-  _starNames = names;
-
   for (let i = 0; i < n; i++) {
     const name = names[i];
     const g    = GENRE_MAP[name];
-
     positions[i * 3]     = (g.x - 0.5) * SCALE;
     positions[i * 3 + 1] = (g.y - 0.5) * SCALE;
     positions[i * 3 + 2] = ((g.z - _zMin) / _zRange - 0.5) * SCALE;
-
     colors[i * 3]     = g.r / 255;
     colors[i * 3 + 1] = g.g / 255;
     colors[i * 3 + 2] = g.b / 255;
-
-    sizes[i] = 2.0;
+    // <10 songs → ~2px; ≥10 songs → 5px–20px scaled to max (shader: size * 80 / z, z≈28)
+    const cnt = genreCount.get(name) || 0;
+    if (cnt < 10) {
+      sizes[i] = 0.7;
+    } else {
+      const t = maxCount > 10 ? (cnt - 10) / (maxCount - 10) : 0;
+      sizes[i] = 1.75 + t * 5.25;
+    }
   }
+
+  // Use bounding box midpoint (not arithmetic mean) — unbiased by cluster density
+  let xMin = Infinity, xMax = -Infinity;
+  let yMin = Infinity, yMax = -Infinity;
+  let zBMin = Infinity, zBMax = -Infinity;
+  for (let i = 0; i < n; i++) {
+    xMin = Math.min(xMin, positions[i * 3]);
+    xMax = Math.max(xMax, positions[i * 3]);
+    yMin = Math.min(yMin, positions[i * 3 + 1]);
+    yMax = Math.max(yMax, positions[i * 3 + 1]);
+    zBMin = Math.min(zBMin, positions[i * 3 + 2]);
+    zBMax = Math.max(zBMax, positions[i * 3 + 2]);
+  }
+  const cx = (xMin + xMax) / 2;
+  const cy = (yMin + yMax) / 2;
+  const cz = (zBMin + zBMax) / 2;
+  for (let i = 0; i < n; i++) {
+    positions[i * 3]     -= cx;
+    positions[i * 3 + 1] -= cy;
+    positions[i * 3 + 2] -= cz;
+  }
+  _centroid = new THREE.Vector3(cx, cy, cz);
 
   _starGeometry = new THREE.BufferGeometry();
   _starGeometry.setAttribute('position',    new THREE.BufferAttribute(positions, 3));
@@ -129,7 +145,7 @@ function _buildStarField() {
   });
 
   _starPoints = new THREE.Points(_starGeometry, mat);
-  _scene.add(_starPoints);
+  _rotGroup.add(_starPoints);
 }
 
 export function updatePlaylistMode(wod) {
@@ -138,6 +154,9 @@ export function updatePlaylistMode(wod) {
 
   _genreToTracks = new Map();
   const lineVerts = [];
+  const cx = _centroid ? _centroid.x : 0;
+  const cy = _centroid ? _centroid.y : 0;
+  const cz = _centroid ? _centroid.z : 0;
 
   for (const track of wod) {
     const genre = track.genres_raw && track.genres_raw[0];
@@ -148,9 +167,9 @@ export function updatePlaylistMode(wod) {
     _genreToTracks.get(genre).push(track);
 
     lineVerts.push(new THREE.Vector3(
-      (gd.x - 0.5) * SCALE,
-      (gd.y - 0.5) * SCALE,
-      ((gd.z - _zMin) / _zRange - 0.5) * SCALE,
+      (gd.x - 0.5) * SCALE - cx,
+      (gd.y - 0.5) * SCALE - cy,
+      ((gd.z - _zMin) / _zRange - 0.5) * SCALE - cz,
     ));
   }
 
@@ -162,7 +181,7 @@ export function updatePlaylistMode(wod) {
     lineGeo,
     new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.45, transparent: true }),
   );
-  _scene.add(_sequenceLine);
+  _rotGroup.add(_sequenceLine);
 
   // Playlist markers — one per unique genre star, coloured by track avg_color
   const uniqueStars = [..._genreToTracks.entries()];
@@ -173,9 +192,9 @@ export function updatePlaylistMode(wod) {
   uniqueStars.forEach(([genre, tracks], i) => {
     const gd  = GENRE_MAP[genre];
     const col = _avgColor(tracks.map(t => t.avg_color).filter(Boolean));
-    mPos[i * 3]     = (gd.x - 0.5) * SCALE;
-    mPos[i * 3 + 1] = (gd.y - 0.5) * SCALE;
-    mPos[i * 3 + 2] = ((gd.z - _zMin) / _zRange - 0.5) * SCALE;
+    mPos[i * 3]     = (gd.x - 0.5) * SCALE - cx;
+    mPos[i * 3 + 1] = (gd.y - 0.5) * SCALE - cy;
+    mPos[i * 3 + 2] = ((gd.z - _zMin) / _zRange - 0.5) * SCALE - cz;
     mColors[i * 3]     = col.r / 255;
     mColors[i * 3 + 1] = col.g / 255;
     mColors[i * 3 + 2] = col.b / 255;
@@ -212,17 +231,7 @@ export function updatePlaylistMode(wod) {
     depthWrite:  false,
     blending:    THREE.AdditiveBlending,
   }));
-  _scene.add(_playlistMarkers);
-
-  // Camera zoom to bbox of playlist stars
-  const bbox = new THREE.Box3();
-  lineVerts.forEach(v => bbox.expandByPoint(v));
-  const center = new THREE.Vector3();
-  bbox.getCenter(center);
-  const size = new THREE.Vector3();
-  bbox.getSize(size);
-  const dist = Math.max(size.length() * 0.9, 6);
-  _animateCameraTo(center, dist);
+  _rotGroup.add(_playlistMarkers);
 }
 
 export function clearPlaylistMode() {
@@ -233,19 +242,22 @@ export function resizeGenreSpace() { _onResize(); }
 
 export function highlightGenreStar(genreName) {
   _clearHoverSphere();
-  if (!_scene || typeof GENRE_MAP === 'undefined') return;
+  if (!_rotGroup || typeof GENRE_MAP === 'undefined') return;
   const gd = GENRE_MAP[genreName];
   if (!gd) return;
+  const cx = _centroid ? _centroid.x : 0;
+  const cy = _centroid ? _centroid.y : 0;
+  const cz = _centroid ? _centroid.z : 0;
   _hoverSphere = new THREE.Mesh(
     new THREE.SphereGeometry(0.25, 8, 8),
     new THREE.MeshBasicMaterial({ color: 0xff2020 }),
   );
   _hoverSphere.position.set(
-    (gd.x - 0.5) * SCALE,
-    (gd.y - 0.5) * SCALE,
-    ((gd.z - _zMin) / _zRange - 0.5) * SCALE,
+    (gd.x - 0.5) * SCALE - cx,
+    (gd.y - 0.5) * SCALE - cy,
+    ((gd.z - _zMin) / _zRange - 0.5) * SCALE - cz,
   );
-  _scene.add(_hoverSphere);
+  _rotGroup.add(_hoverSphere);
 }
 
 export function clearGenreHighlight() {
@@ -256,7 +268,7 @@ export function clearGenreHighlight() {
 
 function _clearHoverSphere() {
   if (_hoverSphere) {
-    _scene.remove(_hoverSphere);
+    _rotGroup.remove(_hoverSphere);
     _hoverSphere.geometry.dispose();
     _hoverSphere.material.dispose();
     _hoverSphere = null;
@@ -265,79 +277,18 @@ function _clearHoverSphere() {
 
 function _clearPlaylistObjects() {
   if (_playlistMarkers) {
-    _scene.remove(_playlistMarkers);
+    _rotGroup.remove(_playlistMarkers);
     _playlistMarkers.geometry.dispose();
     _playlistMarkers.material.dispose();
     _playlistMarkers = null;
   }
   if (_sequenceLine) {
-    _scene.remove(_sequenceLine);
+    _rotGroup.remove(_sequenceLine);
     _sequenceLine.geometry.dispose();
     _sequenceLine.material.dispose();
     _sequenceLine = null;
   }
   _genreToTracks = new Map();
-  if (_tooltip) _tooltip.style.display = 'none';
-}
-
-function _animateCameraTo(target, dist) {
-  const p0 = _camera.position.clone();
-  const t0 = _controls.target.clone();
-  const dir = p0.clone().sub(t0).normalize();
-  const p1  = target.clone().addScaledVector(dir, dist);
-  let  pct  = 0;
-
-  function step() {
-    pct = Math.min(pct + 0.022, 1);
-    const e = 1 - Math.pow(1 - pct, 3); // cubic ease-out
-    _camera.position.lerpVectors(p0, p1, e);
-    _controls.target.lerpVectors(t0, target, e);
-    _controls.update();
-    if (pct < 1) requestAnimationFrame(step);
-  }
-  requestAnimationFrame(step);
-}
-
-function _onMouseMove(e) {
-  if (!_canvas || !_raycaster || !_starPoints) return;
-  const rect = _canvas.getBoundingClientRect();
-  _mouse.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
-  _mouse.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
-
-  // Only show tooltip after a playlist is generated
-  if (!_genreToTracks.size) { _tooltip.style.display = 'none'; return; }
-
-  _raycaster.setFromCamera(_mouse, _camera);
-  const hits = _raycaster.intersectObject(_starPoints);
-
-  if (hits.length) {
-    const genreName = _starNames[hits[0].index];
-    const tracks    = _genreToTracks.get(genreName);
-    if (tracks && tracks.length) {
-      _tooltip.style.display = 'block';
-      _tooltip.style.left    = (e.clientX - rect.left + 14) + 'px';
-      _tooltip.style.top     = (e.clientY - rect.top  - 10) + 'px';
-      _tooltip.innerHTML     = tracks.map(t =>
-        `<span style="color:${t.avg_color||'#fff'}">${t.song}</span><br><span class="gs-tt-artist">${t.artist}</span>`
-      ).join('<hr class="gs-tt-sep">');
-
-      // Highlight first track's row in the table
-      const allTracks = [...(state.generatedWod || []), ...(state.generatedCd || [])];
-      const rowIdx = allTracks.findIndex(t =>
-        (t.id && t.id === tracks[0].id) || t.song === tracks[0].song,
-      );
-      if (rowIdx >= 0) highlightFromRow(rowIdx);
-      return;
-    }
-  }
-
-  _tooltip.style.display = 'none';
-  clearHighlight();
-}
-
-function _onMouseLeave() {
-  if (_tooltip) _tooltip.style.display = 'none';
-  clearHighlight();
 }
 
 function _onResize() {
@@ -352,7 +303,14 @@ function _onResize() {
 
 function _animate() {
   requestAnimationFrame(_animate);
-  if (_controls) _controls.update();
+  if (_rotGroup && _clock) {
+    const dt = _clock.getDelta();
+    _elapsed += dt;
+    // Three independent axes drift at different base speeds and slowly varying rates
+    _rotGroup.rotation.x += (0.05 + 0.03 * Math.sin(_elapsed * 0.11)) * dt;
+    _rotGroup.rotation.y += (0.09 + 0.05 * Math.sin(_elapsed * 0.07)) * dt;
+    _rotGroup.rotation.z += (0.03 + 0.02 * Math.sin(_elapsed * 0.13)) * dt;
+  }
   if (_renderer && _scene && _camera) _renderer.render(_scene, _camera);
 }
 
