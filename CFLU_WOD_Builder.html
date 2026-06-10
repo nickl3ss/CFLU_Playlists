@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>CFLU WOD Playlist Builder</title>
 <link rel="stylesheet" href="css/cflu_style.css">
+<script src="cflu_genres.js"></script>
 <script src="cflu_tracks.js"></script>
 <script type="module" src="js/app.js"></script>
 <script type="module" src="js/upload.js"></script>
@@ -310,12 +311,18 @@
         </div>
       </div>
 
-      <div class="sp-section" id="gen-log-section" style="display:none">
-        <div class="sp-section-title">● Generierungs-Log</div>
-        <textarea id="gen-log" class="gen-log-area" readonly spellcheck="false"></textarea>
-        <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
-          <button class="gen-log-copy" id="gen-log-copy-btn">Kopieren</button>
-          <span id="gen-log-copy-ok" style="display:none;font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:var(--acc)">✓ In Zwischenablage</span>
+      <div class="bottom-panel" id="bottom-panel" style="display:none">
+        <div class="sp-section" id="gen-log-section">
+          <div class="sp-section-title">● Generierungs-Log</div>
+          <textarea id="gen-log" class="gen-log-area" readonly spellcheck="false"></textarea>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
+            <button class="gen-log-copy" id="gen-log-copy-btn">Kopieren</button>
+            <span id="gen-log-copy-ok" style="display:none;font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:var(--acc)">✓ In Zwischenablage</span>
+          </div>
+        </div>
+        <div class="genre-space-section" id="genre-space-section">
+          <div class="sp-section-title">● Genre Space</div>
+          <canvas id="genre-space-canvas"></canvas>
         </div>
       </div>
     </div>

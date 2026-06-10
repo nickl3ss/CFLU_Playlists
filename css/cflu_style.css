@@ -223,6 +223,18 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
 .gen-log-copy{background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;font-family:var(--ff-ui);font-size:var(--fz-md);font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:6px 16px;transition:all .15s}
 .gen-log-copy:hover{border-color:var(--acc);color:var(--acc)}
 
+/* ===== BOTTOM PANEL (log + genre space) ===== */
+.bottom-panel{display:flex;gap:16px;align-items:flex-start;margin-bottom:16px}
+.bottom-panel>.sp-section{flex:0 0 280px;margin-bottom:0}
+.genre-space-section{flex:1;min-width:0;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;min-height:360px}
+#genre-space-canvas{display:block;width:100%;flex:1;min-height:300px;border-radius:6px;cursor:grab}
+#genre-space-canvas:active{cursor:grabbing}
+
+/* ===== GENRE SPACE TOOLTIP ===== */
+.gs-tooltip{position:absolute;pointer-events:none;background:rgba(10,10,10,.88);border:1px solid var(--border);border-radius:6px;padding:8px 11px;font-family:var(--ff-ui);font-size:var(--fz-xs);line-height:1.5;color:var(--text);max-width:220px;word-break:break-word;z-index:50;backdrop-filter:blur(4px)}
+.gs-tt-artist{color:var(--text3);font-size:var(--fz-2xs)}
+.gs-tt-sep{border:none;border-top:1px solid var(--border);margin:4px 0}
+
 /* ===== RIGHT PANEL ===== */
 .right-panel{position:fixed;right:0;top:0;width:420px;height:100vh;background:var(--bg2);border-left:1px solid var(--border);transform:translateX(100%);transition:transform .25s ease;z-index:200;display:flex;flex-direction:column}
 .right-panel--open{transform:translateX(0)}

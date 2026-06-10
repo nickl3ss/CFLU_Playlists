@@ -10,6 +10,7 @@ import { getAllTracks, getPool, getPhasePool, getPhasePoolWithNeighbours, getGen
          buildPlateau, buildDecreasing, buildAlternating } from './algorithm.js';
 import { drawChart, highlightFromRow, clearHighlight } from './chart.js';
 import { spotifyLogin, spotifyLogout, checkSpotifyCallback, exportPlaylist } from './spotify.js';
+import { initGenreSpace, updatePlaylistMode } from './genre_space.js';
 
 // ===== SLIDER UI =====
 function updateSliderStyle(slider, stops, minV, maxV) {
@@ -746,12 +747,18 @@ function renderResult(genre, wod, cd, warns, logText) {
   document.getElementById('csv-export-btn').style.display = 'block';
 
   document.getElementById('gen-log').value = logText || '';
-  document.getElementById('gen-log-section').style.display = '';
+  document.getElementById('bottom-panel').style.display = '';
 
   state.bpmChartData = [...wod, ...cd];
   document.getElementById('empty-state').classList.add('hidden');
   document.getElementById('result-area').classList.remove('hidden');
-  requestAnimationFrame(() => drawChart(wod.length));
+  requestAnimationFrame(() => {
+    drawChart(wod.length);
+    // Genre space: init on first render (canvas has real dimensions after panel is shown)
+    const gsCanvas = document.getElementById('genre-space-canvas');
+    if (gsCanvas) initGenreSpace(gsCanvas);
+    updatePlaylistMode(wod);
+  });
 }
 
 function exportCsv() {
@@ -934,6 +941,7 @@ function init() {
 
   // Default phase
   onPhaseSelect('C');
+
 
   // Spotify callback — if returning from OAuth, skip the login modal
   const urlParams = new URLSearchParams(window.location.search);

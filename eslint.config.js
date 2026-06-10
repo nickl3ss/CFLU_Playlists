@@ -1,6 +1,7 @@
 import js from '@eslint/js';
 
 export default [
+  { ignores: ['js/vendor/**'] },
   js.configs.recommended,
   {
     files: ['js/**/*.js'],
@@ -17,8 +18,10 @@ export default [
         crypto: 'readonly', btoa: 'readonly', atob: 'readonly', TextEncoder: 'readonly',
         setTimeout: 'readonly', clearTimeout: 'readonly', requestAnimationFrame: 'readonly',
         alert: 'readonly', getComputedStyle: 'readonly',
-        // CFLU global (loaded via non-module <script>)
-        TRACK_DATA: 'readonly',
+        // CFLU globals (loaded via non-module <script>)
+        TRACK_DATA: 'readonly', GENRE_MAP: 'readonly',
+        // Browser APIs
+        ResizeObserver: 'readonly',
       },
     },
     rules: {

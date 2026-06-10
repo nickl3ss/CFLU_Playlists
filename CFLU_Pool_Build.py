@@ -32,6 +32,7 @@ from collections import defaultdict
 # ===== KONFIGURATION =====
 PLAYLISTS_DIR = 'Playlists'
 OUTPUT_FILE = 'cflu_tracks.js'
+_GENRES_OUTPUT_FILE = 'cflu_genres.js'
 GERMAN_GENRES = ['Deutsche Musik']
 _EVERYNOISE_CSV = pathlib.Path(__file__).parent / 'data' / 'everynoise_genre_attrs.csv'
 
@@ -936,6 +937,60 @@ def tag_genres_ai(tracks):
     return tagged
 
 
+# ===== GENRE MAP — Everynoise masterdata for browser =====
+def generate_genre_map():
+    """Writes cflu_genres.js: const GENRE_MAP with all Everynoise genres.
+    Each entry: {x, y, r, g, b, z} — x/y normalised 0–1; z=luminance(ITU-R BT.601).
+    Skips gracefully if everynoise CSV absent."""
+    if not _EVERYNOISE_CSV.exists():
+        print(f'  cflu_genres.js      : Everynoise CSV nicht gefunden — übersprungen')
+        return
+
+    rows = []
+    with open(_EVERYNOISE_CSV, encoding='utf-8', newline='') as f:
+        for row in csv.DictReader(f):
+            name = row.get('genre', '').strip().lower()
+            hex_col = row.get('hex_colour', '').strip()
+            if not name or len(hex_col) != 7:
+                continue
+            try:
+                x = float(row.get('x', 0))
+                y = float(row.get('y', 0))
+                r = int(hex_col[1:3], 16)
+                g = int(hex_col[3:5], 16)
+                b = int(hex_col[5:7], 16)
+            except (ValueError, IndexError):
+                continue
+            rows.append({'name': name, 'x': x, 'y': y, 'r': r, 'g': g, 'b': b})
+
+    if not rows:
+        print('  cflu_genres.js      : Keine verwertbaren Zeilen in CSV')
+        return
+
+    xs = [row['x'] for row in rows]
+    ys = [row['y'] for row in rows]
+    min_x, max_x = min(xs), max(xs)
+    min_y, max_y = min(ys), max(ys)
+    x_range = max_x - min_x or 1.0
+    y_range = max_y - min_y or 1.0
+
+    entries = []
+    for row in rows:
+        nx = round((row['x'] - min_x) / x_range, 4)
+        ny = round((row['y'] - min_y) / y_range, 4)
+        z  = round(0.21 * row['r'] + 0.72 * row['g'] + 0.07 * row['b'])
+        name_json = json.dumps(row['name'], ensure_ascii=False)
+        entries.append(
+            f'{name_json}:{{x:{nx},y:{ny},r:{row["r"]},g:{row["g"]},b:{row["b"]},z:{z}}}'
+        )
+
+    content = 'const GENRE_MAP={' + ','.join(entries) + '};\n'
+    with open(_GENRES_OUTPUT_FILE, 'w', encoding='utf-8') as f:
+        f.write(content)
+    kb = len(content.encode('utf-8')) // 1024
+    print(f'  cflu_genres.js      : {len(rows)} Genres geschrieben ({kb} KB)')
+
+
 # ===== R — REKLASSIFIZIERUNG (kein CSV-Import) =====
 def _reclassify_only(reclassify_ai=False):
     """
@@ -1015,6 +1070,7 @@ def _reclassify_only(reclassify_ai=False):
 
     kb = len(file_content.encode('utf-8')) // 1024
     print(f'\ncflu_tracks.js geschrieben ({kb} KB, {len(tracks)} Tracks)')
+    generate_genre_map()
     print('\nGenre-Verteilung:')
     gc = defaultdict(int)
     for t in tracks:
@@ -1112,6 +1168,7 @@ def build(rebuild=False, reclassify_ai=False):
 
     kb = len(file_content.encode('utf-8')) // 1024
     print(f'\ncflu_tracks.js geschrieben ({kb} KB, {len(tracks)} Tracks)')
+    generate_genre_map()
     print('\nGenre-Verteilung:')
     gc = defaultdict(int)
     for t in tracks:

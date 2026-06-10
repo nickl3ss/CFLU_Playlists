@@ -67,6 +67,7 @@ app.js (importiert alle Module, verdrahtet Events)
 | 10 | `open_genre`-State-Machine für Genre-Herkunft | Spotify liefert Genres nur auf Artist-Ebene — manche Tracks haben keine Genres (z. B. wenig bekannte Künstler, Remixe mit anderer Artist-ID). Statt diese Tracks zu verwerfen, wird der Herkunftszustand in `open_genre` getrackt und schrittweise verbessert: Vererbung → AI → Manuell. Reherstelungssicherheit durch Preserve-Logik in `merge()`. | 2026-06-08 |
 | 11 | ETL: [C] Cleanup vor [G] Genre-Vererbung und [A] AI-Genre | Doubletten-Entfernung läuft zuerst, damit kein Claude-Haiku-API-Call auf Tracks verschwendet wird, die anschließend durch Dedup entfernt werden — spart Kosten und Zeit. | 2026-06-09 |
 | 12 | `genres_raw[0]` als Proxy für das entscheidende Genre-Tag | `classify()` speichert nicht, welcher `genres_raw`-Tag die Klassifikation ausgelöst hat. `genres_raw[0]` wird als Näherung für die Farb- und Fett-Darstellung im UI verwendet. Für AI-klassifizierte Tracks (`open_genre=2`) ist dies exakt. Issue #122 verfolgt die saubere Lösung. | 2026-06-09 |
+| 13 | Three.js vendored in `js/vendor/` statt CDN | CSP (`script-src 'self'`) blockiert externe Skript-Domains; vendored Dateien erhalten die Offline-Fähigkeit (Key Invariant 8) ohne CSP-Änderungen. `OrbitControls.js` einmalig gepatcht: `from 'three'` → `from './three.module.min.js'`. | 2026-06-10 |
 
 ---
 
@@ -81,6 +82,44 @@ app.js (importiert alle Module, verdrahtet Events)
 ## Changelog
 
 Offene Items → GitHub Issues (https://github.com/nickl3ss/CFLU_Playlists/issues)
+
+### 2026-06-10 — Genre Space 3D star map (#133, #134)
+
+#### `CFLU_Pool_Build.py` — `generate_genre_map()` (#133)
+
+- New function writes `cflu_genres.js` (non-module global `const GENRE_MAP`) after every build/reclassify run
+- All 5 453 Everynoise subgenres; `x`/`y` normalised 0–1; `z` = luminance (`0.21R + 0.72G + 0.07B`); raw `r`, `g`, `b` preserved for colour
+- Skips gracefully if `data/everynoise_genre_attrs.csv` is absent
+
+#### `js/genre_space.js` (new) · `js/vendor/` (new) (#134)
+
+- Three.js r165 vendored locally (`js/vendor/three.module.min.js` + `OrbitControls.js`); ADR 13
+- `initGenreSpace(canvas)` — idempotent; builds 5 453-point star field with custom ShaderMaterial (glow, additive blending); star size ∝ pool track count for that subgenre
+- `updatePlaylistMode(wod)` — groups `wod` by `genres_raw[0]`; adds playlist markers (avg_color coloured), sequence line, cubic-ease camera zoom to bbox
+- `clearPlaylistMode()` — removes all playlist objects
+- Hover on a genre star → tooltip listing all playlist songs at that star; bidirectional sync with track table via `highlightFromRow`
+- No tooltip before playlist generation (star map only)
+- Module contract: reads `state`, `GENRE_MAP`, `TRACK_DATA`; writes canvas only; no Spotify, no generation logic
+
+#### `CFLU_WOD_Builder.html`
+
+- `cflu_genres.js` loaded as non-module `<script>` before `cflu_tracks.js`
+- `#gen-log-section` + new `#genre-space-section` wrapped in `#bottom-panel` (side-by-side flex)
+
+#### `css/cflu_style.css`
+
+- `.bottom-panel` flex row layout; `.genre-space-section` fills remaining width; `.gs-tooltip` overlay
+
+#### `js/app.js`
+
+- Imports `initGenreSpace`, `updatePlaylistMode` from `./genre_space.js`
+- `renderResult()`: calls `initGenreSpace` (lazy, first render) then `updatePlaylistMode(wod)` in same rAF; shows `#bottom-panel` instead of `#gen-log-section`
+
+#### `eslint.config.js`
+
+- `js/vendor/**` added to ignores; `GENRE_MAP` and `ResizeObserver` added to globals
+
+---
 
 ### 2026-06-09 — BPM Slider: phasen-aware Farben, Smooth Gradient, Hint-Text (#130, #131)
 
