@@ -29,6 +29,7 @@
 ├── cflu.service                # systemd user-service for Linux auto-start
 ├── docs/
 │   ├── PROJECT.md              # Architecture, ADRs, changelog, Key Invariants
+│   ├── TESTING.md              # Manual + regression test protocol (updated per commit)
 │   └── references/             # Background research — WOD music theory, genre network analysis
 │       ├── WODability_Playlist-WodMusicTheory.md
 │       ├── Genre_MatchingTheory.md
@@ -197,6 +198,10 @@ Do **not** skip with `--no-verify`.
 
 **D4 · Tests:**
 Update or create test cases in `js/cflu_tests.js` for any new or changed behaviour.
+If the change affects user-visible behaviour, update `docs/TESTING.md`:
+- Add steps to **New Since Last Push** if a feature was added or changed
+- Revise **Regression Suite** if an existing step no longer applies
+Commit the `docs/TESTING.md` update in the same commit as the code change.
 
 **D5 · Close — Acceptance Criteria review:**
 Before closing, re-read the issue's `Akzeptanzkriterium`. Post a close comment listing each criterion as ✓ or ✗. Only close if all ✓.
@@ -222,6 +227,42 @@ gh issue close <nr> --reason "completed" --comment "AC: ✓ ... ✓ ... ✓ ..."
 - Commits: `<type>(<scope>): <what>` — e.g. `feat(algorithm): add plateau builder`
 - Types: `feat` · `fix` · `test` · `docs` · `chore`
 - No commit without green tests (Step D3).
+
+---
+
+## Step E · Push Gate
+
+### E1 · Push Prompt
+After any change that touches a core module (`algorithm.js`, `state.js`, `spotify.js`, `cflu_server.py`, `cflu_tracks.js`, `genres.js`, `CFLU_Pool_Build.py`) or closes a `P1`/`P2` issue, ask:
+> "Significant change done. Push to origin?"
+
+### E2 · Pre-Push Audit (runs when push is confirmed)
+Three personas review the diff + project state and each produce a finding list:
+
+**ME — The German Mechanical Engineer**
+Engineering excellence, latest SE patterns, CI rigor, clean architecture. Never satisfied.
+Flags: code smells, missing abstraction, untested paths, doc gaps, outdated patterns.
+
+**PhD — The Mathematical PhD (aspiring EE)**
+Calm and precise. Data protection, algorithmic correctness, edge-case coverage, optimization.
+Flags: unsound logic, missing guards, informal contracts, privacy leaks, inefficient paths.
+
+**UX — The Chill Non-IT User**
+Uses the app, not the code.
+Flags: confusing labels, missing feedback, broken flows, ergonomic friction, visual inconsistency.
+
+Each finding is classified:
+- **Quick Win** → fix immediately; include in this push before `git push`
+- **Issue** → `gh issue create` with standard template, assign to CFLUPlaylist-Local project
+
+### E3 · Post-Push Test Request
+After push + quick wins applied, send:
+> "Push done. Please test — steps in `docs/TESTING.md`."
+
+Present the **New Since Last Push** section from `docs/TESTING.md` as the active test list, followed by the **Regression Suite** summary.
+
+After user confirms testing is done, clear the **New Since Last Push** section and commit:
+`docs(testing): clear new-features section after confirmed test`
 
 ---
 
