@@ -270,15 +270,8 @@
 
 <!-- ===== MAIN ===== -->
 <main class="main">
-  <div id="empty-state" class="empty-state" style="flex:1">
-    <div class="icon">🎵</div>
-    <h2>Playlist Builder</h2>
-    <p>Song wählen, Position bestimmen, Einstellungen konfigurieren und auf Generieren klicken.</p>
-    <p id="pool-info" style="margin-top:10px;font-family:'IBM Plex Mono',monospace;font-size:.68rem;color:var(--text3)"></p>
-  </div>
-
-  <div id="result-area" class="hidden" style="display:flex;flex-direction:column;height:100%;overflow:hidden">
-    <div class="main-top">
+  <div id="result-area" style="display:flex;flex-direction:column;height:100%;overflow:hidden;position:relative">
+    <div class="main-top" id="main-top" style="display:none">
       <div class="result-name-row">
         <input type="text" class="result-name" id="pl-name" placeholder="Playlist Name...">
       </div>
@@ -311,20 +304,21 @@
         </div>
       </div>
 
-      <div class="bottom-panel" id="bottom-panel" style="display:none">
-        <div class="sp-section" id="gen-log-section">
-          <div class="sp-section-title">● Generierungs-Log</div>
-          <textarea id="gen-log" class="gen-log-area" readonly spellcheck="false"></textarea>
-          <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
-            <button class="gen-log-copy" id="gen-log-copy-btn">Kopieren</button>
-            <span id="gen-log-copy-ok" style="display:none;font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:var(--acc)">✓ In Zwischenablage</span>
-          </div>
-        </div>
-        <div class="genre-space-section" id="genre-space-section">
-          <div class="sp-section-title">● Genre Space</div>
-          <canvas id="genre-space-canvas"></canvas>
+    </div>
+
+    <div class="bottom-panel" id="bottom-panel" style="display:none">
+      <div class="sp-section" id="gen-log-section">
+        <div class="sp-section-title">● Generierungs-Log</div>
+        <textarea id="gen-log" class="gen-log-area" readonly spellcheck="false"></textarea>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
+          <button class="gen-log-copy" id="gen-log-copy-btn">Kopieren</button>
+          <span id="gen-log-copy-ok" style="display:none;font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:var(--acc)">✓ In Zwischenablage</span>
         </div>
       </div>
+    </div>
+    <div class="genre-space-section genre-space--full" id="genre-space-section">
+      <div class="sp-section-title">● Genre Space <span id="pool-info" style="margin-left:4px;font-size:var(--fz-2xs);color:var(--text3);font-family:var(--ff-mono);font-weight:400;letter-spacing:normal;text-transform:none"></span></div>
+      <canvas id="genre-space-canvas"></canvas>
     </div>
   </div>
 </main>

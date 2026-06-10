@@ -15,6 +15,7 @@ let _raycaster = null, _mouse = null;
 let _genreToTracks = new Map();
 // parallel array to starPoints attribute positions: maps index → genre name
 let _starNames = [];
+let _zMin = 0, _zRange = 1;
 let _initialized = false;
 
 export function initGenreSpace(canvasEl) {
@@ -25,8 +26,8 @@ export function initGenreSpace(canvasEl) {
   _scene = new THREE.Scene();
   _scene.background = new THREE.Color(0x000000);
 
-  const w = canvasEl.clientWidth  || 400;
-  const h = canvasEl.clientHeight || 300;
+  const w = canvasEl.clientWidth  || 480;
+  const h = canvasEl.clientHeight || 480;
 
   _camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 1000);
   _camera.position.set(0, 0, 28);
@@ -56,13 +57,22 @@ export function initGenreSpace(canvasEl) {
   canvasEl.addEventListener('mousemove', _onMouseMove);
   canvasEl.addEventListener('mouseleave', _onMouseLeave);
 
-  new ResizeObserver(_onResize).observe(canvasEl.parentElement);
+  new ResizeObserver(_onResize).observe(canvasEl);
 
   _initialized = true;
   _animate();
 }
 
 function _buildStarField() {
+  // Compute z min/max for cube-uniform normalization (x and y are already 0–1)
+  let zMin = Infinity, zMax = -Infinity;
+  for (const g of Object.values(GENRE_MAP)) {
+    if (g.z < zMin) zMin = g.z;
+    if (g.z > zMax) zMax = g.z;
+  }
+  _zMin = zMin;
+  _zRange = (zMax - zMin) || 1;
+
   // Count pool tracks per Everynoise subgenre
   const genreCount = new Map();
   for (const t of TRACK_DATA.tracks) {
@@ -86,7 +96,7 @@ function _buildStarField() {
 
     positions[i * 3]     = (g.x - 0.5) * SCALE;
     positions[i * 3 + 1] = (g.y - 0.5) * SCALE;
-    positions[i * 3 + 2] = (g.z / 255 - 0.5) * SCALE;
+    positions[i * 3 + 2] = ((g.z - _zMin) / _zRange - 0.5) * SCALE;
 
     colors[i * 3]     = g.r / 255;
     colors[i * 3 + 1] = g.g / 255;
@@ -119,8 +129,8 @@ function _buildStarField() {
       void main() {
         float d = length(gl_PointCoord - vec2(0.5));
         if (d > 0.5) discard;
-        float a = 1.0 - smoothstep(0.1, 0.5, d);
-        gl_FragColor = vec4(vColor, a * 0.85);
+        float a = 1.0 - smoothstep(0.38, 0.5, d);
+        gl_FragColor = vec4(vColor, a);
       }
     `,
     transparent: true,
@@ -150,7 +160,7 @@ export function updatePlaylistMode(wod) {
     lineVerts.push(new THREE.Vector3(
       (gd.x - 0.5) * SCALE,
       (gd.y - 0.5) * SCALE,
-      (gd.z / 255 - 0.5) * SCALE,
+      ((gd.z - _zMin) / _zRange - 0.5) * SCALE,
     ));
   }
 
@@ -175,7 +185,7 @@ export function updatePlaylistMode(wod) {
     const col = _avgColor(tracks.map(t => t.avg_color).filter(Boolean));
     mPos[i * 3]     = (gd.x - 0.5) * SCALE;
     mPos[i * 3 + 1] = (gd.y - 0.5) * SCALE;
-    mPos[i * 3 + 2] = (gd.z / 255 - 0.5) * SCALE;
+    mPos[i * 3 + 2] = ((gd.z - _zMin) / _zRange - 0.5) * SCALE;
     mColors[i * 3]     = col.r / 255;
     mColors[i * 3 + 1] = col.g / 255;
     mColors[i * 3 + 2] = col.b / 255;
@@ -204,7 +214,7 @@ export function updatePlaylistMode(wod) {
       void main() {
         float d = length(gl_PointCoord - vec2(0.5));
         if (d > 0.5) discard;
-        float a = 1.0 - smoothstep(0.15, 0.5, d);
+        float a = 1.0 - smoothstep(0.35, 0.5, d);
         gl_FragColor = vec4(vColor, a);
       }
     `,
@@ -228,6 +238,8 @@ export function updatePlaylistMode(wod) {
 export function clearPlaylistMode() {
   _clearPlaylistObjects();
 }
+
+export function resizeGenreSpace() { _onResize(); }
 
 // ===== INTERNALS =====
 
@@ -310,9 +322,8 @@ function _onMouseLeave() {
 
 function _onResize() {
   if (!_canvas || !_renderer || !_camera) return;
-  const wrap = _canvas.parentElement;
-  const w = wrap.clientWidth;
-  const h = wrap.clientHeight;
+  const w = _canvas.clientWidth;
+  const h = _canvas.clientHeight;
   if (!w || !h) return;
   _camera.aspect = w / h;
   _camera.updateProjectionMatrix();

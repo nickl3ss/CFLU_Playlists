@@ -1,0 +1,48 @@
+
+FAR LEFT  (dense/atmospheric)
+  [0.035, 0.231]  Raindrops On A Rainy Day // Organic Nature Sounds
+  tags: environmental, ocean
+  [0.077, 0.493]  Hardcore Woke Cop // Ancestral Sin
+  tags: grindcore
+
+FAR RIGHT (spiky/bouncy)
+  [0.899, 0.970]  Highway To Hell // Dian Solo
+  tags: bulgarian electronic
+  [0.870, 0.968]  Truth Hurts - CID Remix // Lizzo, CID
+  tags: tech house
+
+FAR BOTTOM (organic/acoustic)
+  [0.615, 0.098]  Music Was My First Love (Vocal Version) // The Magic Orchestra
+  tags: tango
+  [0.609, 0.143]  My Favorite Story // Blue Eyes Black
+  tags: indonesischer jazz
+
+FAR TOP   (mechanical/electronic)
+  [0.760, 0.977]  Loca // Acina
+  tags: hard techno
+  [0.760, 0.977]  All Day All Night // Anika, LEYDON
+  tags: hypertechno, hard techno
+
+TOP-LEFT   (mechanical+dense)
+  [0.137, 0.759]  Lose Yourself // Sharks In Your Mouth
+  tags: metalcore
+  [0.137, 0.759]  Confetti // Nick Nasty
+  tags: metalcore
+
+TOP-RIGHT  (mechanical+spiky)
+  [0.899, 0.970]  Highway To Hell // Dian Solo
+  tags: bulgarian electronic
+  [0.870, 0.968]  Truth Hurts - CID Remix // Lizzo, CID
+  tags: tech house
+
+BTM-LEFT   (organic+dense)
+  [0.035, 0.231]  Raindrops On A Rainy Day // Organic Nature Sounds
+  tags: environmental, ocean
+  [0.149, 0.251]  Now We Are Free // Hans Zimmer, Klaus Badelt, Lisa Gerrard, Gavin Greenaway, The Lyndhurst Orchestra
+  tags: soundtrack, filmmusik
+
+BTM-RIGHT  (organic+spiky)
+  [0.795, 0.249]  Mein bester Freund // Otto Waalkes
+  tags: kabarett
+  [0.680, 0.156]  Party All the Time // Eddie Murphy
+  tags: comedy

@@ -10,7 +10,7 @@ import { getAllTracks, getPool, getPhasePool, getPhasePoolWithNeighbours, getGen
          buildPlateau, buildDecreasing, buildAlternating } from './algorithm.js';
 import { drawChart, highlightFromRow, clearHighlight } from './chart.js';
 import { spotifyLogin, spotifyLogout, checkSpotifyCallback, exportPlaylist } from './spotify.js';
-import { initGenreSpace, updatePlaylistMode } from './genre_space.js';
+import { initGenreSpace, updatePlaylistMode, resizeGenreSpace } from './genre_space.js';
 
 // ===== SLIDER UI =====
 function updateSliderStyle(slider, stops, minV, maxV) {
@@ -747,14 +747,19 @@ function renderResult(genre, wod, cd, warns, logText) {
   document.getElementById('csv-export-btn').style.display = 'block';
 
   document.getElementById('gen-log').value = logText || '';
-  document.getElementById('bottom-panel').style.display = '';
+
+  // Switch genre space from full-screen mode to compact square next to gen-log
+  const gsSection = document.getElementById('genre-space-section');
+  gsSection.classList.remove('genre-space--full');
+  gsSection.classList.add('genre-space--compact');
+
+  document.getElementById('main-top').style.display = '';
+  document.getElementById('gen-log-section').style.display = '';
 
   state.bpmChartData = [...wod, ...cd];
-  document.getElementById('empty-state').classList.add('hidden');
-  document.getElementById('result-area').classList.remove('hidden');
   requestAnimationFrame(() => {
     drawChart(wod.length);
-    // Genre space: init on first render (canvas has real dimensions after panel is shown)
+    resizeGenreSpace();
     const gsCanvas = document.getElementById('genre-space-canvas');
     if (gsCanvas) initGenreSpace(gsCanvas);
     updatePlaylistMode(wod);
@@ -983,6 +988,12 @@ function init() {
     poolInfoEl.style.color = 'var(--acc)';
     setTimeout(() => { poolInfoEl.style.color = ''; poolInfoEl.textContent = poolInfoEl.textContent.replace(' · ✓ Pool aktualisiert', ''); }, 4000);
   }
+
+  // Init genre space on page load — canvas is always visible
+  requestAnimationFrame(() => {
+    const gsCanvas = document.getElementById('genre-space-canvas');
+    if (gsCanvas) initGenreSpace(gsCanvas);
+  });
 
   // Pre-fill Client ID from local file, then show login modal (unless OAuth callback or pool reload)
   fetch('cflu_client_id.txt')
