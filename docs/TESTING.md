@@ -10,6 +10,19 @@
 
 ## New Since Last Push
 
+### N4 · BPM-Sprung Slider — Extended Range
+
+| # | Step | Expected |
+|---|------|----------|
+| N4-1 | Open sidebar (before generating) | Max. BPM-Sprung slider shows range label "0" on the left and "+20" on the right |
+| N4-2 | Drag slider to leftmost position (value 0) | Badge shows "0", display shows "0 BPM", hint says "Kein Sprung — exakte BPM-Folge", slider track is solid green |
+| N4-3 | Drag to value 5 | Badge "+5", hint "Standard ✓ (DJ-Norm ≤5 BPM)", slider green |
+| N4-4 | Drag to value 10 | Badge "+10", hint "Sprunghaft — Übergänge hörbar", slider yellow/orange |
+| N4-5 | Drag to value 20 | Badge "+20", hint "Harte Sprünge möglich", slider red |
+| N4-6 | Load app fresh (Phase C selected) | Slider defaults to its phase maxJumpDefault; colour matches the value |
+
+---
+
 ### N1 · Genre Space — Start Screen
 
 | # | Step | Expected |

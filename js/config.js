@@ -69,9 +69,9 @@ export function bpmStopsForPhase(phase) {
   if (bHi < SMAX) { stops.push({p: 1, ...RED}); }  // YEL fades into RED at acceptable-zone end
   return stops;
 }
-// Green = 5-8 BPM (DJ-Norm ≤5%), Yellow = 8-12 BPM, Red = >12 BPM (range 5-20)
+// Green = 0-8 BPM (DJ-Norm ≤5 BPM + buffer), Yellow = 8-12 BPM, Red = >12 BPM (range 0-20)
 export const JUMP_STOPS = [
-  {p:0,...GRN},{p:.2,...GRN},{p:.27,...YEL},{p:.47,...YEL},{p:.53,...RED},{p:1,...RED},
+  {p:0,...GRN},{p:.4,...GRN},{p:.45,...YEL},{p:.6,...YEL},{p:.65,...RED},{p:1,...RED},
 ];
 
 export const CAM_COLOR = {green:'#1db954',yellow:'#f7c948',red:'#f15e6c',unknown:'#535353'};

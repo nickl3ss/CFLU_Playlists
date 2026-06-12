@@ -24,6 +24,7 @@ function updateSliderStyle(slider, stops, minV, maxV) {
 }
 
 function jumpHint(v) {
+  if (v === 0) return 'Kein Sprung — exakte BPM-Folge';
   if (v <= 5) return 'Standard ✓ (DJ-Norm ≤5 BPM)';
   if (v <= 8) return 'Akzeptabel (≤5 % bei 160 BPM)';
   if (v <= 12) return 'Sprunghaft — Übergänge hörbar';
@@ -418,10 +419,11 @@ function onXfadeSlider(el) {
   document.getElementById('xfade-badge').textContent = el.value + ' s';
 }
 function onJumpSlider(el) {
-  const c = updateSliderStyle(el, JUMP_STOPS, 5, 20);
+  const c = updateSliderStyle(el, JUMP_STOPS, 0, 20);
   state.maxJump = +el.value;
-  document.getElementById('jump-badge').textContent = '+' + el.value;
-  document.getElementById('jump-val-display').textContent = '+' + el.value + ' BPM';
+  const v = +el.value;
+  document.getElementById('jump-badge').textContent = v === 0 ? '0' : '+' + v;
+  document.getElementById('jump-val-display').textContent = v === 0 ? '0 BPM' : '+' + v + ' BPM';
   document.getElementById('jump-val-display').style.color = toHex(c);
   document.getElementById('jump-hint-display').textContent = jumpHint(+el.value);
 }
@@ -933,7 +935,7 @@ function init() {
   });
 
   // Init slider styles — jump slider must be painted explicitly; bpm-slider is painted by onPhaseSelect('C') below
-  updateSliderStyle(document.getElementById('jump-slider'), JUMP_STOPS, 5, 20);
+  updateSliderStyle(document.getElementById('jump-slider'), JUMP_STOPS, 0, 20);
 
   // Populate genre dropdowns from track data (must run before onPhaseSelect reads the select)
   _initGenreDropdowns();
