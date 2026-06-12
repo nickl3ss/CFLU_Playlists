@@ -4,7 +4,7 @@ import { PHASE_CONFIG, MIN_POOL_SIZE,
          bpmStopsForPhase } from './config.js';
 import { getNeighbours } from './genres.js';
 import { state } from './state.js';
-import { titleKey, fmtDur, fmtMin, lerpColor, toHex, camCompat, calcPhaseScore, bpmHint } from './utils.js';
+import { titleKey, fmtDur, fmtMin, lerpColor, toHex, camCompat, calcPhaseScore, bpmHint, effectiveBpm, isHalfDouble } from './utils.js';
 import { getAllTracks, getPool, getPhasePool, getPhasePoolWithNeighbours, getGenreStats,
          registerTrack, addTrack, pickNext, buildUp, buildDown,
          buildPlateau, buildDecreasing, buildAlternating } from './algorithm.js';
@@ -163,6 +163,7 @@ function onPhaseSelect(phase) {
   updateFilterList();
   updateAmpel();
   checkPoolAndWarn();
+  checkRefBpmAndWarn();
 }
 
 function checkPoolAndWarn() {
@@ -177,6 +178,23 @@ function checkPoolAndWarn() {
   } else {
     warn.style.display = 'none';
   }
+}
+
+function checkRefBpmAndWarn() {
+  const warn = document.getElementById('ref-bpm-warn');
+  const ref = state.selectedTrack;
+  if (!ref || !ref.bpm) { warn.style.display = 'none'; return; }
+  const cfg = PHASE_CONFIG[state.currentPhase];
+  if (!cfg) { warn.style.display = 'none'; return; }
+  const [lo, hi] = cfg.bpm;
+  if (ref.bpm >= lo && ref.bpm <= hi) { warn.style.display = 'none'; return; }
+  const effBpm = effectiveBpm(ref.bpm, state.currentPhase);
+  if (effBpm >= lo && effBpm <= hi) {
+    warn.textContent = `ℹ Referenz-Song (${ref.bpm} BPM) liegt außerhalb Phase ${state.currentPhase} [${lo}–${hi} BPM], wird als ${effBpm} BPM gewertet (log2).`;
+  } else {
+    warn.textContent = `⚠ Referenz-Song (${ref.bpm} BPM) liegt außerhalb Phase ${state.currentPhase} [${lo}–${hi} BPM]. Playlist-Qualität eingeschränkt.`;
+  }
+  warn.style.display = 'block';
 }
 
 // ===== SELECTION MODE =====
@@ -337,6 +355,7 @@ function selectTrack(t, external = false) {
   enableSteps();
   updateAmpel();
   updateGenBtn();
+  checkRefBpmAndWarn();
 }
 
 function enableSteps() {
@@ -494,7 +513,12 @@ function buildGenLog(genre, wod, cd, warnMsgs) {
   add('-'.repeat(100));
   wod.forEach((t, i) => {
     const prev  = i > 0 ? wod[i - 1] : null;
-    const delta = prev ? ((t.bpm >= prev.bpm ? '+' : '') + (t.bpm - prev.bpm)) : 'REF';
+    let delta = 'REF';
+    if (prev) {
+      const rawD = (t.bpm >= prev.bpm ? '+' : '') + (t.bpm - prev.bpm);
+      const hd   = isHalfDouble(prev.bpm, t.bpm);
+      delta = rawD + (hd ? (t.bpm < prev.bpm ? '÷2' : '×2') : '');
+    }
     const cc    = prev ? camCompat(prev.camelot, t.camelot) : null;
     const ccSym = cc === 'green' ? '+' : cc === 'yellow' ? '~' : cc === 'red' ? '-' : ' ';
     const camStr = pad((t.camelot || '—') + ' ' + ccSym, 5);
@@ -508,8 +532,7 @@ function buildGenLog(genre, wod, cd, warnMsgs) {
       if      (cc === 'green')  reason = 'Camelot +' + zone;
       else if (cc === 'yellow') reason = 'Camelot ~';
       else {
-        reason = 'Fallback (BPM-Eskalation)';
-        if (prev && t.bpm <= prev.bpm) reason += '  ⚠ kein BPM-Fortschritt';
+        reason = 'Camelot -';
       }
     }
     if (t.genre) reason += (reason ? '  | ' : '') + `Genre: ${t.genre}${!isRef && t.genre !== genre ? ' (Fallback)' : ''}`;
@@ -580,8 +603,23 @@ function _gen() {
     ? targetSec + Math.max(0, estTracks - 1) * crossfadeSec
     : targetSec;
   const usedIds = new Set(), usedTitleKeys = new Set(), usedArtists = new Map();
+  const warnMsgs = [];
   let wod = [];
   const ref = state.selectedTrack;
+
+  // Warn if reference BPM is outside the phase's acceptable range
+  {
+    const cfg = PHASE_CONFIG[state.currentPhase];
+    const [lo, hi] = cfg.bpm;
+    if (ref.bpm < lo || ref.bpm > hi) {
+      const effBpm = effectiveBpm(ref.bpm, state.currentPhase);
+      if (effBpm >= lo && effBpm <= hi) {
+        warnMsgs.push(`Referenz-Song (${ref.bpm} BPM) liegt außerhalb Phase ${state.currentPhase} [${lo}–${hi} BPM] — als ${effBpm} BPM gewertet (log2).`);
+      } else {
+        warnMsgs.push(`⚠ Referenz-Song (${ref.bpm} BPM) liegt außerhalb Phase ${state.currentPhase} [${lo}–${hi} BPM].`);
+      }
+    }
+  }
 
   if (state.currentPhase === 'A') {
     wod = buildPlateau(pool, ref.bpm, usedIds, usedTitleKeys, usedArtists, rawTargetSec);
@@ -640,7 +678,6 @@ function _gen() {
 
   // Cool-Down
   const cd = [];
-  const warnMsgs = [];
   if (state.cdActive) {
     const maxWodBpm = wod.length ? Math.max(...wod.map(t => t.bpm)) : 100;
     const cdBpmMax = state.currentPhase === 'D' ? Math.floor(maxWodBpm * 0.85) : Math.floor(maxWodBpm * 0.7);

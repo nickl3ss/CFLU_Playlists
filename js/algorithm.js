@@ -85,8 +85,8 @@ function _pick(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carr
     if (calcBpmTransitionScore(cur.bpm, t.bpm, allowLog2) === 0) return false;
     const effCur = effectiveBpm(cur.bpm, currentPhase);
     const effT   = effectiveBpm(t.bpm, currentPhase);
-    if (asc  && effT < effCur) return false;
-    if (!asc && effT > effCur) return false;
+    if (asc  && effT <= effCur) return false;
+    if (!asc && effT >= effCur) return false;
     return true;
   };
 
