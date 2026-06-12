@@ -2,7 +2,7 @@
 // TRACK_DATA accessed lazily — safe to import in Node.js tests without cflu_tracks.js
 import { GERMAN_GENRES, PHASE_CONFIG, CAM_ZONE1, CAM_ZONE2 } from './config.js';
 import { getNeighboursWeighted, getRoleBonus, getSubgenres, bridgeTagsForMain } from './genres.js';
-import { bpmGroup, neighbour, titleKey, titleDuplicate, camStrictOk, camCompat, calcPhaseScore, calcSortScore, isHalfDouble, camelotZoneDistance } from './utils.js';
+import { titleKey, titleDuplicate, camStrictOk, camCompat, calcPhaseScore, calcSortScore, isHalfDouble, calcBpmTransitionScore, effectiveBpm } from './utils.js';
 import { state } from './state.js';
 
 const NEIGHBOUR_BLEND_FACTOR = 0.3;
@@ -76,17 +76,24 @@ function _camLockOk(t) {
 }
 
 function _pick(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carryover, asc) {
-  const { maxJump, wodEnergyMin, wodEnergyMax, currentPhase } = state;
-  const cg = bpmGroup(cur.bpm);
+  const { wodEnergyMin, wodEnergyMax, currentPhase, allowLog2 } = state;
   const maxArtist = Math.max(1, Math.floor(totalTracks * 0.1));
-  const delta = t => asc ? t.bpm - cur.bpm : cur.bpm - t.bpm;
+
+  // BPM gate: score 0.00 = hard exclude within a phase.
+  // Monotonicity: effective BPM (×2/÷2 normalised to phase band) must not reverse direction.
+  const bpmOk = t => {
+    if (calcBpmTransitionScore(cur.bpm, t.bpm, allowLog2) === 0) return false;
+    const effCur = effectiveBpm(cur.bpm, currentPhase);
+    const effT   = effectiveBpm(t.bpm, currentPhase);
+    if (asc  && effT < effCur) return false;
+    if (!asc && effT > effCur) return false;
+    return true;
+  };
 
   const baseOk = t => {
     if (usedIds.has(t.id || t.song)) return false;
     if (t.speech > 66) return false;
-    const d = delta(t);
-    if (d < 0 || d > maxJump) return false;
-    if (!neighbour(cg, bpmGroup(t.bpm))) return false;
+    if (!bpmOk(t)) return false;
     if (titleDuplicate(t.song, usedTitleKeys)) return false;
     const ak = t.artist.split(',')[0].trim().toLowerCase();
     if ((usedArtists.get(ak) || 0) >= maxArtist) return false;
@@ -98,6 +105,7 @@ function _pick(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carr
   const baseOkNoEnergy = t => {
     if (usedIds.has(t.id || t.song)) return false;
     if (t.speech > 66) return false;
+    if (!bpmOk(t)) return false;
     if (titleDuplicate(t.song, usedTitleKeys)) return false;
     const ak = t.artist.split(',')[0].trim().toLowerCase();
     if ((usedArtists.get(ak) || 0) >= maxArtist) return false;
@@ -138,17 +146,15 @@ function _pick(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carr
     cands = applyInnerCamelot(s3);
   }
 
-  // Stufe 4: neighbour main (by weight), with half/double-time BPM bridge along neighbour edges
+  // Stufe 4: neighbour main genre (by weight); energy relaxed for half/double-time matches
   if (!cands.length) {
     for (const nb of getNeighboursWeighted(curGenre)) {
       const s4 = pool.filter(t => {
         if (!baseOkNoEnergy(t)) return false;
         if (t.genre !== nb.mainId) return false;
-        const d = delta(t);
-        const bpmOk = (d >= 0 && d <= maxJump && neighbour(cg, bpmGroup(t.bpm)))
-          || isHalfDouble(cur.bpm, t.bpm);
-        if (!bpmOk) return false;
-        if (!isHalfDouble(cur.bpm, t.bpm) && (t.energy < wodEnergyMin || t.energy > wodEnergyMax)) return false;
+        // Restore energy check unless the track is a half/double-time match
+        const isHD = allowLog2 && isHalfDouble(cur.bpm, t.bpm);
+        if (!isHD && (t.energy < wodEnergyMin || t.energy > wodEnergyMax)) return false;
         return true;
       });
       const s4cam = applyInnerCamelot(s4);
@@ -162,21 +168,6 @@ function _pick(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carr
     cands = applyInnerCamelot(sf);
   }
 
-  // Phase 4: BPM escalation — ignores energy + BPM-group rules; last resort.
-  // ascending: seeks tracks 'extra' BPM ahead (gap jump); descending: expands allowed window.
-  let fromPhase4 = false;
-  if (!cands.length) {
-    for (let extra = 5; extra <= 40; extra += 5) {
-      const dLo = asc ? extra : 0;
-      cands = pool.filter(t => {
-        if (!baseOkNoEnergy(t)) return false;
-        const d = delta(t);
-        if (d < dLo || d > maxJump + extra) return false;
-        return true;
-      });
-      if (cands.length) { fromPhase4 = true; break; }
-    }
-  }
   if (!cands.length) return null;
 
   if (carryover.length) {
@@ -189,16 +180,7 @@ function _pick(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carr
     }
   }
 
-  if (fromPhase4) {
-    // Prefer candidates closer to Zone 1/2 (minimises key-cluster drift after fallback)
-    cands.sort((a, b) => {
-      const dA = camelotZoneDistance(a.camelot), dB = camelotZoneDistance(b.camelot);
-      if (dA !== dB) return dA - dB;
-      return calcSortScore(b, cur, currentPhase) - calcSortScore(a, cur, currentPhase);
-    });
-  } else {
-    cands.sort((a, b) => calcSortScore(b, cur, currentPhase) - calcSortScore(a, cur, currentPhase));
-  }
+  cands.sort((a, b) => calcSortScore(b, cur, currentPhase, allowLog2) - calcSortScore(a, cur, currentPhase, allowLog2));
 
   const top = Math.min(5, cands.length);
   const picked = cands[_randomInt(top)];
@@ -272,15 +254,13 @@ export function buildUp(pool, startT, usedIds, usedTitleKeys, usedArtists, targe
 export function buildDown(pool, endT, usedIds, usedTitleKeys, usedArtists, count) {
   const result = [];
   let cur = endT;
-  const { maxJump, wodEnergyMin, wodEnergyMax } = state;
+  const { wodEnergyMin, wodEnergyMax, allowLog2 } = state;
   const maxArtist = Math.max(1, Math.floor(count * 0.1));
   for (let i = 0; i < count; i++) {
-    const cg = bpmGroup(cur.bpm);
     const cands = pool.filter(t => {
       if (usedIds.has(t.id || t.song)) return false;
       if (t.bpm > cur.bpm) return false;
-      if (cur.bpm - t.bpm > maxJump) return false;
-      if (!neighbour(cg, bpmGroup(t.bpm))) return false;
+      if (calcBpmTransitionScore(cur.bpm, t.bpm, allowLog2) === 0) return false;
       if (titleDuplicate(t.song, usedTitleKeys)) return false;
       const ak = t.artist.split(',')[0].trim().toLowerCase();
       if ((usedArtists.get(ak) || 0) >= maxArtist) return false;
@@ -289,7 +269,7 @@ export function buildDown(pool, endT, usedIds, usedTitleKeys, usedArtists, count
       return true;
     });
     if (!cands.length) break;
-    cands.sort((a, b) => calcSortScore(b, cur, state.currentPhase) - calcSortScore(a, cur, state.currentPhase));
+    cands.sort((a, b) => calcSortScore(b, cur, state.currentPhase, allowLog2) - calcSortScore(a, cur, state.currentPhase, allowLog2));
     const pick = cands[0];
     result.unshift(pick);
     registerTrack(pick, usedIds, usedTitleKeys, usedArtists);
@@ -321,18 +301,27 @@ export function buildDecreasing(pool, startBpm, usedIds, usedTitleKeys, usedArti
   const result = [];
   let cur = {bpm: startBpm, camelot: '', energy: 100};
   let totalDur = 0;
-  const { maxJump } = state;
+  const { allowLog2 } = state;
   const isFirst = () => result.length === 0;
   while (totalDur < targetSec) {
     const cands = pool.filter(t => {
       if (usedIds.has(t.id || t.song)) return false;
       if (titleDuplicate(t.song, usedTitleKeys)) return false;
       if (!_camLockOk(t)) return false;
-      if (isFirst() && isHalfDouble(cur.bpm, t.bpm)) return true;
+      // C→D first track: prefer ×2/÷2-compatible entry when allowLog2 is active
+      if (isFirst() && allowLog2 && isHalfDouble(cur.bpm, t.bpm)) return true;
       if (t.bpm > cur.bpm) return false;
-      if (cur.bpm - t.bpm > maxJump * 2) return false;
+      if (calcBpmTransitionScore(cur.bpm, t.bpm, allowLog2) === 0) return false;
       return true;
-    }).sort((a, b) => calcPhaseScore(b, 'D') - calcPhaseScore(a, 'D'));
+    }).sort((a, b) => {
+      // First pick: rank half/double-time matches above others (C→D rhythmic cohesion)
+      if (isFirst() && allowLog2) {
+        const aHD = isHalfDouble(cur.bpm, a.bpm) ? 1 : 0;
+        const bHD = isHalfDouble(cur.bpm, b.bpm) ? 1 : 0;
+        if (aHD !== bHD) return bHD - aHD;
+      }
+      return calcPhaseScore(b, 'D') - calcPhaseScore(a, 'D');
+    });
     if (!cands.length) break;
     const pick = cands[0];
     addTrack(pick, result, usedIds, usedTitleKeys, usedArtists);

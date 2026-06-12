@@ -1,5 +1,5 @@
 // app.js — UI wiring only; no business logic here — delegate to algorithm.js, spotify.js, chart.js etc.
-import { PHASE_CONFIG, MIN_POOL_SIZE, JUMP_STOPS,
+import { PHASE_CONFIG, MIN_POOL_SIZE,
          POS_BPM, CAM_COLOR, CAM_ZONE1, CAM_ZONE2, DUR_STEPS,
          bpmStopsForPhase } from './config.js';
 import { getNeighbours } from './genres.js';
@@ -21,14 +21,6 @@ function updateSliderStyle(slider, stops, minV, maxV) {
   slider.style.background = `linear-gradient(90deg,${gradStops})`;
   slider.style.setProperty('--thumb-color', hex);
   return c;
-}
-
-function jumpHint(v) {
-  if (v === 0) return 'Kein Sprung — exakte BPM-Folge';
-  if (v <= 5) return 'Standard ✓ (DJ-Norm ≤5 BPM)';
-  if (v <= 8) return 'Akzeptabel (≤5 % bei 160 BPM)';
-  if (v <= 12) return 'Sprunghaft — Übergänge hörbar';
-  return 'Harte Sprünge möglich';
 }
 
 // ===== LOGIN MODAL =====
@@ -148,7 +140,6 @@ function onPhaseSelect(phase) {
   const cfg = PHASE_CONFIG[phase];
   state.wodEnergyMin = cfg.energy ? cfg.energy[0] : 0;
   state.wodEnergyMax = cfg.energy ? cfg.energy[1] : 100;
-  state.maxJump = cfg.maxJumpDefault;
   const bpmEl = document.getElementById('bpm-slider');
   bpmEl.value = cfg.bpmDefault;
   onBpmSlider(bpmEl);
@@ -156,9 +147,6 @@ function onPhaseSelect(phase) {
   tolEl.value = cfg.tolDefault;
   document.getElementById('bpm-tol-badge').textContent = '±' + cfg.tolDefault;
   state.bpmTol = cfg.tolDefault;
-  const jumpEl = document.getElementById('jump-slider');
-  jumpEl.value = cfg.maxJumpDefault;
-  onJumpSlider(jumpEl);
   const step2 = document.getElementById('step2');
   if (cfg.positionVisible) {
     step2.style.display = '';
@@ -418,14 +406,8 @@ function onXfadeSlider(el) {
   state.crossfadeSec = +el.value;
   document.getElementById('xfade-badge').textContent = el.value + ' s';
 }
-function onJumpSlider(el) {
-  const c = updateSliderStyle(el, JUMP_STOPS, 0, 20);
-  state.maxJump = +el.value;
-  const v = +el.value;
-  document.getElementById('jump-badge').textContent = v === 0 ? '0' : '+' + v;
-  document.getElementById('jump-val-display').textContent = v === 0 ? '0 BPM' : '+' + v + ' BPM';
-  document.getElementById('jump-val-display').style.color = toHex(c);
-  document.getElementById('jump-hint-display').textContent = jumpHint(+el.value);
+function onLog2Toggle() {
+  state.allowLog2 = document.getElementById('log2-toggle').checked;
 }
 function onCdToggle() {
   state.cdActive = document.getElementById('cd-toggle').checked;
@@ -484,7 +466,7 @@ function buildGenLog(genre, wod, cd, warnMsgs) {
   if (state.crossfadeSec > 0) add(`  Crossfade:       ${state.crossfadeSec}s (Spotify Mixing)`);
   const bpmTarget = +document.getElementById('bpm-slider').value;
   add(`  Ziel-BPM:        ${bpmTarget} BPM  ±${state.bpmTol}`);
-  add(`  Max BPM-Sprung:  +${state.maxJump} BPM`);
+  add(`  log2-Score:      Half/Double ${state.allowLog2 ? 'aktiv' : 'inaktiv'}`);
   add(`  Energy-Bereich:  ${state.wodEnergyMin}–${state.wodEnergyMax}`);
   if (state.cdActive) add(`  Cool-Down:       aktiv · ${state.cdMinutes} min`);
   if (state.camLetter !== 'both' || state.camNumbers.length > 0) {
@@ -899,7 +881,7 @@ function init() {
   // Settings
   document.getElementById('dur-slider').addEventListener('input', e => onDurSlider(e.target));
   document.getElementById('xfade-slider').addEventListener('input', e => onXfadeSlider(e.target));
-  document.getElementById('jump-slider').addEventListener('input', e => onJumpSlider(e.target));
+  document.getElementById('log2-toggle').addEventListener('change', onLog2Toggle);
   document.getElementById('cd-toggle').addEventListener('change', onCdToggle);
   document.getElementById('cam-lock-toggle').addEventListener('change', e => { state.lockCamFilter = e.target.checked; });
   document.getElementById('cd-dur-slider').addEventListener('input', e => onCdDurSlider(e.target));
@@ -934,8 +916,8 @@ function init() {
     if (e.key === 'Escape') closeLoginModal();
   });
 
-  // Init slider styles — jump slider must be painted explicitly; bpm-slider is painted by onPhaseSelect('C') below
-  updateSliderStyle(document.getElementById('jump-slider'), JUMP_STOPS, 0, 20);
+  // Init log2 toggle from state default
+  document.getElementById('log2-toggle').checked = state.allowLog2;
 
   // Populate genre dropdowns from track data (must run before onPhaseSelect reads the select)
   _initGenreDropdowns();

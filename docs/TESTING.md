@@ -10,16 +10,16 @@
 
 ## New Since Last Push
 
-### N4 · BPM-Sprung Slider — Extended Range
+### N5 · log2 BPM-Übergangsscore — Neues Scoring-System
 
 | # | Step | Expected |
 |---|------|----------|
-| N4-1 | Open sidebar (before generating) | Max. BPM-Sprung slider shows range label "0" on the left and "+20" on the right |
-| N4-2 | Drag slider to leftmost position (value 0) | Badge shows "0", display shows "0 BPM", hint says "Kein Sprung — exakte BPM-Folge", slider track is solid green |
-| N4-3 | Drag to value 5 | Badge "+5", hint "Standard ✓ (DJ-Norm ≤5 BPM)", slider green |
-| N4-4 | Drag to value 10 | Badge "+10", hint "Sprunghaft — Übergänge hörbar", slider yellow/orange |
-| N4-5 | Drag to value 20 | Badge "+20", hint "Harte Sprünge möglich", slider red |
-| N4-6 | Load app fresh (Phase C selected) | Slider defaults to its phase maxJumpDefault; colour matches the value |
+| N5-1 | Open sidebar | No "Max. BPM-Sprung" slider visible; replaced by "log2-Raum zulassen" toggle (checked by default) |
+| N5-2 | Hover over "Half/Double-Time ×2/÷2" subtitle | Tooltip appears: "Wertet Tracks mit halbem/doppeltem Tempo als kompatibel (gleiches Beatgrid)." |
+| N5-3 | Generate a playlist (log2 aktiv) | Generierungs-Log shows "log2-Score:      Half/Double aktiv" |
+| N5-4 | Uncheck the log2 toggle, generate again | Generierungs-Log shows "log2-Score:      Half/Double inaktiv" |
+| N5-5 | Re-check the toggle, generate again | BPM transitions stay within ±10 % on the log2 scale (d ≤ 0.135); no hard jumps visible in BPM chart |
+| N5-6 | With log2 active, check BPM chart | Adjacent tracks may show ×2/÷2 BPM jumps (e.g. 80→160) which are scored as compatible transitions |
 
 ---
 

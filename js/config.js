@@ -14,28 +14,28 @@ export const PHASE_CONFIG = {
     label: 'Whiteboard & Prep', color: '#5b8fd6',
     bpm: [85,110], bpmCore: [90,105], energy: [20,45], valence: [50,80], dance: [30,60],
     instrumental: {min:40}, speech: {max:20}, acoustic: {min:30}, loud: {max:-10},
-    bpmDefault: 100, tolDefault: 5, maxJumpDefault: 5,
+    bpmDefault: 100, tolDefault: 5,
     progression: 'plateau', positionVisible: false,
   },
   B: {
     label: 'Skill & Strength', color: '#f7c948',
     bpm: [80,120], bpmCore: [90,110], energy: [40,65], valence: [35,65], dance: [35,65],
     instrumental: {min:25}, speech: {max:25}, acoustic: {min:5,max:40}, live: {max:40}, loud: {min:-10,max:-5},
-    bpmDefault: 105, tolDefault: 5, maxJumpDefault: 7,
+    bpmDefault: 105, tolDefault: 5,
     progression: 'gentle', positionVisible: true,
   },
   C: {
     label: 'WOD — Intensiv', color: '#1db954',
     bpm: [125,195], bpmCore: [140,175], energy: [75,100], valence: [60,90], dance: [60,80],
     instrumental: {max:25}, acoustic: {max:10}, loud: {min:-8},
-    bpmDefault: 145, tolDefault: 5, maxJumpDefault: 10,
+    bpmDefault: 145, tolDefault: 5,
     progression: 'ascending', positionVisible: true,
   },
   D: {
     label: 'Cool-Down', color: '#a855f7',
     bpm: [60,100], bpmCore: [65,85], energy: [15,40], valence: [40,70], dance: [0,45],
     instrumental: {min:50}, acoustic: {min:40}, loud: {max:-10},
-    bpmDefault: 80, tolDefault: 5, maxJumpDefault: 8,
+    bpmDefault: 80, tolDefault: 5,
     progression: 'decreasing', positionVisible: false,
   },
 };
@@ -69,10 +69,16 @@ export function bpmStopsForPhase(phase) {
   if (bHi < SMAX) { stops.push({p: 1, ...RED}); }  // YEL fades into RED at acceptable-zone end
   return stops;
 }
-// Green = 0-8 BPM (DJ-Norm ≤5 BPM + buffer), Yellow = 8-12 BPM, Red = >12 BPM (range 0-20)
-export const JUMP_STOPS = [
-  {p:0,...GRN},{p:.4,...GRN},{p:.45,...YEL},{p:.6,...YEL},{p:.65,...RED},{p:1,...RED},
-];
+// log2-based BPM transition scoring thresholds.
+// Each entry [d_threshold, score]: d ≤ threshold → score (linearly interpolated between entries).
+// d > last threshold → 0.00 (hard exclusion within a phase).
+export const BPM_TRANSITION_CONFIG = {
+  breakpoints: [
+    [0.030, 1.00],   // ±2 % — unhörbar
+    [0.070, 0.85],   // ±5 % — Standard-Toleranz (DJ-Norm)
+    [0.135, 0.40],   // ±10 % — hörbar; nur bei starkem Genre/Camelot-Match akzeptieren
+  ],
+};
 
 export const CAM_COLOR = {green:'#1db954',yellow:'#f7c948',red:'#f15e6c',unknown:'#535353'};
 

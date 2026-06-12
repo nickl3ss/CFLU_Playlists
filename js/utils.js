@@ -1,5 +1,5 @@
 // utils.js — pure helper functions; no DOM, no state writes, no TRACK_DATA; safe to import in Node.js tests
-import { BPM_GROUPS, BPM_RANGES, SUFFIX_RE, PHASE_CONFIG } from './config.js';
+import { BPM_GROUPS, BPM_RANGES, SUFFIX_RE, PHASE_CONFIG, BPM_TRANSITION_CONFIG } from './config.js';
 import { bridgeTagsForMain } from './genres.js';
 
 export function bpmGroup(bpm) {
@@ -127,6 +127,40 @@ export function isHalfDouble(bpm1, bpm2, tol = 3) {
   return Math.abs(bpm1 * 2 - bpm2) <= tol || Math.abs(bpm1 - bpm2 * 2) <= tol;
 }
 
+// log2-based BPM transition score [0.00–1.00].
+// allowLog2: also considers ×2/÷2 ratio (same beatgrid → first-class compatibility).
+// Missing or zero BPM → neutral 0.5 (incomplete data, not a hard reject).
+export function calcBpmTransitionScore(bpmPrev, bpmNext, allowLog2) {
+  if (!bpmPrev || !bpmNext || bpmPrev <= 0 || bpmNext <= 0) return 0.5;
+  const ratio = bpmNext / bpmPrev;
+  let d = Math.abs(Math.log2(ratio));
+  if (allowLog2) {
+    d = Math.min(d, Math.abs(Math.log2(ratio / 2)), Math.abs(Math.log2(ratio * 2)));
+  }
+  const bp = BPM_TRANSITION_CONFIG.breakpoints;
+  if (d <= bp[0][0]) return bp[0][1];
+  if (d > bp[bp.length - 1][0]) return 0.00;
+  for (let i = 0; i < bp.length - 1; i++) {
+    if (d <= bp[i + 1][0]) {
+      const f = (d - bp[i][0]) / (bp[i + 1][0] - bp[i][0]);
+      return bp[i][1] + f * (bp[i + 1][1] - bp[i][1]);
+    }
+  }
+  return 0.00;
+}
+
+// Returns BPM normalized to the phase's target band via ×2 or ÷2 if that brings it into range.
+// Used for monotonicity checks — prevents 156→78 appearing as a BPM drop when 78×2=156.
+export function effectiveBpm(bpm, phase) {
+  const cfg = PHASE_CONFIG[phase];
+  if (!cfg || !bpm) return bpm;
+  const [lo, hi] = cfg.bpm;
+  if (bpm >= lo && bpm <= hi) return bpm;
+  if (bpm * 2 >= lo && bpm * 2 <= hi) return bpm * 2;
+  if (bpm / 2 >= lo && bpm / 2 <= hi) return bpm / 2;
+  return bpm;
+}
+
 export function calcEraScore(t, cur) {
   const parseYear = d => { if (!d) return null; const y = parseInt(d); return isNaN(y) ? null : y; };
   const y1 = parseYear(t.album_date), y2 = parseYear(cur.album_date);
@@ -156,12 +190,13 @@ function _colorDist(h1, h2) {
   return Math.sqrt((r1-r2)**2 + (g1-g2)**2 + (b1-b2)**2);
 }
 
-export function calcSortScore(t, cur, phase) {
+// allowLog2: passed from state.allowLog2; used for bpmTransScore calculation.
+export function calcSortScore(t, cur, phase, allowLog2 = false) {
   const cs = {green: 200, yellow: 100, red: 0, unknown: 0};
   const camPoints    = cs[camCompat(cur.camelot, t.camelot)] || 0;
   const phasePoints  = calcPhaseScore(t, phase) * 2;
   const energyPoints = t.energy;
-  const bpmPenalty   = t.bpm < cur.bpm ? t.bpm - cur.bpm : 0;
+  const bpmTransScore = Math.round(calcBpmTransitionScore(cur.bpm, t.bpm, allowLog2) * 250);
 
   let bridge = 0;
   if (cur.genre && Array.isArray(t.genres_raw)) {
@@ -180,7 +215,7 @@ export function calcSortScore(t, cur, phase) {
     ? Math.max(0, Math.round(10 * (1 - _colorDist(t.avg_color, cur.avg_color) / 1.732))) : 0;
   const eraScore   = calcEraScore(t, cur);
 
-  return camPoints + phasePoints + energyPoints + bpmPenalty + bridge + dEnergy + loudScore + valScore + danceScore + moodScore + colorScore + eraScore;
+  return camPoints + phasePoints + energyPoints + bpmTransScore + bridge + dEnergy + loudScore + valScore + danceScore + moodScore + colorScore + eraScore;
 }
 
 const _BPM_HINTS = {

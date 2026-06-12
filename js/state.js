@@ -5,7 +5,8 @@ export const state = {
   selectedTrack: null,
   poolGenre: '',
   position: 'start',
-  maxJump: 5,
+  maxJump: 5,      // deprecated — stillgelegt; wird vom Algorithmus nicht mehr gelesen
+  allowLog2: true, // log2-Score: Half/Double-Time ×2/÷2 als kompatibel werten
   bpmTol: 5,
   camLetter: 'both',   // 'A' | 'both' | 'B'
   camNumbers: [],      // [] = kein Filter, sonst Array mit Zahlen 1–12

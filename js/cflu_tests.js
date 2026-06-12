@@ -5,7 +5,7 @@
 import { bpmGroup, groupIdx, neighbour, fmtDur, fmtMin, titleKey, titleDuplicate,
          camCompat, camStrictOk, lerpColor, toHex, toRgb,
          attrScore, calcPhaseScore, calcSortScore, calcEraScore, trapezScore, isHalfDouble,
-         camelotZoneDistance, bpmHint } from './utils.js';
+         camelotZoneDistance, bpmHint, calcBpmTransitionScore, effectiveBpm } from './utils.js';
 import { GENRE_CONFIG, getNeighboursWeighted, getNeighbours, bridgeTags,
          bridgeTagsForMain, getSubgenres, getRoleBonus } from './genres.js';
 import { getPhasePool, getPhasePoolWithNeighbours } from './algorithm.js';
@@ -240,9 +240,10 @@ describe('pickNext — nächsten Track auswählen', () => {
     const next=pickNext([T.a2,T.a3,T.b1],T.a1,new Set(),new Set(),new Map(),10);
     expect(next.bpm - T.a1.bpm).toBeLessThanOrEqual(state.maxJump);
   });
-  it('Phase 4 Fallback überbrückt Sprung > maxJump', () => {
+  it('BPM-Ratio > 10 % → null (log2-Score = 0.00, kein Fallback)', () => {
+    // T.far: 145 BPM from 120 BPM — ratio=1.208, d=0.272 > 0.135 → score=0.00 → ausgeschlossen
     const next=pickNext([T.far],T.a1,new Set(),new Set(),new Map(),10);
-    expect(next).toBeTruthy(); expect(next.id).toBe('far');
+    expect(next).toBeNull();
   });
   it('Absolut unerreichbarer Sprung > 50 → null', () => {
     expect(pickNext([T.unr],T.a1,new Set(),new Set(),new Map(),10)).toBeNull();
@@ -258,9 +259,10 @@ describe('pickNext — nächsten Track auswählen', () => {
     const next=pickNext([T.hi,inRange],T.a1,new Set(),new Set(),new Map(),10);
     expect(next.id).toBe('ir');
   });
-  it('Phase 4 ignoriert Energy-Filter', () => {
+  it('Energy außerhalb Range → null (kein Energy-Bypass mehr)', () => {
+    // T.hi: energy=92 > state.wodEnergyMax=85 → ausgeschlossen; Phase-4-Eskalation entfernt
     const next=pickNext([T.hi],T.a1,new Set(),new Set(),new Map(),10);
-    expect(next).toBeTruthy(); expect(next.id).toBe('hi');
+    expect(next).toBeNull();
   });
   it('Energie zu niedrig → null', () => {
     expect(pickNext([T.lo],T.a1,new Set(),new Set(),new Map(),10)).toBeNull();
@@ -491,17 +493,88 @@ describe('calcSortScore — Unified Sort Score', () => {
     const hi=Object.assign({},T.a2,{energy:90}), lo=Object.assign({},T.a2,{energy:60});
     expect(calcSortScore(hi,cur,'C')).toBeGreaterThan(calcSortScore(lo,cur,'C'));
   });
-  it('BPM unter cur-BPM → Score niedriger als BPM über cur-BPM', () => {
+  it('BPM ±2 % von cur → gleicher BPM-Transition-Score (Richtung durch Monotonie-Gate, nicht Score)', () => {
+    // Beide innerhalb d≤0.030 → bpmTransScore=250; Penalty für Abwärts entfernt
     const below=Object.assign({},T.a2,{bpm:118,camelot:'10B'}), above=Object.assign({},T.a2,{bpm:122,camelot:'10B'});
-    expect(calcSortScore(above,cur,'C')).toBeGreaterThan(calcSortScore(below,cur,'C'));
+    expect(calcSortScore(above,cur,'C')).toBe(calcSortScore(below,cur,'C'));
   });
-  it('Höherer BPM näher am Kern → höherer Phase-C-Score', () => {
+  it('Geringere BPM-Ratio → höherer Score als BPM näher am Kern', () => {
+    // 122 BPM (d=1.7%) schlägt 129 BPM (d=7.5%): bpmTransScore-Vorteil (96 Punkte) > phaseScore-Vorteil (54 Punkte)
     const s=Object.assign({},T.a2,{bpm:122,camelot:'10B'}), l=Object.assign({},T.a2,{bpm:129,camelot:'10B'});
-    expect(calcSortScore(l,cur,'C')).toBeGreaterThan(calcSortScore(s,cur,'C'));
+    expect(calcSortScore(s,cur,'C')).toBeGreaterThan(calcSortScore(l,cur,'C'));
   });
   it('Phase A ideal hat höheren Score als WOD-Track', () => {
     const wodCur={bpm:95,camelot:'9B',energy:50};
     expect(calcSortScore(T.calm,wodCur,'A')).toBeGreaterThan(calcSortScore(T.a1,wodCur,'A'));
+  });
+});
+
+describe('calcBpmTransitionScore — log2-Übergangsscore', () => {
+  it('(150→153) ≈ 1.00 — d≈0.028 ≤ 0.030', () => {
+    expect(calcBpmTransitionScore(150, 153, false)).toBeGreaterThanOrEqual(0.99);
+  });
+  it('(150→75) allowLog2=true → 1.00 — d=|log2(0.5×2)|=0', () => {
+    expect(calcBpmTransitionScore(150, 75, true)).toBe(1.00);
+  });
+  it('(150→75) allowLog2=false → 0.00 — d=1.0 >> 0.135', () => {
+    expect(calcBpmTransitionScore(150, 75, false)).toBe(0.00);
+  });
+  it('(160→78) allowLog2=true → ~0.85 — d=|log2(78/160×2)|≈0.037', () => {
+    const s = calcBpmTransitionScore(160, 78, true);
+    expect(s).toBeGreaterThan(0.80);
+    expect(s).toBeLessThan(1.00);
+  });
+  it('(140→120) → 0.00 — d≈0.222 > 0.135', () => {
+    expect(calcBpmTransitionScore(140, 120, false)).toBe(0.00);
+  });
+  it('fehlende BPM (bpmPrev=0) → 0.5 — kein Crash', () => {
+    expect(calcBpmTransitionScore(0, 120, false)).toBe(0.5);
+  });
+  it('fehlende BPM (bpmNext=null) → 0.5 — kein Crash', () => {
+    expect(calcBpmTransitionScore(120, null, false)).toBe(0.5);
+  });
+  it('Gleiche BPM → 1.00 — d=0', () => {
+    expect(calcBpmTransitionScore(130, 130, false)).toBe(1.00);
+  });
+  it('Interpolation: d zwischen 0.030 und 0.070 → zwischen 0.85 und 1.00', () => {
+    const s = calcBpmTransitionScore(120, 126, false); // d≈0.0695 ≈ 0.070
+    expect(s).toBeGreaterThan(0.84);
+    expect(s).toBeLessThanOrEqual(1.00);
+  });
+  it('d knapp unter 0.135 → Score > 0 (letzte Grünstufe)', () => {
+    // 120 × 2^0.134 ≈ 131.6 — d=0.134 < 0.135 → Score ≈ 0.41 (nicht 0.00)
+    const bpmNext = 120 * Math.pow(2, 0.134);
+    const s = calcBpmTransitionScore(120, bpmNext, false);
+    expect(s).toBeGreaterThan(0);
+    expect(s).toBeLessThan(0.50);
+  });
+  it('d > 0.135 → Score = 0.00 (harter Ausschluss)', () => {
+    // 140 → 120: d ≈ 0.222 → Score = 0.00
+    expect(calcBpmTransitionScore(140, 120, false)).toBe(0.00);
+  });
+});
+
+describe('effectiveBpm — Phasen-Normalisierung ×2/÷2', () => {
+  it('BPM im Band → unverändert', () => {
+    expect(effectiveBpm(150, 'C')).toBe(150); // C: [125,195]
+  });
+  it('Halbes BPM × 2 = im Band → Verdoppelung', () => {
+    expect(effectiveBpm(75, 'C')).toBe(150); // 75×2=150 in [125,195]
+  });
+  it('Doppeltes BPM ÷ 2 = im Band → Halbierung', () => {
+    expect(effectiveBpm(300, 'C')).toBe(150); // 300÷2=150 in [125,195]
+  });
+  it('Kein ×2/÷2 trifft Band → unverändert', () => {
+    expect(effectiveBpm(60, 'C')).toBe(60); // 60, 120, 30 — 120 not in [125,195]
+  });
+  it('Phase A: 100 BPM im Band [85,110] → 100', () => {
+    expect(effectiveBpm(100, 'A')).toBe(100);
+  });
+  it('Phase A: 50 BPM × 2 = 100 → 100', () => {
+    expect(effectiveBpm(50, 'A')).toBe(100); // 50×2=100 in [85,110]
+  });
+  it('Ungültige Phase → BPM unverändert', () => {
+    expect(effectiveBpm(120, 'X')).toBe(120);
   });
 });
 

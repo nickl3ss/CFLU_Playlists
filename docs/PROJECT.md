@@ -68,6 +68,7 @@ app.js (importiert alle Module, verdrahtet Events)
 | 11 | ETL: [C] Cleanup vor [G] Genre-Vererbung und [A] AI-Genre | Doubletten-Entfernung läuft zuerst, damit kein Claude-Haiku-API-Call auf Tracks verschwendet wird, die anschließend durch Dedup entfernt werden — spart Kosten und Zeit. | 2026-06-09 |
 | 12 | `genres_raw[0]` als Proxy für das entscheidende Genre-Tag | `classify()` speichert nicht, welcher `genres_raw`-Tag die Klassifikation ausgelöst hat. `genres_raw[0]` wird als Näherung für die Farb- und Fett-Darstellung im UI verwendet. Für AI-klassifizierte Tracks (`open_genre=2`) ist dies exakt. Issue #122 verfolgt die saubere Lösung. | 2026-06-09 |
 | 13 | Three.js vendored in `js/vendor/` statt CDN | CSP (`script-src 'self'`) blockiert externe Skript-Domains; vendored Dateien erhalten die Offline-Fähigkeit (Key Invariant 8) ohne CSP-Änderungen. `OrbitControls.js` einmalig gepatcht: `from 'three'` → `from './three.module.min.js'`. | 2026-06-10 |
+| 14 | log2-Übergangs-Score ersetzt absoluten BPM-Sprung-Filter | Absoluter Maximalsprung (z. B. 10 BPM) ist tempoabhängig: bei 80 BPM ist ±10 BPM = ±12,5 %, bei 160 BPM = ±6,25 %. log2-Distanz `d = |log2(bpmNext/bpmPrev)|` ist tempo-invariant (DJ-Norm ±2 % ↔ d ≤ 0.030; ±10 % ↔ d ≈ 0.137). `BPM_TRANSITION_CONFIG.breakpoints` ist die einzige SSOT für Schwellenwerte. `allowLog2`-Flag behandelt ×2/÷2-Übergänge (gleiches Beatgrid) als d→min(d, |log2(r/2)|, |log2(r×2)|). | 2026-06-12 |
 
 ---
 
@@ -82,6 +83,42 @@ app.js (importiert alle Module, verdrahtet Events)
 ## Changelog
 
 Offene Items → GitHub Issues (https://github.com/nickl3ss/CFLU_Playlists/issues)
+
+### 2026-06-12 — log2 BPM-Übergangsscore (#136–#141)
+
+#### `js/config.js`
+- `BPM_TRANSITION_CONFIG` (neu): SSOT für log2-Score-Schwellenwerte; drei Breakpoints `[d, score]`; d > 0.135 → 0.00 (harter Ausschluss)
+- `JUMP_STOPS` (entfernt): Slider-Farb-Stops nicht mehr benötigt
+- `maxJumpDefault` in allen `PHASE_CONFIG`-Einträgen (entfernt)
+
+#### `js/utils.js`
+- `calcBpmTransitionScore(bpmPrev, bpmNext, allowLog2)` (neu): log2-basierter BPM-Übergangsscore 0.00–1.00; mit `allowLog2`: min-Trick über ×2/÷2-Ratio
+- `effectiveBpm(bpm, phase)` (neu): normalisiert BPM in Phasenband per ×2/÷2 — für Monotonieprüfung in Phasen B/C
+- `calcSortScore`: `bpmPenalty` entfernt, `bpmTransScore = round(calcBpmTransitionScore(...) × 250)` ergänzt (max 250 Punkte, ~40 % des Gesamtscores)
+
+#### `js/state.js`
+- `maxJump: 5` deprecated (stillgelegt; wird vom Algorithmus nicht mehr gelesen)
+- `allowLog2: true` (neu): steuert Half/Double-Time-Kompatibilität
+
+#### `js/algorithm.js`
+- `_pick()`: `baseOk`/`bpmOk` ersetzt absoluten Sprung-Gate + `neighbour()`-Check durch Score-Gate (score=0 → ablehnen) + Monotonieprüfung via `effectiveBpm()`
+- Phase-4-BPM-Eskalation (maxJump-Erweiterungsschleife) vollständig entfernt
+- `buildDown()` / `buildDecreasing()`: `maxJump`-Checks ersetzt durch log2-Score-Gate; `buildDecreasing()`: C→D-Erstauswahl bevorzugt ×2/÷2-Matches mit Sortier-Bonus
+
+#### `CFLU_WOD_Builder.html`
+- Max. BPM-Sprung-Slider (#jump-slider) entfernt
+- Neues Toggle "#log2-toggle" (☑ standardmäßig aktiv, Tooltip: "Wertet Tracks mit halbem/doppeltem Tempo als kompatibel (gleiches Beatgrid).")
+
+#### `js/app.js`
+- `jumpHint()`, `onJumpSlider()`, `JUMP_STOPS`-Import entfernt
+- `onLog2Toggle()` (neu): setzt `state.allowLog2` per Checkbox
+- Generierungs-Log: "Max BPM-Sprung: +N BPM" → "log2-Score: Half/Double aktiv/inaktiv"
+
+#### `js/cflu_tests.js`
+- 4 Tests aktualisiert (Phase-4-Eskalation entfernt, Score-Erwartungen angepasst)
+- 10 neue Tests für `calcBpmTransitionScore` (§7 Akzeptanzkriterien)
+- 7 neue Tests für `effectiveBpm` (Phasen-Normalisierung)
+- 352 Tests gesamt
 
 ### 2026-06-10 — Genre Space 3D star map (#133, #134)
 
