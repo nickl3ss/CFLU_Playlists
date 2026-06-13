@@ -218,6 +218,8 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
 .sp-btn:disabled{background:var(--bg4);color:var(--text3);cursor:not-allowed}
 .sp-play-main-btn{background:rgba(29,185,84,.15);color:var(--spotify);border:1px solid rgba(29,185,84,.3)}
 .sp-play-main-btn:hover{background:rgba(29,185,84,.28);color:var(--spotify)}
+.sp-link-btn{background:none;border:none;color:var(--acc);cursor:pointer;font-family:var(--ff-ui);font-size:inherit;padding:0;text-decoration:underline;text-underline-offset:2px}
+.sp-link-btn:hover{color:var(--spotify)}
 /* App-Aktionen (kein Spotify-Bezug) → CFLU-Rot */
 #csv-export-btn,#upload-btn{background:var(--acc);color:#000}
 #csv-export-btn:hover,#upload-btn:hover{background:var(--acc2)}

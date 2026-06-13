@@ -629,9 +629,15 @@ function _showPlaybackStatus(msg, isError = false) {
   setTimeout(() => { el.style.display = 'none'; }, 5000);
 }
 
+function _updateSpPlaybackSection() {
+  const hint = document.getElementById('sp-playback-connect-hint');
+  if (hint) hint.style.display = state.spToken ? 'none' : '';
+}
+
 function onPlayFromTrack(idx) {
+  if (!state.spToken) { showLoginModal(); return; }
   if (!state.spDeviceId) {
-    _showPlaybackStatus('Bitte neu verbinden — Browser-Wiedergabe erfordert aktualisierte Berechtigungen.', true);
+    _showPlaybackStatus('Player verbindet im Hintergrund — kurz warten und erneut klicken.', false);
     return;
   }
   const validTracks = state.generatedWod.filter(t => t.id && t.id !== 'nan');
@@ -643,6 +649,7 @@ function onPlayFromTrack(idx) {
 }
 
 function onPlayMain() {
+  if (!state.spToken) { showLoginModal(); return; }
   onPlayFromTrack(0);
 }
 
@@ -876,6 +883,7 @@ function renderResult(genre, wod, cd, warns, logText) {
 
   if (state.spToken) document.getElementById('sp-export-btn2').style.display = 'block';
   document.getElementById('csv-export-btn').style.display = 'block';
+  _updateSpPlaybackSection();
 
   document.getElementById('gen-log').value = logText || '';
 
@@ -1049,6 +1057,8 @@ function init() {
   document.getElementById('sp-player-next')?.addEventListener('click', skipToNext);
   // Web Playback SDK state events
   document.addEventListener('cflu-player-state', e => onPlayerStateChanged(e.detail));
+  document.addEventListener('cflu-auth-state', _updateSpPlaybackSection);
+  document.getElementById('sp-playback-connect-btn')?.addEventListener('click', showLoginModal);
 
   // Generation log copy
   document.getElementById('gen-log-copy-btn').addEventListener('click', () => {

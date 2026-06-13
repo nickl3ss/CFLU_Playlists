@@ -25,6 +25,7 @@ export function spotifyLogin() {
       scope: 'playlist-modify-private streaming user-read-playback-state user-modify-playback-state',
       redirect_uri: REDIRECT_URI,
       code_challenge_method: 'S256', code_challenge: ch,
+      show_dialog: 'true', // always force consent dialog — ensures streaming scope is granted
     });
     window.location.href = 'https://accounts.spotify.com/authorize?' + p;
   });
@@ -46,6 +47,7 @@ export function spotifyLogout() {
   document.getElementById('sp-export-btn2').style.display = 'none';
   document.getElementById('sp-user').textContent = '';
   showStatus('Abgemeldet.', 'info');
+  document.dispatchEvent(new CustomEvent('cflu-auth-state'));
 }
 
 function isTokenValid() {
@@ -92,6 +94,7 @@ export async function checkSpotifyCallback() {
       showStatus('✓ Verbunden!', 'info');
       sessionStorage.removeItem('pkce_v');
       sessionStorage.removeItem('sp_cid');
+      document.dispatchEvent(new CustomEvent('cflu-auth-state'));
       initSpotifyPlayer(data.access_token); // fire-and-forget — non-fatal if SDK unavailable
     } else {
       // S-03: Kein JSON.stringify(data) — Spotify-Fehldetails nicht in die UI
