@@ -297,6 +297,26 @@ export function buildPlateau(pool, refBpm, usedIds, usedTitleKeys, usedArtists, 
   return result;
 }
 
+// Returns the best replacement for a playlist slot, satisfying BPM transition to both neighbors.
+// prev and next may be null for first/last slot. excludeIds must NOT contain the replaced track's id.
+export function pickReplacement(pool, prev, next, excludeIds, usedTitleKeys, usedArtists, maxArtist, phase, allowLog2) {
+  const cands = pool.filter(t => {
+    if (excludeIds.has(t.id || t.song)) return false;
+    if (t.speech > 66) return false;
+    if (titleDuplicate(t.song, usedTitleKeys)) return false;
+    const ak = t.artist.split(',')[0].trim().toLowerCase();
+    if ((usedArtists.get(ak) || 0) >= maxArtist) return false;
+    if (!_camLockOk(t)) return false;
+    if (prev && calcBpmTransitionScore(prev.bpm, t.bpm, allowLog2) === 0) return false;
+    if (next && calcBpmTransitionScore(t.bpm, next.bpm, allowLog2) === 0) return false;
+    return true;
+  });
+  if (!cands.length) return null;
+  const ref = prev || next;
+  cands.sort((a, b) => calcSortScore(b, ref, phase, allowLog2) - calcSortScore(a, ref, phase, allowLog2));
+  return cands[0];
+}
+
 export function buildDecreasing(pool, startBpm, usedIds, usedTitleKeys, usedArtists, targetSec) {
   const result = [];
   let cur = {bpm: startBpm, camelot: '', energy: 100};

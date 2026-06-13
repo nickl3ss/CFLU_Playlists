@@ -21,7 +21,7 @@ export default [
         // CFLU globals (loaded via non-module <script>)
         TRACK_DATA: 'readonly', GENRE_MAP: 'readonly',
         // Browser APIs
-        ResizeObserver: 'readonly',
+        ResizeObserver: 'readonly', CustomEvent: 'readonly',
       },
     },
     rules: {

@@ -7,9 +7,10 @@ import { state } from './state.js';
 import { titleKey, fmtDur, fmtMin, lerpColor, toHex, camCompat, calcPhaseScore, bpmHint, effectiveBpm, isHalfDouble } from './utils.js';
 import { getAllTracks, getPool, getPhasePool, getPhasePoolWithNeighbours, getGenreStats,
          registerTrack, addTrack, pickNext, buildUp, buildDown,
-         buildPlateau, buildDecreasing, buildAlternating } from './algorithm.js';
+         buildPlateau, buildDecreasing, buildAlternating, pickReplacement } from './algorithm.js';
 import { drawChart, highlightFromRow, clearHighlight } from './chart.js';
-import { spotifyLogin, spotifyLogout, checkSpotifyCallback, exportPlaylist } from './spotify.js';
+import { spotifyLogin, spotifyLogout, checkSpotifyCallback, exportPlaylist,
+         playPlaylist, pausePlayer, resumePlayer, skipToNext, skipToPrev } from './spotify.js';
 import { initGenreSpace, updatePlaylistMode, resizeGenreSpace } from './genre_space.js';
 
 // ===== SLIDER UI =====
@@ -580,6 +581,79 @@ function buildGenLog(genre, wod, cd, warnMsgs) {
   return L.join('\n');
 }
 
+// ===== WEB PLAYBACK =====
+function onPlayerStateChanged(st) {
+  if (!st) return;
+  const track = st.track_window?.current_track;
+  const paused = st.paused;
+
+  // Update mini player info
+  const nameEl = document.getElementById('sp-player-track');
+  if (nameEl && track) nameEl.textContent = `${track.artists[0]?.name} — ${track.name}`;
+
+  // Play/pause button icon
+  const playBtn = document.getElementById('sp-player-playpause');
+  if (playBtn) playBtn.textContent = paused ? '▶' : '⏸';
+
+  // Progress bar
+  const fill = document.getElementById('sp-player-fill');
+  if (fill && st.duration) fill.style.width = Math.round((st.position / st.duration) * 100) + '%';
+
+  // Highlight current track by matching Spotify URI
+  const currentUri = track?.uri;
+  document.querySelectorAll('.tr').forEach(row => {
+    const idx = +row.dataset.idx;
+    const t = state.generatedWod[idx];
+    const isPlaying = t && currentUri && currentUri === 'spotify:track:' + t.id;
+    row.classList.toggle('tr-playing', isPlaying);
+    if (isPlaying) state.spPlayingIdx = idx;
+  });
+}
+
+function onPlayFromTrack(idx) {
+  if (!state.spDeviceId) return;
+  const validTracks = state.generatedWod.filter(t => t.id && t.id !== 'nan');
+  const uris = validTracks.map(t => 'spotify:track:' + t.id);
+  if (!uris.length) return;
+  const clickedTrack = state.generatedWod[idx];
+  const sdkIdx = (clickedTrack?.id && clickedTrack.id !== 'nan') ? validTracks.indexOf(clickedTrack) : 0;
+  playPlaylist(uris, Math.max(0, sdkIdx));
+}
+
+// ===== REPLACE TRACK =====
+function _buildUsedFromWod(wod, excludeIdx) {
+  const usedIds = new Set(), usedTitleKeys = new Set(), usedArtists = new Map();
+  wod.forEach((t, i) => {
+    if (i === excludeIdx) return;
+    usedIds.add(t.id || t.song);
+    const tk = titleKey(t.song); if (tk) usedTitleKeys.add(tk);
+    const ak = t.artist.split(',')[0].trim().toLowerCase();
+    usedArtists.set(ak, (usedArtists.get(ak) || 0) + 1);
+  });
+  return { usedIds, usedTitleKeys, usedArtists };
+}
+
+function onReplaceTrack(idx) {
+  const wod = state.generatedWod;
+  if (idx < 0 || idx >= wod.length) return;
+  const pool = getPhasePoolWithNeighbours(state.poolGenre, state.currentPhase);
+  const { usedIds, usedTitleKeys, usedArtists } = _buildUsedFromWod(wod, idx);
+  const prev = idx > 0 ? wod[idx - 1] : null;
+  const next = idx < wod.length - 1 ? wod[idx + 1] : null;
+  const maxArtist = Math.max(1, Math.floor(wod.length * 0.1));
+  const replacement = pickReplacement(pool, prev, next, usedIds, usedTitleKeys, usedArtists, maxArtist, state.currentPhase, state.allowLog2);
+  if (!replacement) {
+    const wm = document.getElementById('warn-msg');
+    wm.textContent = 'Kein Ersatz-Track für diesen Slot gefunden.';
+    wm.style.display = 'block';
+    setTimeout(() => { wm.style.display = 'none'; }, 4000);
+    return;
+  }
+  state.generatedWod.splice(idx, 1, replacement);
+  const logText = document.getElementById('gen-log').value;
+  renderResult(state.poolGenre, state.generatedWod, state.generatedCd, [], logText);
+}
+
 // ===== GENERATE =====
 function generatePlaylist() {
   const btn = document.getElementById('gen-btn');
@@ -862,7 +936,7 @@ function makeRow(idx, t, num, delta, cc, isCd, isRef) {
     ${m('loud', t.loud)}
     <div class="tr-phase"><span class="phase-score ${psCls}">${ps}</span></div>
     <div class="tr-dur">${fmtDur(t.dur)}</div>
-    <div class="tr-sp">${spLink}</div>`;
+    <div class="tr-sp">${spLink}${!isCd ? `<button class="tr-play-btn" onclick="window._cfluPlayFromTrack(${idx})" title="Ab hier abspielen">▶</button>` : ''}${(!isCd && !isRef) ? `<button class="tr-replace-btn" onclick="window._cfluReplaceTrack(${idx})" title="Track ersetzen">↺</button>` : ''}</div>`;
   return row;
 }
 
@@ -928,6 +1002,15 @@ function init() {
   document.getElementById('sp-logout-btn').addEventListener('click', spotifyLogout);
   document.getElementById('sp-export-btn2').addEventListener('click', exportPlaylist);
   document.getElementById('csv-export-btn').addEventListener('click', exportCsv);
+  // Mini player controls
+  document.getElementById('sp-player-playpause')?.addEventListener('click', () => {
+    if (!state.spPlayer) return;
+    state.spPlayer.getCurrentState().then(s => { if (s?.paused) resumePlayer(); else pausePlayer(); });
+  });
+  document.getElementById('sp-player-prev')?.addEventListener('click', skipToPrev);
+  document.getElementById('sp-player-next')?.addEventListener('click', skipToNext);
+  // Web Playback SDK state events
+  document.addEventListener('cflu-player-state', e => onPlayerStateChanged(e.detail));
 
   // Generation log copy
   document.getElementById('gen-log-copy-btn').addEventListener('click', () => {
@@ -1027,4 +1110,6 @@ function init() {
     .catch(() => { if (!hasOAuthCode && !hasPoolUpdate) showLoginModal(); });
 }
 
+window._cfluReplaceTrack = onReplaceTrack;
+window._cfluPlayFromTrack = onPlayFromTrack;
 document.addEventListener('DOMContentLoaded', init);

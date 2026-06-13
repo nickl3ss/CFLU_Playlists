@@ -10,7 +10,7 @@ import { GENRE_CONFIG, getNeighboursWeighted, getNeighbours, bridgeTags,
          bridgeTagsForMain, getSubgenres, getRoleBonus } from './genres.js';
 import { getPhasePool, getPhasePoolWithNeighbours } from './algorithm.js';
 import { addTrack, pickNext, pickPrev,
-         buildUp, buildDown, buildPlateau, buildDecreasing, buildAlternating } from './algorithm.js';
+         buildUp, buildDown, buildPlateau, buildDecreasing, buildAlternating, pickReplacement } from './algorithm.js';
 import { state } from './state.js';
 import { sanitizeFilename, extractPlaylistName, formatUploadSuccess, classifyUploadResult } from './upload.js';
 import { bpmStopsForPhase, PHASE_CONFIG, RED, YEL, GRN } from './config.js';
@@ -1338,6 +1338,62 @@ describe('bpmHint — BPM-Hinweistext je Phase', () => {
   });
   it('ungültige Phase → leerer String', () => {
     expect(bpmHint(120, 'X')).toBe('');
+  });
+});
+
+// ============================================================
+//  pickReplacement — In-Place Track Swap
+// ============================================================
+describe('pickReplacement — In-Place Track Swap (#145)', () => {
+  // prev=120 BPM, next=128 BPM — candidate must transition validly from/to both
+  const prev = mkT({id:'rp',song:'Prev',artist:'Band A',bpm:120,camelot:'9B',energy:72,dur:200,genre:'Rock',bpmg:'D'});
+  const next = mkT({id:'rn',song:'Next',artist:'Band B',bpm:128,camelot:'10B',energy:74,dur:200,genre:'Rock',bpmg:'D'});
+  const good = mkT({id:'rg',song:'Good',artist:'Band C',bpm:124,camelot:'10B',energy:76,dur:200,genre:'Rock',bpmg:'D'});
+  const bad  = mkT({id:'rb',song:'Bad', artist:'Band D',bpm:170,camelot:'11B',energy:78,dur:200,genre:'Rock',bpmg:'G'}); // too far from 120/128
+
+  it('Gibt gültigen Ersatz zurück wenn Pool passt', () => {
+    state.lockCamFilter = false;
+    const r = pickReplacement([good], prev, next, new Set(), new Set(), new Map(), 5, 'C', false);
+    expect(r).not.toBeNull();
+    expect(r.id).toBe('rg');
+  });
+  it('Gibt null zurück wenn Pool leer', () => {
+    state.lockCamFilter = false;
+    expect(pickReplacement([], prev, next, new Set(), new Set(), new Map(), 5, 'C', false)).toBeNull();
+  });
+  it('Bereits verwendete Tracks werden ausgeschlossen (excludeIds)', () => {
+    state.lockCamFilter = false;
+    const r = pickReplacement([good], prev, next, new Set(['rg']), new Set(), new Map(), 5, 'C', false);
+    expect(r).toBeNull();
+  });
+  it('Track mit zu großem BPM-Sprung wird abgelehnt', () => {
+    state.lockCamFilter = false;
+    const r = pickReplacement([bad], prev, next, new Set(), new Set(), new Map(), 5, 'C', false);
+    expect(r).toBeNull();
+  });
+  it('Nur-prev-Constraint (letzter Slot): next=null → gültiger Track zurück', () => {
+    state.lockCamFilter = false;
+    const r = pickReplacement([good, bad], prev, null, new Set(), new Set(), new Map(), 5, 'C', false);
+    expect(r).not.toBeNull();
+  });
+  it('Nur-next-Constraint (erster Slot): prev=null → gültiger Track zurück', () => {
+    state.lockCamFilter = false;
+    const r = pickReplacement([good, bad], null, next, new Set(), new Set(), new Map(), 5, 'C', false);
+    expect(r).not.toBeNull();
+  });
+  it('Gibt besten calcSortScore zurück (grünes Camelot vor rotem)', () => {
+    state.lockCamFilter = false;
+    const ok1 = mkT({id:'k1',song:'K1',artist:'Band E',bpm:124,camelot:'10B',energy:76,dur:200,genre:'Rock',bpmg:'D'});
+    const ok2 = mkT({id:'k2',song:'K2',artist:'Band F',bpm:124,camelot:'5A',energy:76,dur:200,genre:'Rock',bpmg:'D'});
+    const r = pickReplacement([ok1, ok2], prev, next, new Set(), new Set(), new Map(), 5, 'C', false);
+    expect(r).not.toBeNull();
+    expect(r.id).toBe('k1'); // 10B→9B ist grün, 5A→9B ist rot
+  });
+  it('Speech > 66 wird ausgeschlossen', () => {
+    state.lockCamFilter = false;
+    const loud = mkT({id:'sp',song:'Speech',artist:'Band G',bpm:124,camelot:'10B',energy:76,dur:200,genre:'Rock',bpmg:'D',speech:80});
+    const r = pickReplacement([loud], prev, next, new Set(), new Set(), new Map(), 5, 'C', false);
+    expect(r).toBeNull();
   });
 });
 

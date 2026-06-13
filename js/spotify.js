@@ -1,4 +1,4 @@
-// spotify.js — PKCE auth and playlist export; Client ID must NEVER go to localStorage (Key Invariant 2); max 100 tracks (Invariant 3)
+// spotify.js — PKCE auth, playlist export, and Web Playback SDK; Client ID must NEVER go to localStorage (Key Invariant 2); max 100 tracks (Invariant 3)
 import { state } from './state.js';
 
 const REDIRECT_URI = 'http://127.0.0.1:8888/CFLU_WOD_Builder.html';
@@ -21,8 +21,8 @@ export function spotifyLogin() {
   generateChallenge(v).then(ch => {
     const p = new URLSearchParams({
       response_type: 'code', client_id: cid,
-      // S-01: playlist-modify-private reicht — Playlists werden immer als private erstellt.
-      scope: 'playlist-modify-private',
+      // S-01: streaming + playback-state scopes added for Web Playback SDK (Issue #146)
+      scope: 'playlist-modify-private streaming user-read-playback-state user-modify-playback-state',
       redirect_uri: REDIRECT_URI,
       code_challenge_method: 'S256', code_challenge: ch,
     });
@@ -86,6 +86,7 @@ export async function checkSpotifyCallback() {
       showStatus('✓ Verbunden!', 'info');
       sessionStorage.removeItem('pkce_v');
       sessionStorage.removeItem('sp_cid');
+      initSpotifyPlayer(data.access_token); // fire-and-forget — non-fatal if SDK unavailable
     } else {
       // S-03: Kein JSON.stringify(data) — Spotify-Fehldetails nicht in die UI
       console.error('Spotify auth error:', data);
@@ -93,6 +94,66 @@ export async function checkSpotifyCallback() {
     }
   } catch { showStatus('Verbindung fehlgeschlagen. Netzwerk prüfen.', 'error'); }
 }
+
+// ===== WEB PLAYBACK SDK =====
+
+function _loadSpotifySdk() {
+  return new Promise(resolve => {
+    if (window.Spotify) { resolve(); return; }
+    window.onSpotifyWebPlaybackSDKReady = resolve;
+    const s = document.createElement('script');
+    s.src = 'https://sdk.scdn.co/spotify-player.js';
+    document.head.appendChild(s);
+  });
+}
+
+export async function initSpotifyPlayer(token) {
+  try {
+    await _loadSpotifySdk();
+    const player = new window.Spotify.Player({
+      name: 'CFLU WOD Player',
+      getOAuthToken: cb => cb(token),
+      volume: 0.8,
+    });
+    player.addListener('ready', ({ device_id }) => {
+      state.spDeviceId = device_id;
+      const bar = document.getElementById('sp-player-bar');
+      if (bar) bar.style.display = '';
+    });
+    player.addListener('not_ready', () => {
+      state.spDeviceId = null;
+    });
+    player.addListener('initialization_error', ({ message }) => {
+      showStatus('Browser-Wiedergabe nicht verfügbar: ' + message, 'error');
+    });
+    player.addListener('authentication_error', () => {
+      showStatus('Wiedergabe: Bitte neu verbinden (neue Berechtigungen erforderlich).', 'error');
+    });
+    player.addListener('account_error', () => {
+      showStatus('Browser-Wiedergabe erfordert Spotify Premium.', 'error');
+    });
+    player.addListener('player_state_changed', st => {
+      if (!st) return;
+      document.dispatchEvent(new CustomEvent('cflu-player-state', { detail: st }));
+    });
+    state.spPlayer = player;
+    await player.connect();
+  } catch { /* SDK load failure is non-fatal — export still works */ }
+}
+
+export async function playPlaylist(uris, startIndex = 0) {
+  if (!state.spDeviceId || !isTokenValid()) return;
+  await fetch('https://api.spotify.com/v1/me/player/play?device_id=' + state.spDeviceId, {
+    method: 'PUT',
+    headers: { Authorization: 'Bearer ' + state.spToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ uris, offset: { position: startIndex } }),
+  }).catch(() => {});
+}
+
+export function pausePlayer() { state.spPlayer?.pause(); }
+export function resumePlayer() { state.spPlayer?.resume(); }
+export function skipToNext() { state.spPlayer?.nextTrack(); }
+export function skipToPrev() { state.spPlayer?.previousTrack(); }
 
 export async function exportPlaylist() {
   if (!isTokenValid()) {

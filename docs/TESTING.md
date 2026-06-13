@@ -10,6 +10,31 @@
 
 ## New Since Last Push
 
+### N6 · Track Replace — In-Place Swap
+
+| # | Step | Expected |
+|---|------|----------|
+| N6-1 | Generate a playlist | Each WOD track (except REF) shows a ↺ button in the last column |
+| N6-2 | REF track and Cool-Down tracks | No ↺ button visible |
+| N6-3 | Click ↺ on a non-REF WOD track | Track is replaced in-place; BPM chart redraws; stats bar updates |
+| N6-4 | Click ↺ on a track with very constrained neighbors | Yellow warning "Kein Ersatz-Track für diesen Slot gefunden." appears for 4 s, then disappears |
+| N6-5 | After replacement | New track satisfies BPM transition to both neighbors (no hard log2-score=0 jump) |
+
+### N7 · In-Browser Spotify Playback (Web Playback SDK)
+
+| # | Step | Expected |
+|---|------|----------|
+| N7-1 | Connect Spotify (fresh auth required for new scopes) | After OAuth, mini player bar appears in playlist area (collapsed until player ready) |
+| N7-2 | Generate a playlist; click ▶ on any track row | Playlist starts from that track in the browser (Spotify Premium required) |
+| N7-3 | Mini player bar | Shows: current track name + artist · ⏮ ⏸/▶ ⏭ buttons · progress bar |
+| N7-4 | Click ⏸ while playing | Playback pauses; button switches to ▶ |
+| N7-5 | Click ▶ when paused | Playback resumes; button switches to ⏸ |
+| N7-6 | Click ⏮ / ⏭ | Skips to previous / next track in playlist |
+| N7-7 | Currently playing track | Row highlighted with green left border |
+| N7-8 | Progress bar | Advances during playback (updates via player_state_changed events) |
+| N7-9 | Without Spotify Premium | Clear error: "Browser-Wiedergabe erfordert Spotify Premium." |
+| N7-10 | Old auth session (without streaming scope) | Clear message to reconnect; export still works |
+
 ### N5 · log2 BPM-Übergangsscore — Neues Scoring-System
 
 | # | Step | Expected |
