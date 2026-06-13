@@ -582,6 +582,15 @@ function buildGenLog(genre, wod, cd, warnMsgs) {
 }
 
 // ===== WEB PLAYBACK =====
+function _updatePlayBtnState() {
+  const active = !!state.spDeviceId;
+  document.querySelectorAll('.tr-play-btn').forEach(btn => {
+    btn.style.opacity = active ? '' : '0.2';
+    btn.style.pointerEvents = active ? '' : 'none';
+    btn.title = active ? 'Ab hier abspielen' : 'Spotify verbinden für Browser-Wiedergabe';
+  });
+}
+
 function onPlayerStateChanged(st) {
   if (!st) return;
   const track = st.track_window?.current_track;
@@ -598,6 +607,7 @@ function onPlayerStateChanged(st) {
   // Progress bar
   const fill = document.getElementById('sp-player-fill');
   if (fill && st.duration) fill.style.width = Math.round((st.position / st.duration) * 100) + '%';
+  _updatePlayBtnState();
 
   // Highlight current track by matching Spotify URI
   const currentUri = track?.uri;
@@ -837,6 +847,7 @@ function renderResult(genre, wod, cd, warns, logText) {
     row.addEventListener('mouseenter', () => highlightFromRow(i));
     row.addEventListener('mouseleave', () => clearHighlight());
   });
+  _updatePlayBtnState();
 
   if (state.spToken) document.getElementById('sp-export-btn2').style.display = 'block';
   document.getElementById('csv-export-btn').style.display = 'block';

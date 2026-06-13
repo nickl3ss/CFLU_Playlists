@@ -31,11 +31,17 @@ export function spotifyLogin() {
 }
 
 export function spotifyLogout() {
+  state.spPlayer?.disconnect();
+  state.spPlayer = null;
+  state.spDeviceId = null;
+  state.spPlayingIdx = -1;
   state.spToken = null;
   state.spUserId = null;
   state.spTokenExpiry = 0;
   sessionStorage.removeItem('pkce_v');
   sessionStorage.removeItem('sp_cid');
+  const bar = document.getElementById('sp-player-bar');
+  if (bar) bar.style.display = 'none';
   document.getElementById('sp-connected').style.display = 'none';
   document.getElementById('sp-export-btn2').style.display = 'none';
   document.getElementById('sp-user').textContent = '';
