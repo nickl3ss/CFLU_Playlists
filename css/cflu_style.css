@@ -189,6 +189,8 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
 .tr-play-btn{background:none;border:none;cursor:pointer;font-size:11px;color:var(--text3);opacity:.35;padding:0 2px 0 0;line-height:1;transition:opacity .15s,color .15s}
 .tr-play-btn:hover{opacity:1;color:#1db954}
 .tr.tr-playing{background:rgba(29,185,84,.08);border-left:2px solid #1db954}
+.tr.tr-replaced{animation:flash-replace .6s ease-out 2}
+@keyframes flash-replace{0%{background:rgba(251,191,36,.22)}100%{background:transparent}}
 .sp-player-bar{display:flex;align-items:center;gap:10px;padding:6px 14px;background:rgba(29,185,84,.08);border:1px solid rgba(29,185,84,.2);border-radius:6px;margin:6px 0}
 .sp-player-info{flex:1;font-family:var(--ff-mono);font-size:var(--fz-xs);color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sp-player-controls{display:flex;gap:4px;flex-shrink:0}
@@ -214,6 +216,8 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
 .sp-btn{background:var(--spotify);border:none;border-radius:6px;color:#000;font-family:var(--ff-ui);font-weight:700;font-size:var(--fz-md);letter-spacing:.06em;text-transform:uppercase;padding:9px 18px;cursor:pointer;white-space:nowrap;transition:all .15s}
 .sp-btn:hover{background:var(--spotify2)}
 .sp-btn:disabled{background:var(--bg4);color:var(--text3);cursor:not-allowed}
+.sp-play-main-btn{background:rgba(29,185,84,.15);color:var(--spotify);border:1px solid rgba(29,185,84,.3)}
+.sp-play-main-btn:hover{background:rgba(29,185,84,.28);color:var(--spotify)}
 /* App-Aktionen (kein Spotify-Bezug) → CFLU-Rot */
 #csv-export-btn,#upload-btn{background:var(--acc);color:#000}
 #csv-export-btn:hover,#upload-btn:hover{background:var(--acc2)}

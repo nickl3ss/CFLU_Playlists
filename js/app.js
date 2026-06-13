@@ -620,14 +620,30 @@ function onPlayerStateChanged(st) {
   });
 }
 
+function _showPlaybackStatus(msg, isError = false) {
+  const el = document.getElementById('sp-playback-status');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'sp-status ' + (isError ? 'error' : 'info');
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
 function onPlayFromTrack(idx) {
-  if (!state.spDeviceId) return;
+  if (!state.spDeviceId) {
+    _showPlaybackStatus('Bitte neu verbinden — Browser-Wiedergabe erfordert aktualisierte Berechtigungen.', true);
+    return;
+  }
   const validTracks = state.generatedWod.filter(t => t.id && t.id !== 'nan');
   const uris = validTracks.map(t => 'spotify:track:' + t.id);
-  if (!uris.length) return;
+  if (!uris.length) { _showPlaybackStatus('Keine abspielbaren Tracks (fehlende Spotify-IDs).', true); return; }
   const clickedTrack = state.generatedWod[idx];
   const sdkIdx = (clickedTrack?.id && clickedTrack.id !== 'nan') ? validTracks.indexOf(clickedTrack) : 0;
   playPlaylist(uris, Math.max(0, sdkIdx));
+}
+
+function onPlayMain() {
+  onPlayFromTrack(0);
 }
 
 // ===== REPLACE TRACK =====
@@ -654,14 +670,23 @@ function onReplaceTrack(idx) {
   const replacement = pickReplacement(pool, prev, next, usedIds, usedTitleKeys, usedArtists, maxArtist, state.currentPhase, state.allowLog2);
   if (!replacement) {
     const wm = document.getElementById('warn-msg');
-    wm.textContent = 'Kein Ersatz-Track für diesen Slot gefunden.';
+    wm.textContent = `↺ Kein Ersatz für Slot ${idx + 1} gefunden (BPM-Übergang oder Camelot-Filter zu eng).`;
     wm.style.display = 'block';
-    setTimeout(() => { wm.style.display = 'none'; }, 4000);
+    wm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    setTimeout(() => { wm.style.display = 'none'; }, 6000);
     return;
   }
   state.generatedWod.splice(idx, 1, replacement);
   const logText = document.getElementById('gen-log').value;
   renderResult(state.poolGenre, state.generatedWod, state.generatedCd, [], logText);
+  // Flash the replaced row to confirm the change
+  requestAnimationFrame(() => {
+    const replaced = document.querySelector(`.tr[data-idx="${idx}"]`);
+    if (replaced) {
+      replaced.classList.add('tr-replaced');
+      setTimeout(() => replaced.classList.remove('tr-replaced'), 1200);
+    }
+  });
 }
 
 // ===== GENERATE =====
@@ -1013,6 +1038,8 @@ function init() {
   document.getElementById('sp-logout-btn').addEventListener('click', spotifyLogout);
   document.getElementById('sp-export-btn2').addEventListener('click', exportPlaylist);
   document.getElementById('csv-export-btn').addEventListener('click', exportCsv);
+  // Browser playback
+  document.getElementById('sp-play-main-btn')?.addEventListener('click', onPlayMain);
   // Mini player controls
   document.getElementById('sp-player-playpause')?.addEventListener('click', () => {
     if (!state.spPlayer) return;

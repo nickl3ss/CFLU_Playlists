@@ -277,15 +277,6 @@
       </div>
       <div class="stats-bar" id="stats-bar"></div>
       <div class="warn-msg" id="warn-msg"></div>
-      <div class="sp-player-bar" id="sp-player-bar" style="display:none">
-        <div class="sp-player-info" id="sp-player-track">—</div>
-        <div class="sp-player-controls">
-          <button class="sp-player-btn" id="sp-player-prev" title="Zurück">⏮</button>
-          <button class="sp-player-btn sp-player-btn--main" id="sp-player-playpause" title="Play/Pause">▶</button>
-          <button class="sp-player-btn" id="sp-player-next" title="Weiter">⏭</button>
-        </div>
-        <div class="sp-player-progress"><div class="sp-player-fill" id="sp-player-fill"></div></div>
-      </div>
       <div class="limit-warn" id="limit-warn">⚠ Export auf 100 Tracks begrenzt (Spotify-Limit).</div>
       <div class="chart-wrap">
         <div class="chart-title">BPM-Verlauf</div>
@@ -306,6 +297,20 @@
     </div>
 
     <div id="result-footer" style="display:none">
+      <div class="sp-section" id="sp-playback-section">
+        <div class="sp-section-title">● Browser-Wiedergabe</div>
+        <button class="sp-btn sp-play-main-btn" id="sp-play-main-btn" style="width:100%;margin-bottom:8px">▶ Im Browser abspielen</button>
+        <div class="sp-player-bar" id="sp-player-bar" style="display:none">
+          <div class="sp-player-info" id="sp-player-track">—</div>
+          <div class="sp-player-controls">
+            <button class="sp-player-btn" id="sp-player-prev" title="Zurück">⏮</button>
+            <button class="sp-player-btn sp-player-btn--main" id="sp-player-playpause" title="Play/Pause">▶</button>
+            <button class="sp-player-btn" id="sp-player-next" title="Weiter">⏭</button>
+          </div>
+          <div class="sp-player-progress"><div class="sp-player-fill" id="sp-player-fill"></div></div>
+        </div>
+        <div class="sp-status" id="sp-playback-status"></div>
+      </div>
       <div class="sp-section">
         <div class="sp-section-title">● Spotify Export</div>
         <button class="sp-btn" id="sp-export-btn2" style="display:none;width:100%;margin-bottom:10px">Playlist zu Spotify exportieren →</button>
