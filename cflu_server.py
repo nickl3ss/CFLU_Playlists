@@ -172,10 +172,10 @@ class CFLUHandler(SimpleHTTPRequestHandler):
         global _sp_pending_state
         cid, secret = _load_credentials()
         if not cid or not secret:
-            return self._respond(500, {
-                'error': 'Spotify-Zugangsdaten fehlen. '
-                         'cflu_client_id.txt und cflu_client_secret.txt anlegen.',
-            })
+            missing = 'cflu_client_id.txt' if not cid else 'cflu_client_secret.txt'
+            return self._redirect_to_app(
+                f'?sp_error={urllib.parse.quote(missing + " fehlt — im Projektordner anlegen.")}'
+            )
         _sp_pending_state = secrets.token_urlsafe(32)
         params = urllib.parse.urlencode({
             'response_type': 'code',
