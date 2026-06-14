@@ -1,9 +1,7 @@
-// spotify.js — PKCE auth, playlist export, and Web Playback SDK; Client ID must NEVER go to localStorage (Key Invariant 2); max 100 tracks (Invariant 3)
+// spotify.js — Spotify auth (server-side proxy) + playlist export + device control
+// Auth: Authorization Code Flow handled by cflu_server.py — browser never holds a Spotify token.
+// All Spotify API calls proxied through POST /api/spotify/call.
 import { state } from './state.js';
-
-const REDIRECT_URI = 'http://127.0.0.1:8888/CFLU_WOD_Builder.html';
-// Spotify access tokens expire after 3600 s; we treat them as expired after 55 min.
-const TOKEN_TTL_MS = 55 * 60 * 1000;
 
 export function showStatus(msg, type) {
   ['sp-status', 'sp-status2'].forEach(id => {
@@ -12,37 +10,17 @@ export function showStatus(msg, type) {
   });
 }
 
+// Redirect browser to server-side OAuth start — server holds credentials
 export function spotifyLogin() {
-  const cid = document.getElementById('sp-cid').value.trim();
-  if (!cid) { showStatus('Bitte Client ID eingeben.', 'error'); return; }
-  const v = generateVerifier();
-  sessionStorage.setItem('pkce_v', v);
-  sessionStorage.setItem('sp_cid', cid);
-  generateChallenge(v).then(ch => {
-    const p = new URLSearchParams({
-      response_type: 'code', client_id: cid,
-      // S-01: streaming + playback-state scopes added for Web Playback SDK (Issue #146)
-      scope: 'playlist-modify-private streaming user-read-playback-state user-modify-playback-state',
-      redirect_uri: REDIRECT_URI,
-      code_challenge_method: 'S256', code_challenge: ch,
-      show_dialog: 'true', // always force consent dialog — ensures streaming scope is granted
-    });
-    window.location.href = 'https://accounts.spotify.com/authorize?' + p;
-  });
+  window.location.href = '/api/spotify/login';
 }
 
-export function spotifyLogout() {
-  state.spPlayer?.disconnect();
-  state.spPlayer = null;
-  state.spDeviceId = null;
-  state.spPlayingIdx = -1;
-  state.spToken = null;
-  state.spUserId = null;
-  state.spTokenExpiry = 0;
-  sessionStorage.removeItem('pkce_v');
-  sessionStorage.removeItem('sp_cid');
-  const bar = document.getElementById('sp-player-bar');
-  if (bar) bar.style.display = 'none';
+export async function spotifyLogout() {
+  await fetch('/api/spotify/logout').catch(() => {});
+  state.spConnected = false;
+  state.spDisplayName = null;
+  state.spDevices = [];
+  state.spSelectedDeviceId = null;
   document.getElementById('sp-connected').style.display = 'none';
   document.getElementById('sp-export-btn2').style.display = 'none';
   document.getElementById('sp-user').textContent = '';
@@ -50,150 +28,94 @@ export function spotifyLogout() {
   document.dispatchEvent(new CustomEvent('cflu-auth-state'));
 }
 
-function isTokenValid() {
-  return state.spToken && Date.now() < (state.spTokenExpiry || 0);
-}
-
-function generateVerifier() {
-  const a = new Uint8Array(64);
-  crypto.getRandomValues(a);
-  return btoa(String.fromCharCode(...a)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-}
-
-async function generateChallenge(v) {
-  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v));
-  return btoa(String.fromCharCode(...new Uint8Array(d))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-}
-
+// Called on page load — handles ?sp_connected=1 and ?sp_error=... from OAuth callback
 export async function checkSpotifyCallback() {
   const p = new URLSearchParams(window.location.search);
-  const code = p.get('code');
-  if (!code) return;
-  const v = sessionStorage.getItem('pkce_v'), cid = sessionStorage.getItem('sp_cid');
-  if (!v || !cid) return;
-  window.history.replaceState({}, '', window.location.pathname);
-  showStatus('Verbinde...', 'info');
+  if (p.has('sp_error')) {
+    window.history.replaceState({}, '', window.location.pathname);
+    showStatus('Verbindung fehlgeschlagen: ' + p.get('sp_error'), 'error');
+    return;
+  }
+  if (p.has('sp_connected')) {
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+  // Always refresh status from server (handles both callback and page reload with existing session)
+  await checkSpotifyStatus();
+}
+
+export async function checkSpotifyStatus() {
   try {
-    const r = await fetch('https://accounts.spotify.com/api/token', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: new URLSearchParams({
-        grant_type: 'authorization_code', code, client_id: cid,
-        redirect_uri: REDIRECT_URI, code_verifier: v,
-      }),
-    });
+    const r = await fetch('/api/spotify/status');
     const data = await r.json();
-    if (data.access_token) {
-      state.spToken = data.access_token;
-      state.spTokenExpiry = Date.now() + TOKEN_TTL_MS;
-      const me = await (await fetch('https://api.spotify.com/v1/me', {headers: {Authorization: 'Bearer ' + state.spToken}})).json();
-      state.spUserId = me.id;
-      document.getElementById('sp-user').textContent = me.display_name || me.id;
+    if (data.connected) {
+      state.spConnected = true;
+      state.spDisplayName = data.display_name;
+      document.getElementById('sp-user').textContent = data.display_name;
       document.getElementById('sp-connected').style.display = 'block';
       if (state.generatedWod.length) document.getElementById('sp-export-btn2').style.display = 'block';
       showStatus('✓ Verbunden!', 'info');
-      sessionStorage.removeItem('pkce_v');
-      sessionStorage.removeItem('sp_cid');
       document.dispatchEvent(new CustomEvent('cflu-auth-state'));
-      initSpotifyPlayer(data.access_token); // fire-and-forget — non-fatal if SDK unavailable
-    } else {
-      // S-03: Kein JSON.stringify(data) — Spotify-Fehldetails nicht in die UI
-      console.error('Spotify auth error:', data);
-      showStatus('Verbindung fehlgeschlagen. Bitte Client ID und Redirect URI prüfen.', 'error');
     }
-  } catch { showStatus('Verbindung fehlgeschlagen. Netzwerk prüfen.', 'error'); }
+  } catch { /* network error — non-fatal */ }
 }
 
-// ===== WEB PLAYBACK SDK =====
+// ===== API PROXY =====
 
-function _loadSpotifySdk() {
-  return new Promise(resolve => {
-    if (window.Spotify) { resolve(); return; }
-    window.onSpotifyWebPlaybackSDKReady = resolve;
-    const s = document.createElement('script');
-    s.src = 'https://sdk.scdn.co/spotify-player.js';
-    document.head.appendChild(s);
+// Proxy a Spotify API call through the local server.
+// Returns parsed JSON, or null for 204 No Content / parse errors.
+export async function spotifyCall(method, path, body = null) {
+  const r = await fetch('/api/spotify/call', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ method, path, body }),
+  });
+  if (r.status === 204) return null;
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    console.error('Spotify API error', r.status, path, err);
+    throw Object.assign(new Error('Spotify API error ' + r.status), { status: r.status, detail: err });
+  }
+  return r.json().catch(() => null);
+}
+
+// ===== DEVICE CONTROL =====
+
+export async function getDevices() {
+  const data = await spotifyCall('GET', '/me/player/devices');
+  return data?.devices || [];
+}
+
+export async function playOnDevice(deviceId, uris, startIndex = 0) {
+  await spotifyCall('PUT', `/me/player/play?device_id=${deviceId}`, {
+    uris,
+    offset: { position: startIndex },
   });
 }
 
-export async function initSpotifyPlayer(token) {
-  try {
-    await _loadSpotifySdk();
-    const player = new window.Spotify.Player({
-      name: 'CFLU WOD Player',
-      getOAuthToken: cb => cb(token),
-      volume: 0.8,
-    });
-    player.addListener('ready', ({ device_id }) => {
-      state.spDeviceId = device_id;
-      const bar = document.getElementById('sp-player-bar');
-      if (bar) bar.style.display = '';
-    });
-    player.addListener('not_ready', () => {
-      state.spDeviceId = null;
-    });
-    player.addListener('initialization_error', ({ message }) => {
-      showStatus('Browser-Wiedergabe nicht verfügbar: ' + message, 'error');
-    });
-    player.addListener('authentication_error', () => {
-      showStatus('Wiedergabe: Bitte neu verbinden (neue Berechtigungen erforderlich).', 'error');
-    });
-    player.addListener('account_error', () => {
-      showStatus('Browser-Wiedergabe erfordert Spotify Premium.', 'error');
-    });
-    player.addListener('player_state_changed', st => {
-      if (!st) return;
-      document.dispatchEvent(new CustomEvent('cflu-player-state', { detail: st }));
-    });
-    state.spPlayer = player;
-    await player.connect();
-  } catch { /* SDK load failure is non-fatal — export still works */ }
-}
-
-export async function playPlaylist(uris, startIndex = 0) {
-  if (!state.spDeviceId || !isTokenValid()) return;
-  await fetch('https://api.spotify.com/v1/me/player/play?device_id=' + state.spDeviceId, {
-    method: 'PUT',
-    headers: { Authorization: 'Bearer ' + state.spToken, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ uris, offset: { position: startIndex } }),
-  }).catch(() => {});
-}
-
-export function pausePlayer() { state.spPlayer?.pause(); }
-export function resumePlayer() { state.spPlayer?.resume(); }
-export function skipToNext() { state.spPlayer?.nextTrack(); }
-export function skipToPrev() { state.spPlayer?.previousTrack(); }
+// ===== PLAYLIST EXPORT =====
 
 export async function exportPlaylist() {
-  if (!isTokenValid()) {
-    showStatus(state.spToken ? 'Sitzung abgelaufen — bitte neu verbinden.' : 'Zuerst verbinden.', 'error');
-    if (state.spToken) spotifyLogout();
+  if (!state.spConnected) {
+    showStatus('Zuerst verbinden.', 'error');
     return;
   }
-  const all = [...state.generatedWod, ...state.generatedCd].slice(0, 100);
+  const all = [...state.generatedWod, ...state.generatedCd].slice(0, 100); // Invariant 3: max 100
   if (!all.length) { showStatus('Keine Playlist.', 'error'); return; }
   const name = document.getElementById('pl-name').value || 'CFLU WOD';
   showStatus('Erstelle Playlist...', 'info');
   try {
-    const pl = await (await fetch('https://api.spotify.com/v1/me/playlists', {
-      method: 'POST',
-      headers: {Authorization: 'Bearer ' + state.spToken, 'Content-Type': 'application/json'},
-      body: JSON.stringify({name, description: 'CFLU WOD Playlist Builder', public: false}),
-    })).json();
-    if (!pl.id) {
-      // S-03: Playlist-Erstellungsfehler nicht roh ausgeben
+    const pl = await spotifyCall('POST', '/me/playlists', {
+      name, description: 'CFLU WOD Playlist Builder', public: false,
+    });
+    if (!pl?.id) {
       console.error('Spotify playlist create error:', pl);
-      showStatus('Playlist-Erstellung fehlgeschlagen. Token abgelaufen?', 'error');
+      showStatus('Playlist-Erstellung fehlgeschlagen.', 'error');
       return;
     }
     showStatus('Füge Tracks hinzu...', 'info');
     const uris = all.filter(t => t.id && t.id !== 'nan').map(t => 'spotify:track:' + t.id);
     for (let i = 0; i < uris.length; i += 100) {
-      await fetch(`https://api.spotify.com/v1/playlists/${pl.id}/items`, {
-        method: 'POST',
-        headers: {Authorization: 'Bearer ' + state.spToken, 'Content-Type': 'application/json'},
-        body: JSON.stringify({uris: uris.slice(i, i + 100)}),
-      });
+      await spotifyCall('POST', `/playlists/${pl.id}/items`, { uris: uris.slice(i, i + 100) });
     }
     showStatus('✓ Exportiert!', 'info');
     document.getElementById('sp-link-wrap').classList.remove('hidden');

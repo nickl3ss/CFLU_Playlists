@@ -55,7 +55,7 @@
     ├── genres.js               # GENRE_CONFIG — single source of truth for genre logic
     ├── algorithm.js            # Playlist generation — no DOM, no state writes
     ├── chart.js                # BPM chart — reads state, writes canvas only
-    ├── spotify.js              # PKCE auth + export — no token in localStorage (Invariant 2)
+    ├── spotify.js              # Auth proxy + export + device control — browser never holds Spotify token (Invariant 2)
     ├── upload.js               # CSV upload UI (standalone <script> in HTML) + exported pure helpers (Node.js-safe)
     └── app.js                  # UI wiring — imports all modules; no business logic
 ```
@@ -303,8 +303,8 @@ After user confirms testing is done, clear the **New Since Last Push** section a
 
 ## Key Invariants (never break)
 
-1. Redirect URI must be exactly `http://127.0.0.1:8888/CFLU_WOD_Builder.html`
-2. Client ID must **not** be stored in localStorage; sessionStorage only temporarily for the OAuth redirect flow — cleaned up immediately after callback (`pkce_v` + `sp_cid`)
+1. Redirect URI must be exactly `http://127.0.0.1:{PORT}/api/spotify/callback` (default PORT=8888) — must match Spotify Dashboard exactly
+2. `client_secret` and `refresh_token` must **never** leave the server (cflu_server.py). The browser never holds a Spotify token — all API calls proxied through `POST /api/spotify/call`.
 3. Spotify export: max. 100 tracks per batch (API limit) — always hard-cap
 4. BPM must never go backwards in phase B/C (ascending phases)
 5. BPM groups: max. ±1 step per move (except _pick() stage 4 BPM escalation)

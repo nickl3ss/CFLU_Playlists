@@ -9,8 +9,8 @@ import { getAllTracks, getPool, getPhasePool, getPhasePoolWithNeighbours, getGen
          registerTrack, addTrack, pickNext, buildUp, buildDown,
          buildPlateau, buildDecreasing, buildAlternating, pickReplacement } from './algorithm.js';
 import { drawChart, highlightFromRow, clearHighlight } from './chart.js';
-import { spotifyLogin, spotifyLogout, checkSpotifyCallback, exportPlaylist,
-         playPlaylist, pausePlayer, resumePlayer, skipToNext, skipToPrev } from './spotify.js';
+import { spotifyLogin, spotifyLogout, checkSpotifyCallback,
+         exportPlaylist, getDevices, playOnDevice } from './spotify.js';
 import { initGenreSpace, updatePlaylistMode, resizeGenreSpace } from './genre_space.js';
 
 // ===== SLIDER UI =====
@@ -28,7 +28,6 @@ function updateSliderStyle(slider, stops, minV, maxV) {
 
 export function showLoginModal() {
   document.getElementById('login-modal').style.display = 'flex';
-  document.getElementById('modal-sp-cid').focus();
 }
 
 export function closeLoginModal() {
@@ -36,16 +35,6 @@ export function closeLoginModal() {
 }
 
 function modalConnect() {
-  const cid = document.getElementById('modal-sp-cid').value.trim();
-  if (!cid) {
-    const s = document.getElementById('modal-sp-status');
-    s.textContent = 'Bitte Client ID eingeben.';
-    s.className = 'sp-status error';
-    s.style.display = 'block';
-    document.getElementById('modal-sp-cid').focus();
-    return;
-  }
-  document.getElementById('sp-cid').value = cid;
   closeLoginModal();
   spotifyLogin();
 }
@@ -581,42 +570,13 @@ function buildGenLog(genre, wod, cd, warnMsgs) {
   return L.join('\n');
 }
 
-// ===== WEB PLAYBACK =====
+// ===== DEVICE PLAYBACK =====
 function _updatePlayBtnState() {
-  const active = !!state.spDeviceId;
+  const active = !!(state.spConnected && state.spSelectedDeviceId);
   document.querySelectorAll('.tr-play-btn').forEach(btn => {
     btn.style.opacity = active ? '' : '0.2';
     btn.style.pointerEvents = active ? '' : 'none';
-    btn.title = active ? 'Ab hier abspielen' : 'Spotify verbinden für Browser-Wiedergabe';
-  });
-}
-
-function onPlayerStateChanged(st) {
-  if (!st) return;
-  const track = st.track_window?.current_track;
-  const paused = st.paused;
-
-  // Update mini player info
-  const nameEl = document.getElementById('sp-player-track');
-  if (nameEl && track) nameEl.textContent = `${track.artists[0]?.name} — ${track.name}`;
-
-  // Play/pause button icon
-  const playBtn = document.getElementById('sp-player-playpause');
-  if (playBtn) playBtn.textContent = paused ? '▶' : '⏸';
-
-  // Progress bar
-  const fill = document.getElementById('sp-player-fill');
-  if (fill && st.duration) fill.style.width = Math.round((st.position / st.duration) * 100) + '%';
-  _updatePlayBtnState();
-
-  // Highlight current track by matching Spotify URI
-  const currentUri = track?.uri;
-  document.querySelectorAll('.tr').forEach(row => {
-    const idx = +row.dataset.idx;
-    const t = state.generatedWod[idx];
-    const isPlaying = t && currentUri && currentUri === 'spotify:track:' + t.id;
-    row.classList.toggle('tr-playing', isPlaying);
-    if (isPlaying) state.spPlayingIdx = idx;
+    btn.title = active ? 'Ab hier abspielen' : 'Spotify-Gerät wählen für Wiedergabe';
   });
 }
 
@@ -630,26 +590,63 @@ function _showPlaybackStatus(msg, isError = false) {
 }
 
 function _updateSpPlaybackSection() {
+  const connected = state.spConnected;
   const hint = document.getElementById('sp-playback-connect-hint');
-  if (hint) hint.style.display = state.spToken ? 'none' : '';
+  if (hint) hint.style.display = connected ? 'none' : '';
+  const panel = document.getElementById('sp-device-panel');
+  if (panel) panel.style.display = connected ? '' : 'none';
 }
 
-function onPlayFromTrack(idx) {
-  if (!state.spToken) { showLoginModal(); return; }
-  if (!state.spDeviceId) {
-    _showPlaybackStatus('Player verbindet im Hintergrund — kurz warten und erneut klicken.', false);
+async function refreshDevices() {
+  const sel = document.getElementById('sp-device-sel');
+  if (!sel) return;
+  try {
+    const devices = await getDevices();
+    state.spDevices = devices;
+    sel.innerHTML = '<option value="">— Gerät wählen —</option>';
+    let autoSelected = false;
+    devices.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d.id;
+      opt.textContent = `${d.name} (${d.type})${d.is_active ? ' ●' : ''}`;
+      if (d.is_active && !autoSelected) {
+        state.spSelectedDeviceId = d.id;
+        opt.selected = true;
+        autoSelected = true;
+      }
+      sel.appendChild(opt);
+    });
+    if (!autoSelected && state.spSelectedDeviceId) {
+      const still = devices.find(d => d.id === state.spSelectedDeviceId);
+      if (!still) state.spSelectedDeviceId = null;
+    }
+    _updatePlayBtnState();
+    if (devices.length === 0) {
+      _showPlaybackStatus('Kein Spotify-Gerät gefunden. Spotify öffnen, dann ↻ klicken.', false);
+    }
+  } catch { _showPlaybackStatus('Geräte konnten nicht geladen werden.', true); }
+}
+
+async function onPlayFromTrack(idx) {
+  if (!state.spConnected) { showLoginModal(); return; }
+  const deviceId = state.spSelectedDeviceId;
+  if (!deviceId) {
+    _showPlaybackStatus('Bitte Gerät auswählen (↻ klicken um Spotify-Geräte zu laden).', false);
     return;
   }
   const validTracks = state.generatedWod.filter(t => t.id && t.id !== 'nan');
   const uris = validTracks.map(t => 'spotify:track:' + t.id);
   if (!uris.length) { _showPlaybackStatus('Keine abspielbaren Tracks (fehlende Spotify-IDs).', true); return; }
   const clickedTrack = state.generatedWod[idx];
-  const sdkIdx = (clickedTrack?.id && clickedTrack.id !== 'nan') ? validTracks.indexOf(clickedTrack) : 0;
-  playPlaylist(uris, Math.max(0, sdkIdx));
+  const startIdx = (clickedTrack?.id && clickedTrack.id !== 'nan') ? validTracks.indexOf(clickedTrack) : 0;
+  try {
+    await playOnDevice(deviceId, uris, Math.max(0, startIdx));
+    const devName = state.spDevices.find(d => d.id === deviceId)?.name || 'Gerät';
+    _showPlaybackStatus('Wiedergabe gestartet auf ' + devName + '.', false);
+  } catch { _showPlaybackStatus('Wiedergabe fehlgeschlagen — Gerät erreichbar?', true); }
 }
 
 function onPlayMain() {
-  if (!state.spToken) { showLoginModal(); return; }
   onPlayFromTrack(0);
 }
 
@@ -881,7 +878,7 @@ function renderResult(genre, wod, cd, warns, logText) {
   });
   _updatePlayBtnState();
 
-  if (state.spToken) document.getElementById('sp-export-btn2').style.display = 'block';
+  if (state.spConnected) document.getElementById('sp-export-btn2').style.display = 'block';
   document.getElementById('csv-export-btn').style.display = 'block';
   _updateSpPlaybackSection();
 
@@ -1046,18 +1043,18 @@ function init() {
   document.getElementById('sp-logout-btn').addEventListener('click', spotifyLogout);
   document.getElementById('sp-export-btn2').addEventListener('click', exportPlaylist);
   document.getElementById('csv-export-btn').addEventListener('click', exportCsv);
-  // Browser playback
+  // Device playback
   document.getElementById('sp-play-main-btn')?.addEventListener('click', onPlayMain);
-  // Mini player controls
-  document.getElementById('sp-player-playpause')?.addEventListener('click', () => {
-    if (!state.spPlayer) return;
-    state.spPlayer.getCurrentState().then(s => { if (s?.paused) resumePlayer(); else pausePlayer(); });
+  document.getElementById('sp-device-refresh')?.addEventListener('click', refreshDevices);
+  document.getElementById('sp-device-sel')?.addEventListener('change', e => {
+    state.spSelectedDeviceId = e.target.value || null;
+    _updatePlayBtnState();
   });
-  document.getElementById('sp-player-prev')?.addEventListener('click', skipToPrev);
-  document.getElementById('sp-player-next')?.addEventListener('click', skipToNext);
-  // Web Playback SDK state events
-  document.addEventListener('cflu-player-state', e => onPlayerStateChanged(e.detail));
-  document.addEventListener('cflu-auth-state', _updateSpPlaybackSection);
+  // Auth state changes
+  document.addEventListener('cflu-auth-state', () => {
+    _updateSpPlaybackSection();
+    if (state.spConnected) refreshDevices();
+  });
   document.getElementById('sp-playback-connect-btn')?.addEventListener('click', showLoginModal);
 
   // Generation log copy
@@ -1097,11 +1094,11 @@ function init() {
   onPhaseSelect('C');
 
 
-  // Spotify callback — if returning from OAuth, skip the login modal
+  // Spotify: check for OAuth callback (?sp_connected / ?sp_error) or existing server session
   const urlParams = new URLSearchParams(window.location.search);
-  const hasOAuthCode  = urlParams.has('code');
   const hasPoolUpdate = urlParams.has('pool_updated');
   if (hasPoolUpdate) history.replaceState({}, '', window.location.pathname);
+  // checkSpotifyCallback handles both callback params and existing session (calls checkSpotifyStatus)
   checkSpotifyCallback();
 
   // Chart resize debounce
@@ -1144,18 +1141,12 @@ function init() {
     if (gsCanvas) initGenreSpace(gsCanvas);
   });
 
-  // Pre-fill Client ID from local file, then show login modal (unless OAuth callback or pool reload)
-  fetch('cflu_client_id.txt')
-    .then(r => r.ok ? r.text() : null)
-    .then(id => {
-      const cid = id ? id.trim() : '';
-      if (cid) {
-        document.getElementById('sp-cid').value = cid;
-        document.getElementById('modal-sp-cid').value = cid;
-      }
-      if (!hasOAuthCode && !hasPoolUpdate) showLoginModal();
-    })
-    .catch(() => { if (!hasOAuthCode && !hasPoolUpdate) showLoginModal(); });
+  // Show login modal on startup unless returning from OAuth or pool reload,
+  // or server already has a valid session (checkSpotifyCallback resolves first).
+  if (!urlParams.has('sp_connected') && !urlParams.has('sp_error') && !hasPoolUpdate) {
+    // Delay slightly so checkSpotifyCallback can update state.spConnected first
+    setTimeout(() => { if (!state.spConnected) showLoginModal(); }, 300);
+  }
 }
 
 window._cfluReplaceTrack = onReplaceTrack;

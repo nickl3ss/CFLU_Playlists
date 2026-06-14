@@ -27,7 +27,7 @@ Lokaler, regelbasierter Playlist-Generator für alle vier Phasen eines CrossFit-
 | `js/genres.js` | GENRE_CONFIG: 10 Main Genres (Everynoise-derived neighbour weights), Bridge-Subgenres, Rollen-Affinität |
 | `js/algorithm.js` | Kern: pickNext/pickPrev (4-stufig), buildUp/Down/Plateau/Decreasing/Alternating |
 | `js/chart.js` | BPM-Step-Chart + bidirektionale Hover-Synchronisation |
-| `js/spotify.js` | Spotify PKCE Auth, Token-Expiry (55 min), Logout, Playlist-Export |
+| `js/spotify.js` | Spotify auth proxy, playlist export, device control — browser never holds a token |
 | `js/upload.js` | CSV-Upload-Helfer: sanitizeFilename, extractPlaylistName, formatUploadSuccess |
 | `js/app.js` | UI-Handler, _gen(), renderResult(), Event-Wiring, Init |
 
@@ -57,7 +57,7 @@ app.js (importiert alle Module, verdrahtet Events)
 |---|-------------|------------|-------|
 | 1 | Vanilla ES-Module, kein Build-System | Kein Node.js benötigt; direkter Browser-Import via Python http.server; maximale Transparenz | 2024 |
 | 2 | `cflu_tracks.js` als non-module global `<script>` | Track-Pool; non-module erlaubt lazy Zugriff aus ES-Modulen ohne Top-Level-Import; importierbar in Tests ohne echte Daten | 2025 |
-| 3 | Spotify PKCE ohne Backend | Kein Server nötig; Client ID bleibt lokal; Development Mode reicht für Einzelnutzer | 2024 |
+| 3 | ~~Spotify PKCE ohne Backend~~ → superseded by ADR 15 | Ursprünglich: PKCE im Browser, kein Backend. Abgelöst durch server-seitige Authorization Code Flow (ADR 15). | 2024 |
 | 4 | `cflu_server.py` als lokaler Server | Custom SimpleHTTPRequestHandler mit POST /api/upload-csv; Spotify OAuth benötigt `http://`-Redirect (kein `file://`) | 2024/2026 |
 | 5 | cflu_tracks.js im Repo (obwohl generiert) | Vollständige Nutzbarkeit nach Clone ohne Pool-Rebuild-Pflicht; nach CSV-Update neu committen | 2025 |
 | 6 | state.poolGenre als SSOT für Generations-Pool-Genre | genre-sel steuert nur Filter-Modus; Direktsuche und Spotify-Link setzen poolGenre aus t.genre; externer Track: manueller Dropdown | 2026-06-06 |
@@ -69,6 +69,7 @@ app.js (importiert alle Module, verdrahtet Events)
 | 12 | `genres_raw[0]` als Proxy für das entscheidende Genre-Tag | `classify()` speichert nicht, welcher `genres_raw`-Tag die Klassifikation ausgelöst hat. `genres_raw[0]` wird als Näherung für die Farb- und Fett-Darstellung im UI verwendet. Für AI-klassifizierte Tracks (`open_genre=2`) ist dies exakt. Issue #122 verfolgt die saubere Lösung. | 2026-06-09 |
 | 13 | Three.js vendored in `js/vendor/` statt CDN | CSP (`script-src 'self'`) blockiert externe Skript-Domains; vendored Dateien erhalten die Offline-Fähigkeit (Key Invariant 8) ohne CSP-Änderungen. `OrbitControls.js` einmalig gepatcht: `from 'three'` → `from './three.module.min.js'`. | 2026-06-10 |
 | 14 | log2-Übergangs-Score ersetzt absoluten BPM-Sprung-Filter | Absoluter Maximalsprung (z. B. 10 BPM) ist tempoabhängig: bei 80 BPM ist ±10 BPM = ±12,5 %, bei 160 BPM = ±6,25 %. log2-Distanz `d = |log2(bpmNext/bpmPrev)|` ist tempo-invariant (DJ-Norm ±2 % ↔ d ≤ 0.030; ±10 % ↔ d ≈ 0.137). `BPM_TRANSITION_CONFIG.breakpoints` ist die einzige SSOT für Schwellenwerte. `allowLog2`-Flag behandelt ×2/÷2-Übergänge (gleiches Beatgrid) als d→min(d, |log2(r/2)|, |log2(r×2)|). | 2026-06-12 |
+| 15 | Spotify Authorization Code Flow (server-seitig) statt PKCE im Browser | PKCE-Ansatz speicherte Token im Browser (sessionStorage) und erforderte `streaming`-Scope für das Web Playback SDK — inkompatibel mit Web-Crypto-Einschränkungen auf iOS, EME/DRM-Anforderungen und der Einzelnutzer-Situation. Neu: `cflu_server.py` agiert als confidential client; `client_secret` und `refresh_token` verlassen den Server nie (Key Invariant 2); Browser hält kein Token; alle Spotify-API-Calls laufen durch `POST /api/spotify/call`; Web Playback SDK vollständig entfernt (kein `streaming`-Scope nötig). Device Control via `GET /me/player/devices` + `PUT /me/player/play` (Option A aus SPOTIFY_API_GUIDE.md). | 2026-06-14 |
 
 ---
 
@@ -83,6 +84,53 @@ app.js (importiert alle Module, verdrahtet Events)
 ## Changelog
 
 Offene Items → GitHub Issues (https://github.com/nickl3ss/CFLU_Playlists/issues)
+
+### 2026-06-14 — Spotify Integration Redesign: Authorization Code Flow + Device Control
+
+Kompletter Ersatz der PKCE-basierten Browser-Auth durch server-seitigen Authorization Code Flow (ADR 15). Web Playback SDK entfernt.
+
+#### `.gitignore`
+- `cflu_client_secret.txt` hinzugefügt (neben `cflu_client_id.txt`)
+
+#### `cflu_server.py`
+- Neue Endpunkte: `GET /api/spotify/login`, `GET /api/spotify/callback`, `GET /api/spotify/status`, `GET /api/spotify/logout`, `POST /api/spotify/call`
+- Modul-Level-State: `_sp_tokens` dict (access_token, refresh_token, expires_at, user_id, display_name)
+- CSRF-Schutz: `_sp_pending_state` per `secrets.token_urlsafe(32)` generiert, im Callback validiert
+- Token-Refresh: `_ensure_valid_token()` ruft `_refresh_access_token()` wenn `expires_at` < now+60s; rotiert refresh_token wenn Spotify neuen liefert
+- Spotify-API-Proxy: `_handle_spotify_call()` validiert path (kein `..`), setzt Bearer-Header, leitet an `api.spotify.com/v1` weiter; 512 KB Body-Limit
+- CSP: `connect-src` auf `'self'` vereinfacht (kein direkter Browser-Zugriff zu Spotify-APIs mehr)
+- Startausgabe: `Redirect URI für Spotify Dashboard: http://127.0.0.1:{PORT}/api/spotify/callback`
+
+#### `js/state.js`
+- Entfernt: `spToken`, `spUserId`, `spTokenExpiry`, `spPlayer`, `spDeviceId`, `spPlayingIdx`
+- Hinzugefügt: `spConnected: false`, `spDisplayName: null`, `spDevices: []`, `spSelectedDeviceId: null`
+
+#### `js/spotify.js`
+- Komplett neu geschrieben: kein PKCE, kein SDK
+- `spotifyLogin()` → `window.location.href = '/api/spotify/login'`
+- `spotifyLogout()` → `fetch('/api/spotify/logout')`, cleart State
+- `checkSpotifyStatus()` → `fetch('/api/spotify/status')`, synct State; auf jeder Page-Load aufgerufen
+- `spotifyCall(method, path, body)` → `POST /api/spotify/call`; behandelt 204 korrekt
+- `getDevices()` → `GET /me/player/devices`
+- `playOnDevice(deviceId, uris, startIndex)` → `PUT /me/player/play?device_id=...`
+- `cflu-auth-state` CustomEvent beim Login/Logout → app.js reagiert ohne circular import
+
+#### `js/app.js`
+- Device-Panel: `refreshDevices()`, `onPlayFromTrack(idx)`, `_updateSpPlaybackSection()`, `_updatePlayBtnState()`
+- `cflu-auth-state`-Listener ersetzt `cflu-player-state` + player-button listener
+- `checkSpotifyCallback()` ersetzt direkten PKCE-Code-Austausch
+- Kein `fetch('cflu_client_id.txt')` mehr
+
+#### `CFLU_WOD_Builder.html`
+- Device-Panel mit Dropdown (`#sp-device-sel`), Refresh-Button (`#sp-device-refresh`), Play-Button (`#sp-play-main-btn`)
+- Login-Modal vereinfacht: kein `modal-sp-cid` Input mehr
+- Sidebar: kein `sp-cid` Input, neuer `cflu_client_secret.txt` Hinweis, neue Redirect-URI
+
+#### `css/cflu_style.css`
+- Entfernt: `.sp-player-bar`, `.sp-player-info`, `.sp-player-controls`, `.sp-player-btn`, `.sp-player-progress`, `.sp-player-fill`
+- Hinzugefügt: `.sp-device-row`, `.sp-device-sel`, `.sp-device-refresh-btn`, `.sp-device-hint`
+
+---
 
 ### 2026-06-12 — log2 BPM-Übergangsscore (#136–#141)
 

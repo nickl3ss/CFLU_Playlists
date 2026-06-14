@@ -17,23 +17,21 @@
 | N6-1 | Generate a playlist | Each WOD track (except REF) shows a ↺ button in the last column |
 | N6-2 | REF track and Cool-Down tracks | No ↺ button visible |
 | N6-3 | Click ↺ on a non-REF WOD track | Track is replaced in-place; BPM chart redraws; stats bar updates |
-| N6-4 | Click ↺ on a track with very constrained neighbors | Yellow warning "Kein Ersatz-Track für diesen Slot gefunden." appears for 4 s, then disappears |
+| N6-4 | Click ↺ on a track with very constrained neighbors | Yellow warning "Kein Ersatz für Slot N gefunden (BPM-Übergang oder Camelot-Filter zu eng)." appears for 4 s, then disappears |
 | N6-5 | After replacement | New track satisfies BPM transition to both neighbors (no hard log2-score=0 jump) |
 
-### N7 · In-Browser Spotify Playback (Web Playback SDK)
+### N7 · Spotify Device Control (Web API)
 
 | # | Step | Expected |
 |---|------|----------|
-| N7-1 | Connect Spotify (fresh auth required for new scopes) | After OAuth, mini player bar appears in playlist area (collapsed until player ready) |
-| N7-2 | Generate a playlist; click ▶ on any track row | Playlist starts from that track in the browser (Spotify Premium required) |
-| N7-3 | Mini player bar | Shows: current track name + artist · ⏮ ⏸/▶ ⏭ buttons · progress bar |
-| N7-4 | Click ⏸ while playing | Playback pauses; button switches to ▶ |
-| N7-5 | Click ▶ when paused | Playback resumes; button switches to ⏸ |
-| N7-6 | Click ⏮ / ⏭ | Skips to previous / next track in playlist |
-| N7-7 | Currently playing track | Row highlighted with green left border |
-| N7-8 | Progress bar | Advances during playback (updates via player_state_changed events) |
-| N7-9 | Without Spotify Premium | Clear error: "Browser-Wiedergabe erfordert Spotify Premium." |
-| N7-10 | Old auth session (without streaming scope) | Clear message to reconnect; export still works |
+| N7-1 | Connect Spotify via "Mit Spotify verbinden" (new auth required for new redirect URI) | After OAuth callback, device panel appears; connect hint hidden; display name shown in sidebar |
+| N7-2 | Open Spotify on any device (phone, desktop, etc.), then click ↻ in device panel | Device appears in the dropdown selector |
+| N7-3 | Select a device from the dropdown, then click ▶ on any track row | Playback starts on the selected device from that track (Spotify Premium required) |
+| N7-4 | Click ▶ on a track row without selecting a device | Status message "Bitte Gerät auswählen…" shown; no playback attempt |
+| N7-5 | Click ↻ when no Spotify app is open on any device | Dropdown shows only "— Gerät wählen —" option; no error crash |
+| N7-6 | Click "Mit Spotify verbinden" in the device panel while already logged in | Re-initiates OAuth (server uses `show_dialog=true`); existing token replaced after callback |
+| N7-7 | Click "Abmelden" in the Spotify sidebar section | Device panel hides; connect hint reappears; spConnected resets to false |
+| N7-8 | Reload the page after successful auth | Status auto-restored from server (`/api/spotify/status`); device panel shown without re-login |
 
 ### N5 · log2 BPM-Übergangsscore — Neues Scoring-System
 
@@ -143,14 +141,14 @@ Run these steps in order. All must pass before a push is considered confirmed.
 
 ---
 
-### R6 · Spotify Export
+### R6 · Spotify Export & Auth
 
 | # | Step | Expected |
 |---|------|----------|
-| R6-1 | Click "Connect Spotify" | Redirect to Spotify OAuth (PKCE flow) |
-| R6-2 | After auth, return to app | No `sp_cid` or `pkce_v` remaining in sessionStorage (open DevTools → Application → Session Storage) |
-| R6-3 | Click "Export to Spotify" | Playlist created in Spotify; success message shown |
-| R6-4 | Check localStorage | No Spotify token in localStorage (Invariant 2) |
+| R6-1 | Click "Mit Spotify verbinden" | Redirect to `http://127.0.0.1:8888/api/spotify/login` → Spotify OAuth (Authorization Code Flow via server) |
+| R6-2 | After auth, return to app | URL contains `?sp_connected=1`; device panel visible; no Spotify token in sessionStorage, localStorage, or cookies |
+| R6-3 | Open DevTools → Application → Storage | No `sp_token`, `pkce_v`, `sp_cid`, or similar Spotify credential in any browser storage (Invariant 2) |
+| R6-4 | Click "Export to Spotify" | Playlist created in Spotify; success message shown |
 | R6-5 | Export a playlist with >100 tracks (if pool allows) | Export completes in batches; all tracks added (Invariant 3) |
 
 ---
@@ -190,7 +188,8 @@ Run these steps in order. All must pass before a push is considered confirmed.
 |---|-------------|--------|
 | L1 | Spotify export with >100 tracks requires a large pool | Only testable with a full production pool |
 | L2 | AI genre tagging (`--reclassify-ai`) requires `anthropic_api_key.txt` | API key is local-only, not in repo |
-| L3 | OAuth flow requires Spotify Client ID | `cflu_client_id.txt` is local-only, not in repo |
+| L3 | OAuth flow requires Spotify Client ID + Client Secret | `cflu_client_id.txt` and `cflu_client_secret.txt` are local-only, not in repo |
+| L4 | Device playback requires Spotify Premium | Free accounts cannot use `PUT /me/player/play` |
 
 ---
 
@@ -198,4 +197,5 @@ Run these steps in order. All must pass before a push is considered confirmed.
 
 | Date | Change | Push / Issue |
 |------|--------|--------------|
+| 2026-06-14 | N7 replaced (Web Playback SDK → Device Control); N6-4 warning text corrected; R6 updated for Authorization Code Flow; L4 added | Spotify Integration Redesign |
 | 2026-06-10 | Initial test protocol created | docs: initial TESTING.md |

@@ -19,12 +19,11 @@ export const state = {
   generatedWod: [],
   generatedCd: [],
   crossfadeSec: 20,
-  spToken: null,
-  spUserId: null,
-  spTokenExpiry: 0,
-  spPlayer: null,
-  spDeviceId: null,
-  spPlayingIdx: -1,
+  // Spotify auth + device state (managed by spotify.js / app.js)
+  spConnected: false,
+  spDisplayName: null,
+  spDevices: [],            // array of Spotify Connect device objects from /me/player/devices
+  spSelectedDeviceId: null, // currently selected device id for playback
   hoveredTrackIdx: null,
   bpmChartData: [],
   chartCtx: null,

@@ -943,7 +943,7 @@ def generate_genre_map():
     Each entry: {x, y, r, g, b, z} — x/y normalised 0–1; z=luminance(ITU-R BT.601).
     Skips gracefully if everynoise CSV absent."""
     if not _EVERYNOISE_CSV.exists():
-        print(f'  cflu_genres.js      : Everynoise CSV nicht gefunden — übersprungen')
+        print('  cflu_genres.js      : Everynoise CSV nicht gefunden — übersprungen')
         return
 
     rows = []
