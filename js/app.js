@@ -881,6 +881,12 @@ function renderResult(genre, wod, cd, warns, logText) {
   rows.querySelectorAll('.tr').forEach((row, i) => {
     row.addEventListener('mouseenter', () => highlightFromRow(i));
     row.addEventListener('mouseleave', () => clearHighlight());
+    const idx = parseInt(row.dataset.idx, 10);
+    row.querySelector('.tr-replace-btn')?.addEventListener('click', () => onReplaceTrack(idx));
+    row.querySelector('.tr-play-btn')?.addEventListener('click', () => onPlayFromTrack(idx));
+    row.querySelector('.sp-icon')?.addEventListener('click', e => {
+      window.open(`https://open.spotify.com/track/${e.currentTarget.dataset.trackId}`, '_blank');
+    });
   });
   _updatePlayBtnState();
 
@@ -963,7 +969,7 @@ function makeRow(idx, t, num, delta, cc, isCd, isRef) {
     genreHtml = `<div class="tr-genres"><span class="tr-genre-main" style="color:${genreColor}">${t.genre}</span></div>`;
   }
   const spLink = t.id && t.id !== 'nan' && t.id
-    ? `<svg class="sp-icon" onclick="window.open('https://open.spotify.com/track/${t.id}','_blank')" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="11" fill="#1db954"/><path d="M16.5 16.5c-2.5-1.5-5.5-1.8-9-1" stroke="white" stroke-width="1.4" stroke-linecap="round"/><path d="M17.5 13.5c-3-1.8-7-2-10.5-1" stroke="white" stroke-width="1.4" stroke-linecap="round"/><path d="M18 10c-3.5-2-8-2.2-11.5-1" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>` : '';
+    ? `<svg class="sp-icon" data-track-id="${t.id}" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="11" fill="#1db954"/><path d="M16.5 16.5c-2.5-1.5-5.5-1.8-9-1" stroke="white" stroke-width="1.4" stroke-linecap="round"/><path d="M17.5 13.5c-3-1.8-7-2-10.5-1" stroke="white" stroke-width="1.4" stroke-linecap="round"/><path d="M18 10c-3.5-2-8-2.2-11.5-1" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>` : '';
   const ps = calcPhaseScore(t, state.currentPhase);
   const psCls = ps >= 80 ? 'ps-green' : ps >= 50 ? 'ps-yellow' : 'ps-red';
   const m = (field, v) => `<div class="tr-meta" style="color:${_metaColor(field, v)}">${v ?? '—'}</div>`;
@@ -983,7 +989,7 @@ function makeRow(idx, t, num, delta, cc, isCd, isRef) {
     ${m('loud', t.loud)}
     <div class="tr-phase"><span class="phase-score ${psCls}">${ps}</span></div>
     <div class="tr-dur">${fmtDur(t.dur)}</div>
-    <div class="tr-sp">${spLink}${!isCd ? `<button class="tr-play-btn" onclick="window._cfluPlayFromTrack(${idx})" title="Ab hier abspielen">▶</button>` : ''}${(!isCd && !isRef) ? `<button class="tr-replace-btn" onclick="window._cfluReplaceTrack(${idx})" title="Track ersetzen">↺</button>` : ''}</div>`;
+    <div class="tr-sp">${spLink}${!isCd ? `<button class="tr-play-btn" title="Ab hier abspielen">▶</button>` : ''}${(!isCd && !isRef) ? `<button class="tr-replace-btn" title="Track ersetzen">↺</button>` : ''}</div>`;
   return row;
 }
 
@@ -1156,6 +1162,4 @@ function init() {
   }
 }
 
-window._cfluReplaceTrack = onReplaceTrack;
-window._cfluPlayFromTrack = onPlayFromTrack;
 document.addEventListener('DOMContentLoaded', init);
