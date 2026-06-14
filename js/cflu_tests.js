@@ -1398,6 +1398,62 @@ describe('pickReplacement — In-Place Track Swap (#145)', () => {
 });
 
 // ============================================================
+//  explicitFilter — baseOk gate
+// ============================================================
+describe('explicitFilter — Explicit-Songs Filter', () => {
+  const prev = mkT({id:'p',song:'Prev',artist:'Band P',bpm:120,camelot:'9B',energy:75,dur:200,genre:'Rock',bpmg:'D'});
+  const next = mkT({id:'n',song:'Next',artist:'Band N',bpm:124,camelot:'9B',energy:75,dur:200,genre:'Rock',bpmg:'D'});
+  const expl  = mkT({id:'e1',song:'Explicit One',artist:'Band E',bpm:122,camelot:'9B',energy:75,dur:200,genre:'Rock',bpmg:'D',explicit:true});
+  const clean = mkT({id:'c1',song:'Clean One',  artist:'Band C',bpm:122,camelot:'9B',energy:75,dur:200,genre:'Rock',bpmg:'D',explicit:false});
+  const noFlag= mkT({id:'n1',song:'No Flag',    artist:'Band F',bpm:122,camelot:'9B',energy:75,dur:200,genre:'Rock',bpmg:'D'});
+
+  it('allow: gibt expliziten Track zurück', () => {
+    state.explicitFilter = 'allow'; state.lockCamFilter = false;
+    const r = pickReplacement([expl], prev, next, new Set(), new Set(), new Map(), 5, 'C', false);
+    expect(r).not.toBeNull();
+  });
+  it('allow: gibt sauberen Track zurück', () => {
+    state.explicitFilter = 'allow'; state.lockCamFilter = false;
+    const r = pickReplacement([clean], prev, next, new Set(), new Set(), new Map(), 5, 'C', false);
+    expect(r).not.toBeNull();
+  });
+  it('exclude: blockiert expliziten Track', () => {
+    state.explicitFilter = 'exclude'; state.lockCamFilter = false;
+    const r = pickReplacement([expl], prev, next, new Set(), new Set(), new Map(), 5, 'C', false);
+    expect(r).toBeNull();
+  });
+  it('exclude: lässt sauberen Track durch', () => {
+    state.explicitFilter = 'exclude'; state.lockCamFilter = false;
+    const r = pickReplacement([clean], prev, next, new Set(), new Set(), new Map(), 5, 'C', false);
+    expect(r).not.toBeNull();
+  });
+  it('only: blockiert sauberen Track', () => {
+    state.explicitFilter = 'only'; state.lockCamFilter = false;
+    const r = pickReplacement([clean], prev, next, new Set(), new Set(), new Map(), 5, 'C', false);
+    expect(r).toBeNull();
+  });
+  it('only: lässt expliziten Track durch', () => {
+    state.explicitFilter = 'only'; state.lockCamFilter = false;
+    const r = pickReplacement([expl], prev, next, new Set(), new Set(), new Map(), 5, 'C', false);
+    expect(r).not.toBeNull();
+  });
+  it('exclude: Track ohne explicit-Flag (undefined) gilt als sauber', () => {
+    state.explicitFilter = 'exclude'; state.lockCamFilter = false;
+    const r = pickReplacement([noFlag], prev, next, new Set(), new Set(), new Map(), 5, 'C', false);
+    expect(r).not.toBeNull();
+  });
+  it('only: Track ohne explicit-Flag (undefined) wird blockiert', () => {
+    state.explicitFilter = 'only'; state.lockCamFilter = false;
+    const r = pickReplacement([noFlag], prev, next, new Set(), new Set(), new Map(), 5, 'C', false);
+    expect(r).toBeNull();
+  });
+  it('nach Test: state zurücksetzen', () => {
+    state.explicitFilter = 'allow'; state.lockCamFilter = false;
+    expect(state.explicitFilter).toBe('allow');
+  });
+});
+
+// ============================================================
 //  TOTALS + EXPORT
 // ============================================================
 let totalPass = 0, totalFail = 0;

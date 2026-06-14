@@ -99,6 +99,8 @@ function _pick(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carr
     if ((usedArtists.get(ak) || 0) >= maxArtist) return false;
     if (t.energy < wodEnergyMin || t.energy > wodEnergyMax) return false;
     if (!_camLockOk(t)) return false;
+    if (state.explicitFilter === 'exclude' && t.explicit) return false;
+    if (state.explicitFilter === 'only' && !t.explicit) return false;
     return true;
   };
 
@@ -110,6 +112,8 @@ function _pick(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carr
     const ak = t.artist.split(',')[0].trim().toLowerCase();
     if ((usedArtists.get(ak) || 0) >= maxArtist) return false;
     if (!_camLockOk(t)) return false;
+    if (state.explicitFilter === 'exclude' && t.explicit) return false;
+    if (state.explicitFilter === 'only' && !t.explicit) return false;
     return true;
   };
 
@@ -266,6 +270,8 @@ export function buildDown(pool, endT, usedIds, usedTitleKeys, usedArtists, count
       if ((usedArtists.get(ak) || 0) >= maxArtist) return false;
       if (t.energy < wodEnergyMin || t.energy > wodEnergyMax) return false;
       if (!_camLockOk(t)) return false;
+      if (state.explicitFilter === 'exclude' && t.explicit) return false;
+      if (state.explicitFilter === 'only' && !t.explicit) return false;
       return true;
     });
     if (!cands.length) break;
@@ -287,6 +293,8 @@ export function buildPlateau(pool, refBpm, usedIds, usedTitleKeys, usedArtists, 
     if (Math.abs(t.bpm - refBpm) > band) return false;
     if (titleDuplicate(t.song, usedTitleKeys)) return false;
     if (!_camLockOk(t)) return false;
+    if (state.explicitFilter === 'exclude' && t.explicit) return false;
+    if (state.explicitFilter === 'only' && !t.explicit) return false;
     return true;
   }).sort((a, b) => calcPhaseScore(b, 'A') - calcPhaseScore(a, 'A'));
   for (const t of cands) {
@@ -307,6 +315,8 @@ export function pickReplacement(pool, prev, next, excludeIds, usedTitleKeys, use
     const ak = t.artist.split(',')[0].trim().toLowerCase();
     if ((usedArtists.get(ak) || 0) >= maxArtist) return false;
     if (!_camLockOk(t)) return false;
+    if (state.explicitFilter === 'exclude' && t.explicit) return false;
+    if (state.explicitFilter === 'only' && !t.explicit) return false;
     if (prev && calcBpmTransitionScore(prev.bpm, t.bpm, allowLog2) === 0) return false;
     if (next && calcBpmTransitionScore(t.bpm, next.bpm, allowLog2) === 0) return false;
     return true;
@@ -328,6 +338,8 @@ export function buildDecreasing(pool, startBpm, usedIds, usedTitleKeys, usedArti
       if (usedIds.has(t.id || t.song)) return false;
       if (titleDuplicate(t.song, usedTitleKeys)) return false;
       if (!_camLockOk(t)) return false;
+      if (state.explicitFilter === 'exclude' && t.explicit) return false;
+      if (state.explicitFilter === 'only' && !t.explicit) return false;
       // C→D first track: prefer ×2/÷2-compatible entry when allowLog2 is active
       if (isFirst() && allowLog2 && isHalfDouble(cur.bpm, t.bpm)) return true;
       if (t.bpm > cur.bpm) return false;

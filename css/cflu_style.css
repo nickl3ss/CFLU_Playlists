@@ -126,6 +126,12 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
 .pos-chip.active .pc-title{color:var(--acc)}
 .pos-chip:hover:not(.active){border-color:var(--border);background:var(--bg4)}
 
+/* ===== EXPLICIT FILTER CHIPS ===== */
+.explicit-chips{display:flex;gap:4px}
+.explicit-chip{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-family:var(--ff-mono);font-size:var(--fz-xs);padding:4px 8px;transition:all .15s;white-space:nowrap}
+.explicit-chip:hover:not(.active){background:var(--bg4)}
+.explicit-chip.active{border-color:var(--acc);background:rgba(var(--acc-rgb),.1);color:var(--acc)}
+
 /* ===== GENERATE BUTTON ===== */
 .gen-btn{width:100%;background:var(--acc);border:none;border-radius:8px;color:#000;font-family:var(--ff-ui);font-weight:900;font-size:var(--fz-lg);letter-spacing:.1em;text-transform:uppercase;padding:13px;cursor:pointer;transition:all .15s;margin-top:2px}
 .gen-btn:hover{background:var(--acc2);transform:translateY(-1px)}

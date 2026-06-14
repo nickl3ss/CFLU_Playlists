@@ -363,6 +363,12 @@ function setPosition(p) {
   updateGenBtn();
 }
 
+function setExplicitFilter(mode) {
+  state.explicitFilter = mode;
+  ['allow','exclude','only'].forEach(m => document.getElementById('explicit-' + m).classList.toggle('active', m === mode));
+  updateFilterList();
+}
+
 // ===== AMPEL =====
 function rateColor(val, ranges) {
   const {green, yellow} = ranges;
@@ -1029,6 +1035,10 @@ function init() {
   // Position chips
   ['start','end','mid','plateau'].forEach(p =>
     document.getElementById('pos-' + p).addEventListener('click', () => setPosition(p))
+  );
+  // Explicit filter chips
+  ['allow','exclude','only'].forEach(m =>
+    document.getElementById('explicit-' + m).addEventListener('click', () => setExplicitFilter(m))
   );
   // Settings
   document.getElementById('dur-slider').addEventListener('input', e => onDurSlider(e.target));
