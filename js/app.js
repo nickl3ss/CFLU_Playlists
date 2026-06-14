@@ -1074,9 +1074,6 @@ function init() {
   document.getElementById('login-modal').addEventListener('click', e => {
     if (e.target === document.getElementById('login-modal')) closeLoginModal();
   });
-  document.getElementById('modal-sp-cid').addEventListener('keydown', e => {
-    if (e.key === 'Enter') modalConnect();
-  });
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') closeLoginModal();
   });
