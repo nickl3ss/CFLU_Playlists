@@ -64,7 +64,7 @@ _SECURITY_HEADERS = [
 
 _SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token'
 _SPOTIFY_API_BASE = 'https://api.spotify.com/v1'
-_SCOPE = 'playlist-modify-private user-modify-playback-state user-read-playback-state'
+_SCOPE = 'playlist-read-private playlist-modify-private user-modify-playback-state user-read-playback-state'
 _REDIRECT_URI = f'http://127.0.0.1:{PORT}/api/spotify/callback'
 
 _sp_pending_state: str | None = None  # CSRF token for current OAuth flow

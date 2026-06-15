@@ -12,6 +12,7 @@ import { drawChart, highlightFromRow, clearHighlight } from './chart.js';
 import { spotifyLogin, spotifyLogout, checkSpotifyCallback,
          exportPlaylist, getDevices, playOnDevice } from './spotify.js';
 import { initGenreSpace, updatePlaylistMode, resizeGenreSpace } from './genre_space.js';
+import { parsePlaylistId, importPlaylist, analyseFlow, flowSummary, reorderGreedy, suggestGapFills, exportOptimized } from './optimizer.js';
 
 // ===== SLIDER UI =====
 function updateSliderStyle(slider, stops, minV, maxV) {
@@ -239,6 +240,120 @@ function onQuickGenerate() {
   state.bpmTol         = cfg.tolDefault;
   state.position       = position;
   _gen();
+}
+
+// ===== OPTIMIZER =====
+let _optTracks  = [];   // imported + optionally reordered track list
+let _optTitle   = '';   // original playlist name (for export)
+
+function _optSetStatus(msg, elId = 'opt-url-status') {
+  const el = document.getElementById(elId);
+  if (el) el.textContent = msg;
+}
+
+function _optShowActions(show) {
+  document.getElementById('opt-phase-section').style.display = show ? '' : 'none';
+  document.getElementById('opt-actions').style.display = show ? '' : 'none';
+  document.getElementById('opt-export-section').style.display = show ? '' : 'none';
+}
+
+function _optRunAnalysis() {
+  const phase = document.getElementById('opt-phase').value;
+  const transitions = analyseFlow(_optTracks, phase);
+  document.getElementById('opt-flow-summary').textContent = flowSummary(transitions);
+  _renderOptimizerResult(_optTracks, transitions);
+}
+
+function _renderOptimizerResult(tracks, transitions) {
+  // Show in main result area (reusing track-rows + main-top)
+  document.getElementById('main-top').style.display = 'none';
+  document.getElementById('result-footer').style.display = 'none';
+  document.getElementById('genre-space-section').style.display = 'none';
+
+  const container = document.getElementById('track-rows');
+  container.innerHTML = tracks.map((t, i) => {
+    const trans = transitions && transitions[i - 1];
+    const dot   = trans ? ({ green: '🟢', yellow: '🟡', red: '🔴', unknown: '⬜' }[trans.rating] || '') : '';
+    const score = trans && trans.score !== null ? `(${trans.score})` : '';
+    const ext   = t._external ? ' <span style="color:var(--text3);font-size:.65rem">[ext]</span>' : '';
+    return `<div class="track-row" style="padding:6px 12px;border-bottom:1px solid var(--border);font-size:var(--fz-sm)">
+      <span style="color:var(--text3);min-width:28px;display:inline-block">${i + 1}.</span>
+      <span style="margin-right:6px">${dot} ${score}</span>
+      <span style="font-weight:600">${t.artist} — ${t.song}</span>${ext}
+      ${t.bpm ? `<span style="color:var(--text2);margin-left:8px;font-family:var(--ff-mono);font-size:var(--fz-xs)">${t.bpm} BPM · ${t.camelot || '—'} · E:${t.energy}</span>` : ''}
+    </div>`;
+  }).join('');
+
+  document.getElementById('main-scroll').style.display = '';
+}
+
+async function onOptImport() {
+  const url = document.getElementById('opt-url').value.trim();
+  const pid = parsePlaylistId(url);
+  if (!pid) { _optSetStatus('Keine gültige Spotify-Playlist-URL.'); return; }
+
+  const btn = document.getElementById('opt-import-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Lade…';
+  _optSetStatus('Importiere Playlist…');
+  _optShowActions(false);
+
+  try {
+    _optTracks = await importPlaylist(pid);
+    _optTitle  = pid;  // fallback; we could fetch playlist name separately
+    const matched  = _optTracks.filter(t => !t._external).length;
+    const external = _optTracks.filter(t => t._external).length;
+    _optSetStatus(`✓ ${_optTracks.length} Tracks · ${matched} im Pool · ${external} extern`);
+    _optShowActions(true);
+    _optRunAnalysis();
+  } catch (e) {
+    _optSetStatus(`Fehler: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⬇ Importieren';
+  }
+}
+
+async function onOptReorder() {
+  const phase = document.getElementById('opt-phase').value;
+  _optTracks = reorderGreedy(_optTracks, phase);
+  const transitions = analyseFlow(_optTracks, phase);
+  document.getElementById('opt-flow-summary').textContent = 'Optimiert · ' + flowSummary(transitions);
+  _renderOptimizerResult(_optTracks, transitions);
+}
+
+async function onOptGaps() {
+  const phase = document.getElementById('opt-phase').value;
+  const suggestions = suggestGapFills(_optTracks, phase);
+  if (!suggestions.length) {
+    document.getElementById('opt-flow-summary').textContent += ' · Keine schwachen Übergänge gefunden.';
+    return;
+  }
+  // Auto-insert best candidate for each weak transition (highest combined score)
+  const inserts = [...suggestions].sort((a, b) => b.afterIndex - a.afterIndex);
+  for (const { afterIndex, candidates } of inserts) {
+    if (candidates.length) _optTracks.splice(afterIndex + 1, 0, candidates[0]);
+  }
+  const transitions = analyseFlow(_optTracks, phase);
+  document.getElementById('opt-flow-summary').textContent = `+${suggestions.length} Lücken gefüllt · ` + flowSummary(transitions);
+  _renderOptimizerResult(_optTracks, transitions);
+}
+
+async function onOptExport() {
+  const btn = document.getElementById('opt-export-btn');
+  btn.disabled = true;
+  _optSetStatus('Exportiere…', 'opt-export-status');
+  try {
+    const url = await exportOptimized(_optTracks, _optTitle || 'Playlist');
+    _optSetStatus('✓ Exportiert!', 'opt-export-status');
+    const link = document.getElementById('opt-pl-link');
+    link.href = url;
+    link.style.display = 'inline';
+  } catch (e) {
+    _optSetStatus(`Fehler: ${e.message}`, 'opt-export-status');
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // ===== SELECTION MODE =====
@@ -1083,6 +1198,25 @@ function init() {
   });
   document.getElementById('q-list').addEventListener('change', e => onQuickSelect(e.target));
   document.getElementById('q-gen-btn').addEventListener('click', onQuickGenerate);
+  // Optimizer mode
+  document.getElementById('opt-url').addEventListener('input', () => {
+    const val = document.getElementById('opt-url').value.trim();
+    document.getElementById('opt-url-clear').style.display = val ? '' : 'none';
+    document.getElementById('opt-import-btn').disabled = !parsePlaylistId(val);
+    if (!val) _optSetStatus('');
+  });
+  document.getElementById('opt-url-clear').addEventListener('click', () => {
+    document.getElementById('opt-url').value = '';
+    document.getElementById('opt-url-clear').style.display = 'none';
+    document.getElementById('opt-import-btn').disabled = true;
+    _optSetStatus('');
+    _optShowActions(false);
+  });
+  document.getElementById('opt-import-btn').addEventListener('click', onOptImport);
+  document.getElementById('opt-phase').addEventListener('change', () => { if (_optTracks.length) _optRunAnalysis(); });
+  document.getElementById('opt-reorder-btn').addEventListener('click', onOptReorder);
+  document.getElementById('opt-gaps-btn').addEventListener('click', onOptGaps);
+  document.getElementById('opt-export-btn').addEventListener('click', onOptExport);
   // Phase tiles
   ['A','B','C','D'].forEach(p =>
     document.getElementById('phase-' + p).addEventListener('click', () => onPhaseSelect(p))

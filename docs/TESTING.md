@@ -64,6 +64,21 @@
 | N8-4 | Select "Nur E", generate | All tracks carry the `[E]` badge; if pool has no explicit tracks, playlist is empty or uses fallback with a warning |
 | N8-5 | Switch back to "Alle" | Active chip returns to "Alle"; explicit tracks reappear on next generation |
 
+### N13 · Playlist-Optimizer (118-A/C/D/E/F)
+
+| # | Step | Expected |
+|---|------|----------|
+| N13-1 | Click **🔧 Optimizer** tab | Optimizer panel shown with URL input and disabled Import button |
+| N13-2 | Paste a valid Spotify playlist URL (public playlist) | Import button activates immediately |
+| N13-3 | Paste an invalid URL (e.g. a track URL) | Import button remains disabled; no error |
+| N13-4 | Click "⬇ Importieren" with a valid playlist URL (Spotify connected) | Tracks appear in main area with match info; status shows "N Tracks · M im Pool · K extern"; Phase and action buttons appear |
+| N13-5 | After import: observe track list | Each row shows index, artist, title; pool-matched tracks show BPM/Camelot/Energy; external tracks show `[ext]` badge |
+| N13-6 | After import: observe flow summary (opt-flow-summary) | Shows Ø score, green/yellow/red transition counts |
+| N13-7 | Click "🔀 Reihenfolge optimieren" | Track list reordered; flow summary updates with "Optimiert · …" prefix; overall score should increase or stay same |
+| N13-8 | Click "🪄 Lücken füllen" | Bridge tracks inserted before red transitions (if any exist); flow summary updates with "+N Lücken gefüllt" |
+| N13-9 | Click "→ Zu Spotify exportieren" (Spotify connected) | New playlist "[CFLU OPT] …" created in Spotify; "Playlist öffnen ↗" link appears |
+| N13-10 | Change Phase dropdown while optimizer tracks loaded | Flow analysis reruns immediately; summary and track list updated |
+
 ### N12 · UI-Modus-Tab-Leiste
 
 | # | Step | Expected |
@@ -251,6 +266,7 @@ Run these steps in order. All must pass before a push is considered confirmed.
 
 | Date | Change | Push / Issue |
 |------|--------|--------------|
+| 2026-06-15 | N13 Playlist-Optimizer (118-A/C/D/E/F) added | Phase 2 (#118) |
 | 2026-06-15 | N12 UI-Modus-Tab-Leiste (Quick/Optimizer/Advanced) added | Phase 2 (#119) |
 | 2026-06-15 | N11 Everynoise xy-Score added | Phase 2 (#132) |
 | 2026-06-15 | N9 generation context snapshot; N10 login modal manual-trigger-only; R6-1/R6-2 updated for no auto-modal | Phase 1 (#147, #150, #152, #153) |

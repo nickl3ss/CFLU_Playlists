@@ -75,12 +75,35 @@
 
     <!-- ===== OPTIMIZER MODE PANEL ===== -->
     <div id="mode-optimizer-panel" style="display:none">
-      <div class="sb-section" style="padding:40px 20px;text-align:center">
-        <div style="font-size:2rem;margin-bottom:12px">🔧</div>
-        <div style="color:var(--text2);font-size:var(--fz-sm);line-height:1.6">
-          Playlist-Optimizer<br>
-          <span style="color:var(--text3);font-family:var(--ff-mono);font-size:var(--fz-xs)">Coming soon — Issue #118</span>
+      <div class="sb-section">
+        <div class="sb-label">Spotify-Playlist importieren</div>
+        <div class="search-box">
+          <input type="text" id="opt-url" placeholder="https://open.spotify.com/playlist/..." autocomplete="off">
+          <button class="search-clear" id="opt-url-clear" style="display:none">×</button>
         </div>
+        <div class="track-count" id="opt-url-status" style="margin-top:6px"></div>
+        <button class="gen-btn" id="opt-import-btn" disabled style="margin-top:10px">⬇ Importieren</button>
+      </div>
+      <div class="sb-section" id="opt-phase-section" style="display:none">
+        <div class="sb-label">Phase für Analyse</div>
+        <select id="opt-phase">
+          <option value="A">A — Warmup &amp; Prep</option>
+          <option value="B">B — Skill &amp; Strength</option>
+          <option value="C" selected>C — WOD Intensiv</option>
+          <option value="D">D — Cool-Down</option>
+        </select>
+      </div>
+      <div class="sb-section" id="opt-actions" style="display:none">
+        <div class="sb-label" id="opt-flow-summary" style="font-family:var(--ff-mono);font-size:var(--fz-xs);color:var(--text2)"></div>
+        <button class="gen-btn" id="opt-reorder-btn" style="margin-bottom:8px">🔀 Reihenfolge optimieren</button>
+        <button class="gen-btn" id="opt-gaps-btn" style="background:var(--bg4);color:var(--text2);border:1px solid var(--border)">🪄 Lücken füllen</button>
+      </div>
+      <div class="sb-section" id="opt-export-section" style="display:none">
+        <div class="sb-label">Export</div>
+        <div style="font-size:var(--fz-xs);color:var(--text2);margin-bottom:8px">Optimierte Playlist als neue Spotify-Playlist speichern.</div>
+        <button class="gen-btn" id="opt-export-btn">→ Zu Spotify exportieren</button>
+        <div class="track-count" id="opt-export-status" style="margin-top:6px"></div>
+        <a id="opt-pl-link" href="#" target="_blank" style="display:none;font-family:var(--ff-mono);font-size:var(--fz-xs);color:var(--acc);margin-top:6px;display:none">Playlist öffnen ↗</a>
       </div>
     </div>
 
