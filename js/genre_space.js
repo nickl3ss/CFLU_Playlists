@@ -11,7 +11,6 @@ let _playlistMarkers = null, _sequenceLine = null;
 let _canvas = null;
 let _genreToTracks = new Map();
 let _zMin = 0, _zRange = 1;
-let _hoverSphere = null;
 let _initialized = false;
 
 export function initGenreSpace(canvasEl) {
@@ -240,40 +239,7 @@ export function clearPlaylistMode() {
 
 export function resizeGenreSpace() { _onResize(); }
 
-export function highlightGenreStar(genreName) {
-  _clearHoverSphere();
-  if (!_rotGroup || typeof GENRE_MAP === 'undefined') return;
-  const gd = GENRE_MAP[genreName];
-  if (!gd) return;
-  const cx = _centroid ? _centroid.x : 0;
-  const cy = _centroid ? _centroid.y : 0;
-  const cz = _centroid ? _centroid.z : 0;
-  _hoverSphere = new THREE.Mesh(
-    new THREE.SphereGeometry(0.25, 8, 8),
-    new THREE.MeshBasicMaterial({ color: 0xff2020 }),
-  );
-  _hoverSphere.position.set(
-    (gd.x - 0.5) * SCALE - cx,
-    (gd.y - 0.5) * SCALE - cy,
-    ((gd.z - _zMin) / _zRange - 0.5) * SCALE - cz,
-  );
-  _rotGroup.add(_hoverSphere);
-}
-
-export function clearGenreHighlight() {
-  _clearHoverSphere();
-}
-
 // ===== INTERNALS =====
-
-function _clearHoverSphere() {
-  if (_hoverSphere) {
-    _rotGroup.remove(_hoverSphere);
-    _hoverSphere.geometry.dispose();
-    _hoverSphere.material.dispose();
-    _hoverSphere = null;
-  }
-}
 
 function _clearPlaylistObjects() {
   if (_playlistMarkers) {
