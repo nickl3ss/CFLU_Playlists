@@ -918,7 +918,9 @@ def fetch_lastfm_data(tracks: list) -> None:
                 {'method': 'album.getInfo', 'artist': t['artist'], 'album': t['album']}, api_key)
             time.sleep(0.2)
             if alb:
-                album_tags = alb.get('album', {}).get('tags', {}).get('tag', [])
+                _album = alb.get('album', {})
+                _tags  = _album.get('tags', {}) if isinstance(_album, dict) else {}
+                album_tags = _tags.get('tag', []) if isinstance(_tags, dict) else []
             elif alb is None:
                 track_err += 1
 
