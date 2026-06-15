@@ -968,7 +968,8 @@ function makeRow(idx, t, num, delta, cc, isCd, isRef) {
   const genreColor = t.avg_color || 'var(--text2)';
   let genreHtml = '';
   if (t.genres_raw && t.genres_raw.length) {
-    const [primary, ...rest] = t.genres_raw.slice(0, 3);
+    const primary = t.decisive_genre || t.genres_raw[0];
+    const rest = t.genres_raw.filter(g => g !== primary).slice(0, 2);
     const prefix = t.genre ? `<span class="tr-genre-tags">${t.genre}: </span>` : '';
     const restHtml = rest.length ? `, <span class="tr-genre-tags">${rest.join(', ')}</span>` : '';
     genreHtml = `<div class="tr-genres">${prefix}<span class="tr-genre-main" style="color:${genreColor}">${primary}</span>${restHtml}</div>`;

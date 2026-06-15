@@ -221,6 +221,16 @@ def classify(genres_str, parent_str, bpm, album_date_str=''):
     return 'Pop & New Wave'
 
 
+def find_decisive_genre_tag(genres_raw: list, genre: str, bpm: int, album_date: str = '') -> str | None:
+    """Return the first genres_raw tag that alone produces the same genre classification.
+    Falls back to genres_raw[0] when no single tag is decisive (e.g. parent-genre fallback path).
+    """
+    for tag in genres_raw:
+        if classify(tag, '', bpm, album_date) == genre:
+            return tag
+    return genres_raw[0] if genres_raw else None
+
+
 def bpm_group(bpm):
     for g, lo, hi in _BPM_GROUPS:
         if lo <= bpm < hi:
@@ -370,6 +380,7 @@ def transform(extracted):
             genre = classify(genres_raw_str, parent_raw_str, bpm, album_date or '')
             if genre is None:
                 raise ValueError('genre')
+            decisive_genre = find_decisive_genre_tag(genres_raw, genre, bpm, album_date or '') if genres_raw else None
 
             # 0=importiert, 1=nicht importiert (kein Genre in Spotify)
             open_genre = 0 if genres_raw else 1
@@ -402,6 +413,7 @@ def transform(extracted):
                 'isrc':         isrc,
                 'explicit':     explicit,
                 'genre':        genre,
+                'decisive_genre': decisive_genre,
                 'bpmg':         bpm_group(bpm),
                 'mood_tags':    [],
             })
@@ -507,8 +519,9 @@ def merge(transformed, existing, rebuild=False):
         else:
             existing_tags      = merged[tid].get('mood_tags', [])
             existing_og        = merged[tid].get('open_genre', 0)
-            existing_ai_genres = merged[tid].get('genres_raw', []) if existing_og == 2 else None
-            existing_ai_genre  = merged[tid].get('genre')          if existing_og == 2 else None
+            existing_ai_genres = merged[tid].get('genres_raw', [])      if existing_og == 2 else None
+            existing_ai_genre  = merged[tid].get('genre')               if existing_og == 2 else None
+            existing_ai_dec    = merged[tid].get('decisive_genre')      if existing_og == 2 else None
             t['locked'] = merged[tid].get('locked', 0)
             merged[tid] = t
             if existing_tags:
@@ -516,8 +529,9 @@ def merge(transformed, existing, rebuild=False):
             if existing_og in (2, 3, 5):  # 4=vererbt wird neu berechnet
                 merged[tid]['open_genre'] = existing_og
             if existing_og == 2 and existing_ai_genres is not None:
-                merged[tid]['genres_raw'] = existing_ai_genres
-                merged[tid]['genre']      = existing_ai_genre
+                merged[tid]['genres_raw']     = existing_ai_genres
+                merged[tid]['genre']          = existing_ai_genre
+                merged[tid]['decisive_genre'] = existing_ai_dec
             count_updated += 1
 
     print(f'  Tracks neu         : {count_new}')
@@ -647,6 +661,7 @@ def inherit_genres(tracks):
             t.get('bpm', 0),
             t.get('album_date') or '',
         )
+        t['decisive_genre'] = find_decisive_genre_tag(inherited, t['genre'], t.get('bpm', 0), t.get('album_date') or '')
         t['bpmg']       = bpm_group(t.get('bpm', 0))
         t['open_genre'] = 4
         count += 1
@@ -917,10 +932,11 @@ def tag_genres_ai(tracks):
             if result.get('confident') and genre in _ALLOWED_GENRES:
                 # 1 oder 4 → 2
                 canonical = _GENRE_CANONICAL[genre]
-                t['genres_raw'] = [canonical]
-                t['genre']      = genre
-                t['bpmg']       = bpm_group(t.get('bpm', 0))
-                t['open_genre'] = 2
+                t['genres_raw']    = [canonical]
+                t['genre']         = genre
+                t['decisive_genre'] = canonical
+                t['bpmg']          = bpm_group(t.get('bpm', 0))
+                t['open_genre']    = 2
                 tagged += 1
             elif prev_og == 1:
                 # API hat geantwortet, kein Fund — 1 → 5
