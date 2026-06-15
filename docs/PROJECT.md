@@ -64,7 +64,7 @@ app.js (importiert alle Module, verdrahtet Events)
 | 7 | Direktsuche ohne Camelot-/Energy-Filter | Referenz-Song-Auswahl soll nicht durch Generierungs-Filter eingeschränkt werden; Filter-Modus hat eigene gefilterte Liste | 2026-06-06 |
 | 8 | Testklasse als dual-mode JS-Modul (`js/cflu_tests.js`) | Trennung von Test-Logik und HTML-Rendering: `js/cflu_tests.js` ist die kanonische Testklasse (importierbar von Node.js + Browser); `CFLU_Tests.html` ist nur noch ein Rendering-Shell (~90 Zeilen). Ermöglicht `node js/cflu_tests.js` ohne Browser/Server für Claude Code und CI. `package.json` mit `{"type":"module"}` aktiviert ES-Modul-Support in Node.js. | 2026-06-06 |
 | 9 | ETL-Default: Add-only statt Full-Update | Bestehende Tracks im Pool sollen durch ein reguläres Startup-Build nicht überschrieben werden — insbesondere AI-gepflegte (`open_genre=2`) und manuell gepflegte Felder (`open_genre=3`, `mood_tags`) müssen erhalten bleiben. `--rebuild` erzwingt vollständigen Update und schützt dynamische Felder explizit in `merge()`. | 2026-06-08 |
-| 10 | `open_genre`-State-Machine für Genre-Herkunft | Spotify liefert Genres nur auf Artist-Ebene — manche Tracks haben keine Genres (z. B. wenig bekannte Künstler, Remixe mit anderer Artist-ID). Statt diese Tracks zu verwerfen, wird der Herkunftszustand in `open_genre` getrackt und schrittweise verbessert: Vererbung → AI → Manuell. Reherstelungssicherheit durch Preserve-Logik in `merge()`. | 2026-06-08 |
+| 10 | `open_genre`-State-Machine für Genre-Herkunft | Spotify liefert Genres nur auf Artist-Ebene — manche Tracks haben keine Genres (z. B. wenig bekannte Künstler, Remixe mit anderer Artist-ID). Statt diese Tracks zu verwerfen, wird der Herkunftszustand in `open_genre` getrackt und schrittweise verbessert: Vererbung → Last.fm → AI → Manuell. Reherstelungssicherheit durch Preserve-Logik in `merge()`. State 6 (Last.fm) hat höhere Priorität als State 2 (AI) und wird nie durch AI überschrieben. | 2026-06-08 / 2026-06-15 |
 | 11 | ETL: [C] Cleanup vor [G] Genre-Vererbung und [A] AI-Genre | Doubletten-Entfernung läuft zuerst, damit kein Claude-Haiku-API-Call auf Tracks verschwendet wird, die anschließend durch Dedup entfernt werden — spart Kosten und Zeit. | 2026-06-09 |
 | 12 | ~~`genres_raw[0]` als Proxy~~ → durch `decisive_genre`-Feld ersetzt (#122) | `find_decisive_genre_tag()` identifiziert per Einzel-Tag-Test den auslösenden `genres_raw`-Eintrag und speichert ihn als `decisive_genre` im Track-Dict. WOD-UI nutzt `t.decisive_genre \|\| t.genres_raw[0]`. Für AI-Tracks (`open_genre=2`) ist `decisive_genre = canonical` (exakt). Für Parent-Genre-Fallbacks (kein Einzel-Tag trifft) bleibt `genres_raw[0]` als Fallback. | 2026-06-09 / 2026-06-15 |
 | 13 | Three.js vendored in `js/vendor/` statt CDN | CSP (`script-src 'self'`) blockiert externe Skript-Domains; vendored Dateien erhalten die Offline-Fähigkeit (Key Invariant 8) ohne CSP-Änderungen. `OrbitControls.js` einmalig gepatcht: `from 'three'` → `from './three.module.min.js'`. | 2026-06-10 |
@@ -373,16 +373,19 @@ Neues Pflichtfeld in jedem Track. Dokumentiert die Herkunft der Genre-Klassifika
 | `3` | User Find | Manuell im Admin Panel gepflegt | aus `5` (#105) |
 | `4` | Auto Find | Genre von Geschwister-Track desselben Künstlers geerbt | aus `1` |
 | `5` | No AI Find | AI hat geantwortet, konnte aber nicht klassifizieren | aus `1`; `4` bleibt `4` |
+| `6` | Last.fm Find | Last.fm `track.getTopTags` / `artist.getTopTags` hat Genre bestimmt | aus `1`, `4`, `5` oder `2` (#155) |
+| `7` | No Last.fm Find | Last.fm gefragt, kein Fund — aber nur nach vorheriger AI-Prüfung | aus `5` **ausschließlich** (#155) |
 
-**Preserve-Logik in `merge()` (rebuild-safe):** States `2`, `3`, `5` bleiben durch `--rebuild` erhalten — `genres_raw` und `genre` werden für state-2 ebenfalls restauriert. State `4` wird bei jedem Rebuild neu berechnet.
+**Preserve-Logik in `merge()` (rebuild-safe):** States `2`, `3`, `5`, `6`, `7` bleiben durch `--rebuild` erhalten — `genres_raw`, `genre` und `decisive_genre` werden für states `2` und `6` restauriert. State `4` wird bei jedem Rebuild neu berechnet. State `7` ist terminal: wird von [F] und [A] ignoriert; kein Retry ohne explizites Flag.
 
-#### ETL-Phasen (E-T-L-C-G-A-M)
+#### ETL-Phasen (E-T-L-C-G-F-A-M)
 
 | Phase | Neu | Beschreibung |
 |-------|-----|--------------|
-| `[C]` Cleanup | ✓ | Titeldobbletten entfernen (artist+title-Key; locked=1 gewinnt) — läuft vor G+A, kein API-Call für Doubletten |
-| `[G]` Genre-Vererbung | ✓ | `open_genre=1` → `4`: `genres_raw` vom gleichen Künstler erben (sucht in states `0`, `2`, `4`) |
-| `[A]` AI-Genre | ✓ | `open_genre=1/4` → `2` oder `5`: Claude Haiku, 99%-Confidence-Gate, Songtitel vor Künstler priorisiert, BYOK via `anthropic_api_key.txt`; state-4 bleibt `4` bei kein Fund |
+| `[C]` Cleanup | ✓ | Titeldobbletten entfernen (artist+title-Key; locked=1 gewinnt) — läuft vor G+F+A, kein API-Call für Doubletten |
+| `[G]` Genre-Vererbung | ✓ | `open_genre=1` → `4`: `genres_raw` vom gleichen Künstler erben (sucht in states `0`, `2`, `4`, `6`) |
+| `[F]` Last.fm Genre | ✓ | `open_genre=1/4/5/2` → `6`: Last.fm-Tags via `track.getTopTags` (Fallback: `artist.getTopTags`); kann mehrere Canonical-Genres in `genres_raw` setzen; BYOK via `lastfm_api_key.txt` (#155) |
+| `[A]` AI-Genre | ✓ | `open_genre=1/4` → `2` oder `5`: Claude Haiku, 99%-Confidence-Gate, Songtitel vor Künstler priorisiert, BYOK via `anthropic_api_key.txt`; state-4 bleibt `4` bei kein Fund; überspringt `open_genre=6` |
 
 #### Bugfixes Pool Builder
 

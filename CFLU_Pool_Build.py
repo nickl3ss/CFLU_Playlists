@@ -9,6 +9,7 @@ T — Transform        : Typ-Cast, Format-Konversion, Genre-Ableitung, Suffix-Be
 L — Load & Merge     : Bestehende cflu_tracks.js einlesen, mergen, neu schreiben
 C — Cleanup          : Titeldobbletten entfernen (vor G+A — kein API-Call auf Duplikaten)
 G — Genre-Vererbung  : open_genre=1 → 4: genres_raw vom gleichen Künstler erben
+F — Last.fm Genre    : open_genre=1/4/5/2 → 6: Last.fm track.getTopTags + artist.getTopTags (BYOK)
 A — AI-Genre         : open_genre=1/4 → 2/5: Claude Haiku Klassifikation (BYOK)
 * — Color Enrich     : avg_color pro Track aus Everynoise-Hex-Daten (läuft nach A, vor M)
 M — Mood Tags        : Claude Haiku Batch-Tagging (BYOK)
@@ -27,6 +28,9 @@ import json
 import os
 import pathlib
 import re
+import time
+import urllib.parse
+import urllib.request
 from collections import defaultdict
 
 # ===== KONFIGURATION =====
@@ -122,6 +126,17 @@ _BPM_GROUPS = [('A',0,90),('B',90,110),('C',110,120),('D',120,130),('E',130,140)
 # Wird für AI-zugewiesene Tracks (open_genre=2) in genres_raw gesetzt,
 # damit inherit_genres() diese Tracks als Vererbungsquelle nutzen kann.
 _AI_MODEL = 'claude-haiku-4-5-20251001'
+
+_LASTFM_KEY_FILE  = 'lastfm_api_key.txt'
+_LASTFM_MIN_COUNT = 15  # Tags mit count < 15 werden ignoriert
+
+# Bekannte Nicht-Genre-Tags auf Last.fm (lowercase) — werden vor classify() gefiltert
+_LASTFM_NOISE_TAGS = {
+    'seen live', 'live', 'favorites', 'favourite', 'all time favorites',
+    'love', 'beautiful', 'good', 'great', 'amazing', 'awesome', 'best',
+    '00s', '10s', '20s', '80s', '90s', '2000s', '2010s', '2020s',
+    'ccc_corrected',
+}
 
 _GENRE_CANONICAL = {
     'EDM / Electronic':      'edm',
@@ -497,7 +512,7 @@ def merge(transformed, existing, rebuild=False):
     - rebuild=False (Default): bestehende Tracks unverändert lassen (nur ergänzen)
     - rebuild=True: bestehenden Track aktualisieren; dynamische Felder bleiben erhalten:
         mood_tags  → immer erhalten
-        open_genre → erhalten wenn Wert ≥ 2 (AI- oder manuell gepflegt)
+        open_genre → erhalten wenn Wert ∈ {2,3,5,6,7} (klassifiziert oder beide gescheitert)
     """
     count_new      = 0
     count_skipped  = 0
@@ -519,19 +534,19 @@ def merge(transformed, existing, rebuild=False):
         else:
             existing_tags      = merged[tid].get('mood_tags', [])
             existing_og        = merged[tid].get('open_genre', 0)
-            existing_ai_genres = merged[tid].get('genres_raw', [])      if existing_og == 2 else None
-            existing_ai_genre  = merged[tid].get('genre')               if existing_og == 2 else None
-            existing_ai_dec    = merged[tid].get('decisive_genre')      if existing_og == 2 else None
+            existing_genres    = merged[tid].get('genres_raw', [])      if existing_og in (2, 6) else None
+            existing_genre     = merged[tid].get('genre')               if existing_og in (2, 6) else None
+            existing_dec       = merged[tid].get('decisive_genre')      if existing_og in (2, 6) else None
             t['locked'] = merged[tid].get('locked', 0)
             merged[tid] = t
             if existing_tags:
                 merged[tid]['mood_tags'] = existing_tags
-            if existing_og in (2, 3, 5):  # 4=vererbt wird neu berechnet
+            if existing_og in (2, 3, 5, 6, 7):  # 4=vererbt wird neu berechnet
                 merged[tid]['open_genre'] = existing_og
-            if existing_og == 2 and existing_ai_genres is not None:
-                merged[tid]['genres_raw']     = existing_ai_genres
-                merged[tid]['genre']          = existing_ai_genre
-                merged[tid]['decisive_genre'] = existing_ai_dec
+            if existing_og in (2, 6) and existing_genres is not None:
+                merged[tid]['genres_raw']     = existing_genres
+                merged[tid]['genre']          = existing_genre
+                merged[tid]['decisive_genre'] = existing_dec
             count_updated += 1
 
     print(f'  Tracks neu         : {count_new}')
@@ -745,7 +760,7 @@ def inherit_genres(tracks):
     # Erster Fund pro Künstler mit gesichertem Genre (0=Spotify, 2=AI, 4=vererbt)
     artist_genres = {}
     for t in tracks:
-        if t.get('open_genre', 0) in (0, 2, 4) and t.get('genres_raw'):
+        if t.get('open_genre', 0) in (0, 2, 4, 6) and t.get('genres_raw'):
             key = t['artist'].lower()
             if key not in artist_genres:
                 artist_genres[key] = t['genres_raw']
@@ -770,6 +785,126 @@ def inherit_genres(tracks):
         count += 1
 
     return count
+
+
+# ===== F — LAST.FM GENRE =====
+def _lastfm_fetch_tags(artist: str, track: str, api_key: str) -> list[str] | None:
+    """Fetch genre tags from Last.fm: track.getTopTags first, artist.getTopTags as fallback.
+    Returns:
+      list[str]  — filtered tag names (may be empty if Last.fm responded but found nothing)
+      None       — network/parse error; state must not advance
+    """
+    def _get(params: dict) -> dict | None:
+        params['api_key'] = api_key
+        params['format']  = 'json'
+        params['autocorrect'] = '1'
+        url = 'http://ws.audioscrobbler.com/2.0/?' + urllib.parse.urlencode(params)
+        try:
+            with urllib.request.urlopen(url, timeout=8) as r:
+                return json.loads(r.read())
+        except Exception:
+            return None
+
+    def _filter(tags: list) -> list[str]:
+        return [
+            t['name'].lower() for t in tags
+            if int(t.get('count', 0)) >= _LASTFM_MIN_COUNT
+            and t['name'].lower() not in _LASTFM_NOISE_TAGS
+        ]
+
+    data = _get({'method': 'track.getTopTags', 'artist': artist, 'track': track})
+    time.sleep(0.2)
+    if data is None:
+        return None
+    result = _filter(data.get('toptags', {}).get('tag', []))
+
+    if not result:
+        data = _get({'method': 'artist.getTopTags', 'artist': artist})
+        time.sleep(0.2)
+        if data is None:
+            return None
+        result = _filter(data.get('toptags', {}).get('tag', []))
+
+    return result
+
+
+def tag_genres_lastfm(tracks):
+    """
+    Last.fm Genre-Vergabe (Phase [F]) für Tracks ohne zuverlässige Genre-Daten.
+    Kandidaten: open_genre ∈ {1, 4, 5, 2}
+      1 = kein Spotify-Genre          4 = vererbt
+      5 = AI hat versagt              2 = AI-klassifiziert (Upgrade auf 6 möglich)
+    Nicht berührt: open_genre=0 (Spotify), 3 (User), 6 (Last.fm), 7 (beide gescheitert).
+    Kein Fund-Verhalten:
+      open_genre=5 + kein Last.fm Fund → open_genre=7 (AI+Last.fm beide gescheitert, kein Retry)
+      alle anderen    + kein Last.fm Fund → open_genre unverändert (AI bekommt noch Chance)
+    Netzwerkfehler (_lastfm_fetch_tags gibt None zurück) → open_genre niemals geändert.
+    """
+    if not os.path.exists(_LASTFM_KEY_FILE):
+        print(f'  {_LASTFM_KEY_FILE} nicht gefunden — Last.fm-Genre übersprungen.')
+        return 0
+    with open(_LASTFM_KEY_FILE, encoding='utf-8') as f:
+        api_key = f.read().strip()
+    if not api_key or api_key.upper().startswith('PASTE_'):
+        print(f'  {_LASTFM_KEY_FILE} nicht ausgefüllt — Last.fm-Genre übersprungen.')
+        return 0
+
+    candidates = [t for t in tracks if t.get('open_genre') in (1, 4, 5, 2)]
+    if not candidates:
+        print('  Keine Kandidaten (open_genre=1,4,5,2).')
+        return 0
+
+    og_counts = {og: sum(1 for t in candidates if t.get('open_genre') == og) for og in (1, 4, 5, 2)}
+    print(f'  Kandidaten         : {len(candidates)}'
+          f'  (=1:{og_counts[1]}, =4:{og_counts[4]}, =5:{og_counts[5]}, =2:{og_counts[2]})')
+
+    tagged = no_find = errors = 0
+    for i, t in enumerate(candidates):
+        try:
+            tag_names = _lastfm_fetch_tags(t.get('artist', ''), t.get('song', ''), api_key)
+        except Exception:
+            errors += 1
+            continue
+
+        if tag_names is None:
+            errors += 1
+            continue
+
+        if not tag_names:
+            if t.get('open_genre') == 5:
+                t['open_genre'] = 7
+                no_find += 1
+            continue
+
+        genre = classify(', '.join(tag_names), '', t.get('bpm', 0), t.get('album_date') or '')
+        canonical = _GENRE_CANONICAL.get(genre)
+        if not canonical:
+            continue
+
+        # genres_raw: canonical first, then additional distinct genres from individual tags
+        genres_raw = [canonical]
+        for tname in tag_names:
+            g2 = classify(tname, '', t.get('bpm', 0), t.get('album_date') or '')
+            c2 = _GENRE_CANONICAL.get(g2)
+            if c2 and c2 not in genres_raw:
+                genres_raw.append(c2)
+
+        t['genres_raw']     = genres_raw
+        t['genre']          = genre
+        t['decisive_genre'] = find_decisive_genre_tag(genres_raw, genre, t.get('bpm', 0), t.get('album_date') or '')
+        t['bpmg']           = bpm_group(t.get('bpm', 0))
+        t['open_genre']     = 6
+        tagged += 1
+
+        if (i + 1) % 10 == 0:
+            print(f'  ...{i + 1}/{len(candidates)} verarbeitet ({tagged} gefunden)')
+
+    print(f'  Tagged (→6)        : {tagged}')
+    if no_find:
+        print(f'  Kein Fund (→7)     : {no_find}')
+    if errors:
+        print(f'  Netzwerkfehler     : {errors}')
+    return tagged
 
 
 # ===== POOL-CLEANUP =====
@@ -949,7 +1084,7 @@ def tag_genres_ai(tracks):
     """
     AI-Genre-Vergabe für Tracks mit open_genre=1 (kein Spotify-Genre) oder
     open_genre=4 (vererbt, Titelprüfung kann abweichendes Genre erkennen).
-    Überspringt Tracks mit open_genre=2/3 (bereits gepflegt).
+    Überspringt Tracks mit open_genre=2/3/6 (bereits gepflegt oder Last.fm-klassifiziert).
     Setzt bei Treffer: genres_raw=[kanonisches Keyword], genre, bpmg, open_genre=2.
 
     Kontext-Anreicherung pro Track:
@@ -1159,6 +1294,9 @@ def _reclassify_only(reclassify_ai=False):
     count_inherited = inherit_genres(tracks)
     print(f'  Genres vererbt     : {count_inherited}')
 
+    print('\n[F] Last.fm Genre')
+    tag_genres_lastfm(tracks)
+
     print('\n[A] AI-Genre')
     tag_genres_ai(tracks)
 
@@ -1252,7 +1390,11 @@ def build(rebuild=False, reclassify_ai=False):
     count_inherited = inherit_genres(tracks)
     print(f'  Genres vererbt     : {count_inherited}')
 
-    # A — AI-Genre (open_genre 1/4→2, optional)
+    # F — Last.fm Genre (open_genre 1/4/5/2→6, optional)
+    print('\n[F] Last.fm Genre')
+    tag_genres_lastfm(tracks)
+
+    # A — AI-Genre (open_genre 1/4→2/5, optional; überspringt open_genre=6)
     print('\n[A] AI-Genre')
     tag_genres_ai(tracks)
 

@@ -274,11 +274,17 @@ After user confirms testing is done, clear the **New Since Last Push** section a
 [T] Transform       CSV rows → track dicts; genres_raw empty allowed (open_genre=1)
 [L] Load & Merge    add-only (default) or full-update (--rebuild); preserves dynamic fields
 [*] Reset AI        --reclassify-ai only: resets open_genre=2 → 1, clears genres_raw
-                    (explicit opt-in; not part of --rebuild)
-[C] Cleanup         deduplication (artist+title key; locked=1 wins) — runs before G+A
-[G] Genre inherit   open_genre=1 → 4: borrow genres_raw from same-artist tracks
+                    (explicit opt-in; not part of --rebuild; does NOT reset open_genre=6)
+[C] Cleanup         deduplication (artist+title key; locked=1 wins) — runs before G+F+A
+[G] Genre inherit   open_genre=1 → 4: borrow genres_raw from same-artist tracks (sources: 0,2,4,6)
+[F] Last.fm Genre   open_genre=1/4/5/2 → 6; BYOK via lastfm_api_key.txt
+                    track.getTopTags first, artist.getTopTags as fallback; min count=15
+                    can set multiple canonicals in genres_raw; AI must not overwrite state 6
+                    open_genre=5 + no Last.fm result → open_genre=7 (both failed, no retry)
+                    network error (None return) → open_genre unchanged (not counted as "no find")
 [A] AI Genre        open_genre=1/4 → 2 or 5; BYOK via anthropic_api_key.txt; Claude Haiku
                     context per track: album+year, known artist genres from pool, inherited genres
+                    skips open_genre=6 (Last.fm already classified)
 [*] Color Enrich    avg_color per track from Everynoise hex data — runs after A, before M; no label
 [M] Mood Tags       Claude Haiku batch tagging; skips already-tagged tracks
 ```
@@ -293,9 +299,11 @@ After user confirms testing is done, clear the **New Since Last Push** section a
 | `3` | User Find | from `5` — manually set in Admin Panel (#105) |
 | `4` | Auto Find | from `1` — inherited from same-artist track |
 | `5` | No AI Find | from `1` — Claude responded but couldn't classify; `4` stays `4` |
+| `6` | Last.fm Find | from `1`, `4`, `5` or `2` — Last.fm tags resolved to genre (#155) |
+| `7` | No Last.fm Find | from `5` only — AI already failed AND Last.fm also found nothing; ignored by both [F] and [A] |
 
 **Preserve rules in `merge()` (rebuild-safe):**
-- States `2`, `3`, `5`: `open_genre` preserved; for state-2: also `genres_raw` + `genre`
+- States `2`, `3`, `5`, `6`, `7`: `open_genre` preserved; for states `2`+`6`: also `genres_raw`, `genre`, `decisive_genre`
 - State `4`: recalculated on every rebuild
 - `mood_tags`: always preserved (both modes)
 
@@ -311,5 +319,5 @@ After user confirms testing is done, clear the **New Since Last Push** section a
 6. _pick() stage 4 (BPM escalation) intentionally ignores energy filter and BPM groups — last resort within _pick(), not a UI phase
 7. `cflu_tracks.js` must be loaded BEFORE the ES modules (`<script>` in `<head>`)
 8. `CFLU_Start.bat` / `CFLU_Start.sh` always run pool build on startup — no CSV means reclassify-only mode
-9. `open_genre=2/3/5` never overwritten by `--rebuild` — preserve logic in `merge()` is mandatory; `--reclassify-ai` is an explicit opt-in that intentionally resets state-2 for re-classification
+9. `open_genre=2/3/5/6/7` never overwritten by `--rebuild` — preserve logic in `merge()` is mandatory; `--reclassify-ai` resets state-2 only (not 6 or 7); state-7 is terminal: ignored by both [F] and [A]; only set from state-5 (never from 1, 4, or 2)
 10. `tag_genres_ai()` only sets `open_genre=5` when API actually responded (not on network/parse errors)
