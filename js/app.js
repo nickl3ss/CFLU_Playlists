@@ -675,13 +675,14 @@ function onReplaceTrack(idx) {
   // Track the outgoing song so it can't be re-selected in future swaps this session
   const outgoing = wod[idx];
   state.swapBlacklist.add(outgoing.id || outgoing.song);
-  const pool = getPhasePoolWithNeighbours(state.poolGenre, state.currentPhase);
+  const { genre: ctxGenre, phase: ctxPhase } = state.generationContext;
+  const pool = getPhasePoolWithNeighbours(ctxGenre, ctxPhase);
   const { usedIds, usedTitleKeys, usedArtists } = _buildUsedFromWod(wod, idx);
   state.swapBlacklist.forEach(id => usedIds.add(id));
   const prev = idx > 0 ? wod[idx - 1] : null;
   const next = idx < wod.length - 1 ? wod[idx + 1] : null;
   const maxArtist = Math.max(1, Math.floor(wod.length * 0.1));
-  const replacement = pickReplacement(pool, prev, next, usedIds, usedTitleKeys, usedArtists, maxArtist, state.currentPhase, state.allowLog2);
+  const replacement = pickReplacement(pool, prev, next, usedIds, usedTitleKeys, usedArtists, maxArtist, ctxPhase, state.allowLog2);
   if (!replacement) {
     const wm = document.getElementById('warn-msg');
     wm.textContent = `↺ Kein Ersatz für Slot ${idx + 1} gefunden (BPM-Übergang oder Camelot-Filter zu eng).`;
@@ -718,6 +719,7 @@ function _gen() {
   if (!state.poolGenre) { alert('Bitte Pool-Genre wählen.'); return; }
   state.swapBlacklist = new Set();
   const genre = state.poolGenre;
+  state.generationContext = { genre, phase: state.currentPhase };
   const pool = getPhasePoolWithNeighbours(genre, state.currentPhase);
   const targetSec = state.wodMinutes * 60;
   const crossfadeSec = state.crossfadeSec || 0;
@@ -1112,11 +1114,11 @@ function init() {
   onPhaseSelect('C');
 
 
-  // Spotify: check for OAuth callback (?sp_connected / ?sp_error) or existing server session
+  // Spotify: check for OAuth callback (?sp_connected / ?sp_error) or existing server session.
+  // checkSpotifyCallback is async and dispatches 'cflu-init-done' when complete.
   const urlParams = new URLSearchParams(window.location.search);
   const hasPoolUpdate = urlParams.has('pool_updated');
   if (hasPoolUpdate) history.replaceState({}, '', window.location.pathname);
-  // checkSpotifyCallback handles both callback params and existing session (calls checkSpotifyStatus)
   checkSpotifyCallback();
 
   // Chart resize debounce
@@ -1158,13 +1160,6 @@ function init() {
     const gsCanvas = document.getElementById('genre-space-canvas');
     if (gsCanvas) initGenreSpace(gsCanvas);
   });
-
-  // Show login modal on startup unless returning from OAuth or pool reload,
-  // or server already has a valid session (checkSpotifyCallback resolves first).
-  if (!urlParams.has('sp_connected') && !urlParams.has('sp_error') && !hasPoolUpdate) {
-    // Delay slightly so checkSpotifyCallback can update state.spConnected first
-    setTimeout(() => { if (!state.spConnected) showLoginModal(); }, 300);
-  }
 }
 
 document.addEventListener('DOMContentLoaded', init);

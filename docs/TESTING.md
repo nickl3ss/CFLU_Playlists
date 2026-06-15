@@ -10,6 +10,26 @@
 
 ## New Since Last Push
 
+### N9 · Track Replace: Generation Context Snapshot
+
+| # | Step | Expected |
+|---|------|----------|
+| N9-1 | Generate a playlist for Genre A, Phase C | Note genre and phase selection |
+| N9-2 | Change genre dropdown to Genre B | Genre badge updates; pool count changes |
+| N9-3 | Click ↺ on any WOD track | Replacement candidate comes from Genre A / Phase C pool (original generation context), **not** the currently selected Genre B |
+| N9-4 | Change phase selector to Phase A after generating a Phase C playlist | Phase A tile becomes active |
+| N9-5 | Click ↺ on any WOD track | Replacement candidate respects Phase C BPM/energy constraints (generation context), not Phase A |
+
+### N10 · Login Modal — Manual Trigger Only
+
+| # | Step | Expected |
+|---|------|----------|
+| N10-1 | Start app fresh (no Spotify session on server) | Page loads normally; **no login modal auto-shown** |
+| N10-2 | Click ▶ on any track row without Spotify connected | Login modal appears |
+| N10-3 | Click "Mit Spotify verbinden" button in sidebar | Redirects directly to `/api/spotify/login` (OAuth flow) |
+| N10-4 | After OAuth, reload page | `/api/spotify/status` restores session; device panel visible; no modal |
+| N10-5 | After page reload with valid session | Page loads; modal does **not** appear |
+
 ### N6 · Track Replace — In-Place Swap
 
 | # | Step | Expected |
@@ -156,7 +176,7 @@ Run these steps in order. All must pass before a push is considered confirmed.
 
 | # | Step | Expected |
 |---|------|----------|
-| R6-1 | Click "Mit Spotify verbinden" | Redirect to `http://127.0.0.1:8888/api/spotify/login` → Spotify OAuth (Authorization Code Flow via server) |
+| R6-1 | Click "Mit Spotify verbinden" in sidebar | Redirect to `http://127.0.0.1:8888/api/spotify/login` → Spotify OAuth (Authorization Code Flow via server); no login modal appears automatically on page load |
 | R6-2 | After auth, return to app | URL contains `?sp_connected=1`; device panel visible; no Spotify token in sessionStorage, localStorage, or cookies |
 | R6-3 | Open DevTools → Application → Storage | No `sp_token`, `pkce_v`, `sp_cid`, or similar Spotify credential in any browser storage (Invariant 2) |
 | R6-4 | Click "Export to Spotify" | Playlist created in Spotify; success message shown |
@@ -208,6 +228,7 @@ Run these steps in order. All must pass before a push is considered confirmed.
 
 | Date | Change | Push / Issue |
 |------|--------|--------------|
+| 2026-06-15 | N9 generation context snapshot; N10 login modal manual-trigger-only; R6-1/R6-2 updated for no auto-modal | Phase 1 (#147, #150, #152, #153) |
 | 2026-06-15 | N5-1 default corrected (unchecked); N6-6 swap blacklist added; N8 Explicit-Songs Filter added; PROJECT.md C4 test count corrected (369) | Project Audit |
 | 2026-06-14 | N7 replaced (Web Playback SDK → Device Control); N6-4 warning text corrected; R6 updated for Authorization Code Flow; L4 added | Spotify Integration Redesign |
 | 2026-06-10 | Initial test protocol created | docs: initial TESTING.md |
