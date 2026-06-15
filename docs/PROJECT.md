@@ -15,7 +15,7 @@ Lokaler, regelbasierter Playlist-Generator für alle vier Phasen eines CrossFit-
 | C1 | Pool Builder | `CFLU_Pool_Build.py` | ETL-Pipeline: liest `Playlists/**/*.csv` rekursiv, dedup per Spotify Track-ID, schreibt `cflu_tracks.js`. Phasen: E-T-L-C-G-A-[Color]-M. Standard: Add-only (`--rebuild` für vollständigen Update). `parent_genres` intern für `classify()` benötigt, aber nicht in `cflu_tracks.js` geschrieben (`_JS_EXCLUDE_FIELDS`). |
 | C2 | WOD Builder UI | `CFLU_WOD_Builder.html` + `js/` + `css/` | Haupt-UI: Song-Auswahl, Playlist-Generierung, BPM-Chart, Spotify-Export |
 | C3 | Track Data | `cflu_tracks.js` | Auto-generierter Track-Pool (non-module global `TRACK_DATA`) |
-| C4 | Tests | `js/cflu_tests.js` + `CFLU_Tests.html` | Kanonische Testklasse (dual-mode): `node js/cflu_tests.js` → stdout + Exit-Code; Browser: `CFLU_Tests.html` importiert und rendert. 369 Tests. |
+| C4 | Tests | `js/cflu_tests.js` + `CFLU_Tests.html` | Kanonische Testklasse (dual-mode): `node js/cflu_tests.js` → stdout + Exit-Code; Browser: `CFLU_Tests.html` importiert und rendert. 376 Tests. |
 
 ### JS-Module (C2 intern)
 
@@ -70,6 +70,7 @@ app.js (importiert alle Module, verdrahtet Events)
 | 13 | Three.js vendored in `js/vendor/` statt CDN | CSP (`script-src 'self'`) blockiert externe Skript-Domains; vendored Dateien erhalten die Offline-Fähigkeit (Key Invariant 8) ohne CSP-Änderungen. `OrbitControls.js` einmalig gepatcht: `from 'three'` → `from './three.module.min.js'`. | 2026-06-10 |
 | 14 | log2-Übergangs-Score ersetzt absoluten BPM-Sprung-Filter | Absoluter Maximalsprung (z. B. 10 BPM) ist tempoabhängig: bei 80 BPM ist ±10 BPM = ±12,5 %, bei 160 BPM = ±6,25 %. log2-Distanz `d = |log2(bpmNext/bpmPrev)|` ist tempo-invariant (DJ-Norm ±2 % ↔ d ≤ 0.030; ±10 % ↔ d ≈ 0.137). `BPM_TRANSITION_CONFIG.breakpoints` ist die einzige SSOT für Schwellenwerte. `allowLog2`-Flag behandelt ×2/÷2-Übergänge (gleiches Beatgrid) als d→min(d, |log2(r/2)|, |log2(r×2)|). | 2026-06-12 |
 | 15 | Spotify Authorization Code Flow (server-seitig) statt PKCE im Browser | PKCE-Ansatz speicherte Token im Browser (sessionStorage) und erforderte `streaming`-Scope für das Web Playback SDK — inkompatibel mit Web-Crypto-Einschränkungen auf iOS, EME/DRM-Anforderungen und der Einzelnutzer-Situation. Neu: `cflu_server.py` agiert als confidential client; `client_secret` und `refresh_token` verlassen den Server nie (Key Invariant 2); Browser hält kein Token; alle Spotify-API-Calls laufen durch `POST /api/spotify/call`; Web Playback SDK vollständig entfernt (kein `streaming`-Scope nötig). Device Control via `GET /me/player/devices` + `PUT /me/player/play` (Option A aus SPOTIFY_API_GUIDE.md). | 2026-06-14 |
+| 16 | `xyScore` als orthogonale Ergänzung zu `colorScore` in `calcSortScore()` (#132) | `avg_xy: [x_norm, y_norm]` — gewichteter Centroid der Everynoise-Positionen aller `genres_raw`-Tags (min-max normalisiert auf [0,1]; identische Matching-Logik wie `avg_color`). `xyScore = max(0, 10 × (1 − xyDist / √2))` ohne `Math.round()` — sub-integer Unterschiede sind im aufsummierten Score sichtbar (~80 % der Track-Paare hätten ohne rounding xyDist-Diff < 0.01 → Score-Diff < 0.07). Korrelations-Studie (Stage 0): Pearson r = 0.51 (moderat) — xy und RGB kodieren verschiedene, teilweise unabhängige Audiodimensionen. | 2026-06-15 |
 
 ---
 

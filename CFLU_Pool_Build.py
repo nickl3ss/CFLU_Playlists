@@ -584,6 +584,31 @@ def _load_everynoise_colors() -> dict:
     return colors
 
 
+def _load_everynoise_xy() -> dict:
+    """Load Everynoise CSV → {genre_lower: [x_norm, y_norm]} normalised 0–1. Returns {} if CSV absent."""
+    if not _EVERYNOISE_CSV.exists():
+        return {}
+    rows: list = []
+    with open(_EVERYNOISE_CSV, encoding='utf-8', newline='') as f:
+        for row in csv.DictReader(f):
+            name = row.get('genre', '').strip().lower()
+            x_str, y_str = row.get('x', '').strip(), row.get('y', '').strip()
+            if name and x_str and y_str:
+                try:
+                    rows.append((name, float(x_str), float(y_str)))
+                except ValueError:
+                    pass
+    if not rows:
+        return {}
+    xs = [r[1] for r in rows]
+    ys = [r[2] for r in rows]
+    min_x, max_x = min(xs), max(xs)
+    min_y, max_y = min(ys), max(ys)
+    x_range = max_x - min_x or 1.0
+    y_range = max_y - min_y or 1.0
+    return {name: [round((x - min_x) / x_range, 4), round((y - min_y) / y_range, 4)] for name, x, y in rows}
+
+
 def _match_color_tag(tag: str, colors: dict) -> str | None:
     """3-pass Everynoise match (exact → hyphen swap → word split)."""
     key = tag.strip().lower()
@@ -601,24 +626,48 @@ def _match_color_tag(tag: str, colors: dict) -> str | None:
     return None
 
 
+def _match_xy_tag(tag: str, xy_map: dict) -> list | None:
+    """3-pass Everynoise match for xy coords (mirrors _match_color_tag)."""
+    key = tag.strip().lower()
+    if key in xy_map:
+        return xy_map[key]
+    alt = key.replace(' ', '-')
+    if alt in xy_map:
+        return xy_map[alt]
+    alt2 = key.replace('-', ' ')
+    if alt2 in xy_map:
+        return xy_map[alt2]
+    for word in re.split(r'[\s\-]+', key):
+        if word in xy_map:
+            return xy_map[word]
+    return None
+
+
 def enrich_colors(tracks: list) -> int:
     """
-    Computes avg_color per track = mean RGB of Everynoise hex colours for
-    matched genres_raw tags. Sets t['avg_color'] = '#rrggbb' or None.
+    Computes avg_color (mean RGB) and avg_xy ([x_norm, y_norm] centroid) per track
+    from matched Everynoise genres_raw tags. Sets t['avg_color'] = '#rrggbb' or None
+    and t['avg_xy'] = [x, y] or None.
     Returns count of tracks that received a non-None avg_color.
     """
     colors = _load_everynoise_colors()
+    xy_map = _load_everynoise_xy()
     if not colors:
         print('  avg_color           : Everynoise CSV nicht gefunden — übersprungen')
         return 0
 
     enriched = 0
+    xy_enriched = 0
     for t in tracks:
-        matched_hexes = []
+        matched_hexes: list = []
+        matched_xy: list = []
         for raw_tag in t.get('genres_raw', []):
             hex_col = _match_color_tag(raw_tag, colors)
             if hex_col:
                 matched_hexes.append(hex_col)
+            xy = _match_xy_tag(raw_tag, xy_map)
+            if xy:
+                matched_xy.append(xy)
         if matched_hexes:
             r = sum(int(h[1:3], 16) for h in matched_hexes) // len(matched_hexes)
             g = sum(int(h[3:5], 16) for h in matched_hexes) // len(matched_hexes)
@@ -627,8 +676,62 @@ def enrich_colors(tracks: list) -> int:
             enriched += 1
         else:
             t['avg_color'] = None
+        if matched_xy:
+            t['avg_xy'] = [
+                round(sum(p[0] for p in matched_xy) / len(matched_xy), 4),
+                round(sum(p[1] for p in matched_xy) / len(matched_xy), 4),
+            ]
+            xy_enriched += 1
+        else:
+            t['avg_xy'] = None
     print(f'  avg_color           : {enriched}/{len(tracks)} Tracks mit Farbdaten')
+    print(f'  avg_xy              : {xy_enriched}/{len(tracks)} Tracks mit xy-Daten')
     return enriched
+
+
+def check_xy_color_correlation() -> None:
+    """Stage 0: Pearson r between pairwise xy-distance and RGB-color-distance over
+    Everynoise genres. Samples up to 500 shared genres for speed.
+    Gate: |r| < 0.3 → independent features; |r| > 0.7 → drop RGB."""
+    colors = _load_everynoise_colors()
+    xy_map = _load_everynoise_xy()
+    shared = sorted(set(colors) & set(xy_map))
+    if len(shared) < 10:
+        print('Zu wenige Daten für Korrelations-Studie.')
+        return
+    import random
+    random.seed(42)
+    sample = random.sample(shared, min(500, len(shared)))
+    print(f'Korrelations-Studie: {len(sample)} Genres aus {len(shared)} gemeinsamen Einträgen')
+
+    def _rgb_norm(hex_col: str) -> tuple:
+        return int(hex_col[1:3], 16) / 255, int(hex_col[3:5], 16) / 255, int(hex_col[5:7], 16) / 255
+
+    dists_color: list = []
+    dists_xy: list = []
+    for i in range(len(sample)):
+        r1, g1, b1 = _rgb_norm(colors[sample[i]])
+        x1, y1 = xy_map[sample[i]]
+        for j in range(i + 1, len(sample)):
+            r2, g2, b2 = _rgb_norm(colors[sample[j]])
+            x2, y2 = xy_map[sample[j]]
+            dists_color.append(((r1-r2)**2 + (g1-g2)**2 + (b1-b2)**2) ** 0.5)
+            dists_xy.append(((x1-x2)**2 + (y1-y2)**2) ** 0.5)
+
+    n = len(dists_color)
+    mean_c  = sum(dists_color) / n
+    mean_xy = sum(dists_xy) / n
+    cov = sum((dists_color[i] - mean_c) * (dists_xy[i] - mean_xy) for i in range(n))
+    std_c  = (sum((v - mean_c) ** 2 for v in dists_color) / n) ** 0.5
+    std_xy = (sum((v - mean_xy) ** 2 for v in dists_xy) / n) ** 0.5
+    r = cov / (n * std_c * std_xy) if std_c and std_xy else 0.0
+    print(f'Pearson r (xy vs. RGB-Distanz): {r:.4f}')
+    if abs(r) < 0.3:
+        print('-> xy und RGB sind unabhaengige Audiodimensionen (|r| < 0.3) -- beide Features sinnvoll.')
+    elif abs(r) > 0.7:
+        print('-> Starke Korrelation (|r| > 0.7) -- nur xy beibehalten empfohlen.')
+    else:
+        print('-> Moderate Korrelation -- beide Features tragen mit unterschiedlichem Gewicht bei.')
 
 
 # ===== G — GENRE-VERERBUNG =====
@@ -1200,4 +1303,7 @@ if __name__ == '__main__':
     # regardless of CWD when launched from terminal, batch file, or systemd.
     os.chdir(pathlib.Path(__file__).parent)
     import sys
-    build(rebuild='--rebuild' in sys.argv, reclassify_ai='--reclassify-ai' in sys.argv)
+    if '--check-xy-correlation' in sys.argv:
+        check_xy_color_correlation()
+    else:
+        build(rebuild='--rebuild' in sys.argv, reclassify_ai='--reclassify-ai' in sys.argv)

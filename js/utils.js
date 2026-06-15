@@ -182,6 +182,7 @@ export function calcEraScore(t, cur) {
 //   danceScore   [0,5]        reward: 5 at same danceability (B/C only), 0 at diff ≥25.
 //   moodScore    [0,8]        reward: proportional tag overlap from mood_tags field.
 //   colorScore   [0,10]       reward: similar Everynoise avg_color (sonic texture proximity).
+//   xyScore      [0,10]       reward: similar Everynoise avg_xy position (genre space proximity); no Math.round() — sub-integer diffs are visible in ranking.
 //   eraScore     [0,30]       reward: ≤5yr gap = 30, linear decay to 0 at ≥15yr gap.
 function _colorDist(h1, h2) {
   if (!h1 || !h2 || h1.length < 7 || h2.length < 7) return 0;
@@ -213,9 +214,11 @@ export function calcSortScore(t, cur, phase, allowLog2 = false) {
     ? Math.round(8 * t.mood_tags.filter(tag => cur.mood_tags.includes(tag)).length / Math.min(t.mood_tags.length, cur.mood_tags.length)) : 0;
   const colorScore = (t.avg_color && cur.avg_color)
     ? Math.max(0, Math.round(10 * (1 - _colorDist(t.avg_color, cur.avg_color) / 1.732))) : 0;
+  const xyScore    = (t.avg_xy && cur.avg_xy)
+    ? Math.max(0, 10 * (1 - Math.sqrt((t.avg_xy[0] - cur.avg_xy[0]) ** 2 + (t.avg_xy[1] - cur.avg_xy[1]) ** 2) / Math.SQRT2)) : 0;
   const eraScore   = calcEraScore(t, cur);
 
-  return camPoints + phasePoints + energyPoints + bpmTransScore + bridge + dEnergy + loudScore + valScore + danceScore + moodScore + colorScore + eraScore;
+  return camPoints + phasePoints + energyPoints + bpmTransScore + bridge + dEnergy + loudScore + valScore + danceScore + moodScore + colorScore + xyScore + eraScore;
 }
 
 const _BPM_HINTS = {

@@ -1233,6 +1233,51 @@ describe('calcSortScore — colorScore [0,10]', () => {
   });
 });
 
+describe('calcSortScore — xyScore [0,10]', () => {
+  const cur  = mkT({id:'cur',song:'Cur',artist:'A',bpm:120,camelot:'9B',energy:72,dur:210,genre:'Rock',bpmg:'D',avg_xy:[0.5,0.5]});
+  const base = mkT({id:'b',song:'B',artist:'A',bpm:124,camelot:'10B',energy:76,dur:200,genre:'Rock',bpmg:'D'});
+  it('Gleiche Position → xyScore = 10', () => {
+    const same = Object.assign({},base,{avg_xy:[0.5,0.5]});
+    const none = Object.assign({},base);
+    expect(calcSortScore(same,cur,'C') - calcSortScore(none,cur,'C')).toBe(10);
+  });
+  it('Nahe Position → höherer Score als entfernte', () => {
+    const near = Object.assign({},base,{avg_xy:[0.52,0.51]});
+    const far  = Object.assign({},base,{avg_xy:[0.0,0.0]});
+    expect(calcSortScore(near,cur,'C')).toBeGreaterThan(calcSortScore(far,cur,'C'));
+  });
+  it('Kein avg_xy auf Kandidat → xyScore = 0, kein Fehler', () => {
+    const noXy   = Object.assign({},base);
+    const withXy = Object.assign({},base,{avg_xy:[0.5,0.5]});
+    expect(calcSortScore(noXy,cur,'C')).toBeLessThanOrEqual(calcSortScore(withXy,cur,'C'));
+  });
+  it('Kein avg_xy auf cur → xyScore = 0', () => {
+    const curNoXy = Object.assign({},cur,{avg_xy:null});
+    const withXy  = Object.assign({},base,{avg_xy:[0.5,0.5]});
+    const noXy    = Object.assign({},base);
+    expect(calcSortScore(withXy,curNoXy,'C')).toBe(calcSortScore(noXy,curNoXy,'C'));
+  });
+  it('xyScore liegt im Bereich [0,10]', () => {
+    const far  = Object.assign({},base,{avg_xy:[0.0,0.0]});
+    const none = Object.assign({},base);
+    const diff = calcSortScore(far,cur,'C') - calcSortScore(none,cur,'C');
+    expect(diff).toBeGreaterThanOrEqual(0);
+    expect(diff).toBeLessThanOrEqual(10);
+  });
+  it('Maximale Distanz [0,0]↔[1,1] → xyScore = 0', () => {
+    const curCorner = Object.assign({},cur,{avg_xy:[1.0,1.0]});
+    const opp = Object.assign({},base,{avg_xy:[0.0,0.0]});
+    const diff = calcSortScore(opp,curCorner,'C') - calcSortScore(Object.assign({},base),curCorner,'C');
+    expect(diff).toBe(0);
+  });
+  it('xyScore ohne Math.round — liefert Nicht-Integer für Zwischenpositionen', () => {
+    const t1 = Object.assign({},base,{avg_xy:[0.6,0.5]});
+    const t2 = Object.assign({},base,{avg_xy:[0.61,0.5]});
+    const diff = calcSortScore(t1,cur,'C') - calcSortScore(t2,cur,'C');
+    expect(diff).not.toBe(Math.round(diff));
+  });
+});
+
 describe('calcEraScore — Ära-Kohärenz [0,30]', () => {
   const mk = (year) => ({ album_date: year ? `${year}-01-01` : null });
   it('Gleiche Jahreszahl → 30',             () => expect(calcEraScore(mk(2005), mk(2005))).toBe(30));

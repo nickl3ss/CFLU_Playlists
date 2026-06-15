@@ -64,6 +64,15 @@
 | N8-4 | Select "Nur E", generate | All tracks carry the `[E]` badge; if pool has no explicit tracks, playlist is empty or uses fallback with a warning |
 | N8-5 | Switch back to "Alle" | Active chip returns to "Alle"; explicit tracks reappear on next generation |
 
+### N11 · Everynoise xy-Score — Genre-Raum-Nähe
+
+| # | Step | Expected |
+|---|------|----------|
+| N11-1 | Run `python CFLU_Pool_Build.py` | Output contains two new lines: `avg_color : N/M Tracks mit Farbdaten` and `avg_xy : N/M Tracks mit xy-Daten` (N should be ≥85% of M) |
+| N11-2 | Open browser console, type `TRACK_DATA.tracks[0].avg_xy` on a track with genre data | Returns a two-element array e.g. `[0.502, 0.031]`; not null |
+| N11-3 | Generate two playlists: one with tracks from the same genre, one from very different genres | The same-genre playlist should generally have higher total scores (Generierungs-Log visible) — no crash |
+| N11-4 | Run `python CFLU_Pool_Build.py --check-xy-correlation` | Prints Pearson r between xy-distance and RGB-distance; prints interpretation line |
+
 ### N5 · log2 BPM-Übergangsscore — Neues Scoring-System
 
 | # | Step | Expected |
@@ -228,6 +237,7 @@ Run these steps in order. All must pass before a push is considered confirmed.
 
 | Date | Change | Push / Issue |
 |------|--------|--------------|
+| 2026-06-15 | N11 Everynoise xy-Score added | Phase 2 (#132) |
 | 2026-06-15 | N9 generation context snapshot; N10 login modal manual-trigger-only; R6-1/R6-2 updated for no auto-modal | Phase 1 (#147, #150, #152, #153) |
 | 2026-06-15 | N5-1 default corrected (unchecked); N6-6 swap blacklist added; N8 Explicit-Songs Filter added; PROJECT.md C4 test count corrected (369) | Project Audit |
 | 2026-06-14 | N7 replaced (Web Playback SDK → Device Control); N6-4 warning text corrected; R6 updated for Authorization Code Flow; L4 added | Spotify Integration Redesign |
