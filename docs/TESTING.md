@@ -58,11 +58,26 @@
 
 | # | Step | Expected |
 |---|------|----------|
-| N8-1 | Open sidebar | "Explicit-Songs" row visible between log2 toggle and Camelot-Lock; three chips: **Alle** (active/highlighted), **Kein E**, **Nur E** |
+| N8-1 | Open Advanced sidebar | "Explicit-Songs" row visible at the top of **Schritt 1**, before the mode chips; three chips: **Alle** (active/highlighted), **Kein E**, **Nur E** |
 | N8-2 | Generate with "Alle" (default) | Playlist may include tracks with explicit flag; `[E]` badge visible on such tracks |
 | N8-3 | Select "Kein E", generate | No `[E]`-badged track appears in WOD or Cool-Down |
 | N8-4 | Select "Nur E", generate | All tracks carry the `[E]` badge; if pool has no explicit tracks, playlist is empty or uses fallback with a warning |
 | N8-5 | Switch back to "Alle" | Active chip returns to "Alle"; explicit tracks reappear on next generation |
+
+### N14 · Advanced Mode — UI Restructure & Genre Space Drag
+
+| # | Step | Expected |
+|---|------|----------|
+| N14-1 | Open Advanced sidebar — look at Schritt 1 top | **Explicit-Songs** chips appear first (Alle/Kein E/Nur E), before the mode tabs |
+| N14-2 | Observe Schritt 1: Genre dropdown | **Genre** selector appears directly below mode tabs and above Tonart-Filter — always visible, not hidden inside Genre&BPM panel |
+| N14-3 | Default genre value on first load | Dropdown pre-selected to **EDM / Electronic** (if present in pool) |
+| N14-4 | Look below Tonart-Filter slider | **"Tonart-Filter auf Playlist anwenden"** toggle appears; no sub-label; enabled/disabled based on whether a Camelot filter is active |
+| N14-5 | Switch to Genre&BPM mode; look below BPM-Toleranz | **"log2-Raum zulassen"** toggle appears inside the filter panel, after BPM-Toleranz |
+| N14-6 | Open Schritt 3 | Explicit-Songs chips, log2 toggle, and old "Tonart-Filter sperren" row are **gone** from Step 3 |
+| N14-7 | Set Explicit-Songs to **Kein E** in Step 1, use Genre&BPM mode | Filter list shows only tracks without `[E]` flag |
+| N14-8 | Set Explicit-Songs to **Kein E**, switch to Direktsuche mode, search 2+ chars | Direct search results also exclude explicit tracks |
+| N14-9 | Set Explicit-Songs to **Nur E**, switch to Direktsuche mode, search 2+ chars | Direct search results show only explicit-flagged tracks |
+| N14-10 | Drag genre space cloud (see N1-3) | Cloud rotates; cursor changes to `grabbing`; auto-rotation pauses while dragging |
 
 ### N13 · Playlist-Optimizer (118-A/C/D/E/F)
 
@@ -121,7 +136,7 @@
 |---|------|----------|
 | N1-1 | Load app (no playlist generated) | Genre space fills the entire result area; rotating 3D star cloud visible immediately |
 | N1-2 | Observe rotation for ~10 s | Cloud rotates slowly around all three axes at different speeds — calm, never repeating |
-| N1-3 | Try to drag / zoom the cloud | No interaction; mouse has no effect on the model |
+| N1-3 | Click and drag the cloud | Cloud rotates following mouse movement; auto-rotation pauses during drag; cursor changes to `grabbing`; center stays fixed (no orbit pan) |
 | N1-4 | Observe dot sizes | Tiny dots (~2px) for genres not in pool; larger dots (up to ~20px) for high-count genres |
 | N1-5 | Cloud visual centre | Cloud centred in the canvas area, not pulled to bottom or side |
 | N1-6 | Section title "● Genre Space" | Visible as overlay in top-left of the cloud, does not push canvas down |

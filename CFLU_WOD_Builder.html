@@ -145,11 +145,21 @@
     <!-- STEP 1: SONG SELECTION -->
     <div class="sb-section">
       <div class="sb-label">Schritt 1 — Song wählen</div>
+      <div class="toggle-row" style="margin-bottom:10px">
+        <div><div class="toggle-label">Explicit-Songs</div></div>
+        <div class="explicit-chips">
+          <button class="explicit-chip active" id="explicit-allow">Alle</button>
+          <button class="explicit-chip" id="explicit-exclude">Kein E</button>
+          <button class="explicit-chip" id="explicit-only">Nur E</button>
+        </div>
+      </div>
       <div class="chips" style="margin-bottom:10px">
         <div class="chip active" id="tab-filter">Genre &amp; BPM</div>
         <div class="chip" id="tab-direct">Direktsuche</div>
         <div class="chip" id="tab-link">Spotify-Link</div>
       </div>
+      <div class="sb-label">Genre <span class="badge" id="genre-count-badge"></span></div>
+      <select id="genre-sel" style="margin-bottom:10px"></select>
 
       <!-- CAMELOT FILTER — wirkt auf alle Suchmodi -->
       <div id="cam-filter-wrap" style="margin-bottom:8px;padding-top:8px;border-top:1px solid var(--border)">
@@ -173,11 +183,15 @@
         </div>
         <div class="track-count" id="cam-hint" style="min-height:14px"></div>
       </div>
+      <div class="toggle-row" id="cam-lock-row" style="margin-top:8px;margin-bottom:8px;opacity:.4;pointer-events:none">
+        <div>
+          <div class="toggle-label">Tonart-Filter auf Playlist anwenden</div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="cam-lock-toggle"><span class="toggle-slider"></span></label>
+      </div>
 
       <!-- MODE: Genre & BPM Filter -->
       <div id="sel-filter">
-        <div class="sb-label">Genre <span class="badge" id="genre-count-badge"></span></div>
-        <select id="genre-sel" style="margin-bottom:10px"></select>
         <div class="sb-label">Ziel-BPM</div>
         <div class="range-wrap">
           <input type="range" id="bpm-slider" min="60" max="220" value="128">
@@ -191,6 +205,13 @@
           <input type="range" id="bpm-tol" min="1" max="40" value="5">
         </div>
         <div class="range-row"><span class="range-lbl">±1</span><span class="range-lbl">±30</span></div>
+        <div class="toggle-row" style="margin-top:10px;margin-bottom:4px">
+          <div>
+            <div class="toggle-label">log2-Raum zulassen</div>
+            <div class="toggle-sub" title="Wertet Tracks mit halbem/doppeltem Tempo als kompatibel (gleiches Beatgrid).">Half/Double-Time ×2/÷2</div>
+          </div>
+          <label class="toggle"><input type="checkbox" id="log2-toggle" checked><span class="toggle-slider"></span></label>
+        </div>
         <div class="track-count" id="filter-count">— Tracks</div>
 
         <div style="margin-top:8px">
@@ -323,30 +344,6 @@
             <div class="toggle-sub">Ruhigere Tracks nach WOD</div>
           </div>
           <label class="toggle"><input type="checkbox" id="cd-toggle"><span class="toggle-slider"></span></label>
-        </div>
-        <div class="toggle-row" style="margin-top:10px">
-          <div>
-            <div class="toggle-label">log2-Raum zulassen</div>
-            <div class="toggle-sub" title="Wertet Tracks mit halbem/doppeltem Tempo als kompatibel (gleiches Beatgrid).">Half/Double-Time ×2/÷2</div>
-          </div>
-          <label class="toggle"><input type="checkbox" id="log2-toggle" checked><span class="toggle-slider"></span></label>
-        </div>
-        <div class="toggle-row" style="margin-top:10px">
-          <div>
-            <div class="toggle-label">Explicit-Songs</div>
-          </div>
-          <div class="explicit-chips">
-            <button class="explicit-chip active" id="explicit-allow">Alle</button>
-            <button class="explicit-chip" id="explicit-exclude">Kein E</button>
-            <button class="explicit-chip" id="explicit-only">Nur E</button>
-          </div>
-        </div>
-        <div class="toggle-row" id="cam-lock-row" style="margin-top:10px;opacity:.4;pointer-events:none">
-          <div>
-            <div class="toggle-label">Tonart-Filter sperren</div>
-            <div class="toggle-sub">Nur Tracks im gewählten Tonart-Bereich</div>
-          </div>
-          <label class="toggle"><input type="checkbox" id="cam-lock-toggle"><span class="toggle-slider"></span></label>
         </div>
         <div id="cd-dur-wrap" class="section-hidden" style="margin-top:10px">
           <div class="sb-label">Dauer Cool-Down <span class="badge" id="cd-dur-badge">15 min</span></div>

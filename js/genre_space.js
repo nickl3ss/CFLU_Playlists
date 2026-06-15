@@ -5,6 +5,7 @@ const SCALE = 15;
 
 let _scene, _camera, _renderer;
 let _rotGroup = null, _clock = null, _elapsed = 0;
+const _drag = { active: false, lastX: 0, lastY: 0 };
 let _centroid = null;
 let _starPoints, _starGeometry;
 let _playlistMarkers = null, _sequenceLine = null;
@@ -38,6 +39,29 @@ export function initGenreSpace(canvasEl) {
   _buildStarField();
 
   new ResizeObserver(_onResize).observe(canvasEl);
+
+  canvasEl.style.cursor = 'grab';
+  canvasEl.addEventListener('mousedown', e => {
+    _drag.active = true;
+    _drag.lastX = e.clientX;
+    _drag.lastY = e.clientY;
+    canvasEl.style.cursor = 'grabbing';
+  });
+  window.addEventListener('mousemove', e => {
+    if (!_drag.active) return;
+    const dx = e.clientX - _drag.lastX;
+    const dy = e.clientY - _drag.lastY;
+    _drag.lastX = e.clientX;
+    _drag.lastY = e.clientY;
+    if (_rotGroup) {
+      _rotGroup.rotation.y += dx * 0.005;
+      _rotGroup.rotation.x += dy * 0.005;
+    }
+  });
+  window.addEventListener('mouseup', () => {
+    _drag.active = false;
+    canvasEl.style.cursor = 'grab';
+  });
 
   _initialized = true;
   _animate();
@@ -272,10 +296,12 @@ function _animate() {
   if (_rotGroup && _clock) {
     const dt = _clock.getDelta();
     _elapsed += dt;
-    // Three independent axes drift at different base speeds and slowly varying rates
-    _rotGroup.rotation.x += (0.05 + 0.03 * Math.sin(_elapsed * 0.11)) * dt;
-    _rotGroup.rotation.y += (0.09 + 0.05 * Math.sin(_elapsed * 0.07)) * dt;
-    _rotGroup.rotation.z += (0.03 + 0.02 * Math.sin(_elapsed * 0.13)) * dt;
+    if (!_drag.active) {
+      // Three independent axes drift at different base speeds and slowly varying rates
+      _rotGroup.rotation.x += (0.05 + 0.03 * Math.sin(_elapsed * 0.11)) * dt;
+      _rotGroup.rotation.y += (0.09 + 0.05 * Math.sin(_elapsed * 0.07)) * dt;
+      _rotGroup.rotation.z += (0.03 + 0.02 * Math.sin(_elapsed * 0.13)) * dt;
+    }
   }
   if (_renderer && _scene && _camera) _renderer.render(_scene, _camera);
 }

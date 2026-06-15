@@ -395,6 +395,8 @@ function updateFilterList() {
   let filtered = pool.filter(t => Math.abs(t.bpm - bpmTarget) <= state.bpmTol && t.energy >= state.wodEnergyMin && t.energy <= state.wodEnergyMax);
   if (q) filtered = filtered.filter(t => t.song.toLowerCase().includes(q) || t.artist.toLowerCase().includes(q));
   filtered = applyCamFilter(filtered);
+  if (state.explicitFilter === 'exclude') filtered = filtered.filter(t => !t.explicit);
+  if (state.explicitFilter === 'only')    filtered = filtered.filter(t =>  t.explicit);
   filtered.sort((a, b) => {
     const ps = calcPhaseScore(b, state.currentPhase) - calcPhaseScore(a, state.currentPhase);
     return ps || a.bpm - b.bpm;
@@ -422,9 +424,12 @@ function onDirectSearch() {
   sel.innerHTML = '';
   if (q.length < 2) { document.getElementById('direct-count').textContent = 'Mind. 2 Zeichen eingeben'; return; }
   const genrePool = getPool('Going Wild');
-  const res = genrePool.filter(t =>
+  let res = genrePool.filter(t =>
     t.song.toLowerCase().includes(q) || t.artist.toLowerCase().includes(q)
-  ).sort((a, b) => {
+  );
+  if (state.explicitFilter === 'exclude') res = res.filter(t => !t.explicit);
+  if (state.explicitFilter === 'only')    res = res.filter(t =>  t.explicit);
+  res = res.sort((a, b) => {
     const ps = calcPhaseScore(b, state.currentPhase) - calcPhaseScore(a, state.currentPhase);
     return ps || a.bpm - b.bpm;
   }).slice(0, 80);
@@ -536,6 +541,7 @@ function setExplicitFilter(mode) {
   state.explicitFilter = mode;
   ['allow','exclude','only'].forEach(m => document.getElementById('explicit-' + m).classList.toggle('active', m === mode));
   updateFilterList();
+  if (state.selMode === 'direct') onDirectSearch();
 }
 
 // ===== AMPEL =====
@@ -1179,6 +1185,7 @@ function _initGenreDropdowns() {
   [['Alle Deutschen Tracks', 'Alle Deutschen Tracks'], ['Going Wild', 'Going Wild (alle Genres)']].forEach(([v, l]) => {
     const o = document.createElement('option'); o.value = v; o.textContent = l; genreSel.appendChild(o);
   });
+  if (genres.includes('EDM / Electronic')) genreSel.value = 'EDM / Electronic';
 
   const manualGenre = document.getElementById('manual-genre');
   genres.forEach(g => { const o = document.createElement('option'); o.value = g; o.textContent = g; manualGenre.appendChild(o); });
