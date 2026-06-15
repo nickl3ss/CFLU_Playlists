@@ -19,6 +19,7 @@
 | N6-3 | Click ↺ on a non-REF WOD track | Track is replaced in-place; BPM chart redraws; stats bar updates |
 | N6-4 | Click ↺ on a track with very constrained neighbors | Yellow warning "Kein Ersatz für Slot N gefunden (BPM-Übergang oder Camelot-Filter zu eng)." appears for 4 s, then disappears |
 | N6-5 | After replacement | New track satisfies BPM transition to both neighbors (no hard log2-score=0 jump) |
+| N6-6 | Click ↺ multiple times on the same slot | Each swap brings a *different* track — previously swapped-out songs do not re-appear; blacklist resets when "▶ Playlist generieren" is clicked again |
 
 ### N7 · Spotify Device Control (Web API)
 
@@ -33,11 +34,21 @@
 | N7-7 | Click "Abmelden" in the Spotify sidebar section | Device panel hides; connect hint reappears; spConnected resets to false |
 | N7-8 | Reload the page after successful auth | Status auto-restored from server (`/api/spotify/status`); device panel shown without re-login |
 
+### N8 · Explicit-Songs Filter
+
+| # | Step | Expected |
+|---|------|----------|
+| N8-1 | Open sidebar | "Explicit-Songs" row visible between log2 toggle and Camelot-Lock; three chips: **Alle** (active/highlighted), **Kein E**, **Nur E** |
+| N8-2 | Generate with "Alle" (default) | Playlist may include tracks with explicit flag; `[E]` badge visible on such tracks |
+| N8-3 | Select "Kein E", generate | No `[E]`-badged track appears in WOD or Cool-Down |
+| N8-4 | Select "Nur E", generate | All tracks carry the `[E]` badge; if pool has no explicit tracks, playlist is empty or uses fallback with a warning |
+| N8-5 | Switch back to "Alle" | Active chip returns to "Alle"; explicit tracks reappear on next generation |
+
 ### N5 · log2 BPM-Übergangsscore — Neues Scoring-System
 
 | # | Step | Expected |
 |---|------|----------|
-| N5-1 | Open sidebar | No "Max. BPM-Sprung" slider visible; replaced by "log2-Raum zulassen" toggle (checked by default) |
+| N5-1 | Open sidebar | No "Max. BPM-Sprung" slider visible; replaced by "log2-Raum zulassen" toggle (unchecked by default) |
 | N5-2 | Hover over "Half/Double-Time ×2/÷2" subtitle | Tooltip appears: "Wertet Tracks mit halbem/doppeltem Tempo als kompatibel (gleiches Beatgrid)." |
 | N5-3 | Generate a playlist (log2 aktiv) | Generierungs-Log shows "log2-Score:      Half/Double aktiv" |
 | N5-4 | Uncheck the log2 toggle, generate again | Generierungs-Log shows "log2-Score:      Half/Double inaktiv" |
@@ -197,5 +208,6 @@ Run these steps in order. All must pass before a push is considered confirmed.
 
 | Date | Change | Push / Issue |
 |------|--------|--------------|
+| 2026-06-15 | N5-1 default corrected (unchecked); N6-6 swap blacklist added; N8 Explicit-Songs Filter added; PROJECT.md C4 test count corrected (369) | Project Audit |
 | 2026-06-14 | N7 replaced (Web Playback SDK → Device Control); N6-4 warning text corrected; R6 updated for Authorization Code Flow; L4 added | Spotify Integration Redesign |
 | 2026-06-10 | Initial test protocol created | docs: initial TESTING.md |
