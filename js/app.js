@@ -187,6 +187,60 @@ function checkRefBpmAndWarn() {
   warn.style.display = 'block';
 }
 
+// ===== UI MODE (Quick / Optimizer / Advanced) =====
+function setUiMode(mode) {
+  state.uiMode = mode;
+  ['quick','optimizer','advanced'].forEach(m => {
+    document.getElementById('mode-tab-' + m).classList.toggle('active', m === mode);
+    document.getElementById('mode-' + m + '-panel').style.display = m === mode ? '' : 'none';
+  });
+}
+
+// ===== QUICK MODE =====
+function onQuickSearch() {
+  const q = document.getElementById('q-search').value.toLowerCase().trim();
+  const sel = document.getElementById('q-list');
+  const count = document.getElementById('q-search-count');
+  document.getElementById('q-search-clear').style.display = q ? '' : 'none';
+  if (q.length < 2) { count.textContent = 'Mind. 2 Zeichen eingeben'; sel.innerHTML = ''; return; }
+  const res = getAllTracks().filter(t =>
+    t.song.toLowerCase().includes(q) || t.artist.toLowerCase().includes(q)
+  ).slice(0, 60);
+  sel.innerHTML = res.map(t =>
+    `<option value="${t.id || t.song}">${t.artist} — ${t.song} (${t.bpm} BPM, ${t.camelot || '—'})</option>`
+  ).join('');
+  sel._qTracks = res;
+  count.textContent = res.length + ' Ergebnisse';
+}
+
+function onQuickSelect(sel) {
+  const idx = sel.selectedIndex;
+  if (idx < 0 || !sel._qTracks) return;
+  const t = sel._qTracks[idx];
+  selectTrack(t);  // sets state.selectedTrack + state.poolGenre; updates Advanced DOM (hidden)
+  document.getElementById('q-sel-title').textContent  = t.song;
+  document.getElementById('q-sel-artist').textContent = t.artist;
+  document.getElementById('q-sel-bpm').textContent    = t.bpm + ' BPM';
+  document.getElementById('q-sel-cam').textContent    = t.camelot || '—';
+  document.getElementById('q-sel-genre').textContent  = t.genre;
+  document.getElementById('q-selected').classList.remove('section-hidden');
+  document.getElementById('q-gen-btn').disabled = false;
+}
+
+function onQuickGenerate() {
+  if (!state.selectedTrack || state.selectedTrack.bpm <= 0) { alert('Bitte Song wählen.'); return; }
+  const phase    = document.getElementById('q-segment').value;
+  const position = document.getElementById('q-position').value;
+  const cfg = PHASE_CONFIG[phase];
+  // Apply phase + position to state without touching Advanced panel DOM
+  state.currentPhase   = phase;
+  state.wodEnergyMin   = cfg.energy ? cfg.energy[0] : 0;
+  state.wodEnergyMax   = cfg.energy ? cfg.energy[1] : 100;
+  state.bpmTol         = cfg.tolDefault;
+  state.position       = position;
+  _gen();
+}
+
 // ===== SELECTION MODE =====
 function setSelMode(m) {
   state.selMode = m;
@@ -1017,6 +1071,18 @@ function _initGenreDropdowns() {
 
 // ===== INIT =====
 function init() {
+  // UI mode tabs (Quick / Optimizer / Advanced)
+  ['quick','optimizer','advanced'].forEach(m =>
+    document.getElementById('mode-tab-' + m).addEventListener('click', () => setUiMode(m))
+  );
+  // Quick mode
+  document.getElementById('q-search').addEventListener('input', onQuickSearch);
+  document.getElementById('q-search-clear').addEventListener('click', () => {
+    document.getElementById('q-search').value = '';
+    onQuickSearch();
+  });
+  document.getElementById('q-list').addEventListener('change', e => onQuickSelect(e.target));
+  document.getElementById('q-gen-btn').addEventListener('click', onQuickGenerate);
   // Phase tiles
   ['A','B','C','D'].forEach(p =>
     document.getElementById('phase-' + p).addEventListener('click', () => onPhaseSelect(p))

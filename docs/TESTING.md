@@ -64,6 +64,20 @@
 | N8-4 | Select "Nur E", generate | All tracks carry the `[E]` badge; if pool has no explicit tracks, playlist is empty or uses fallback with a warning |
 | N8-5 | Switch back to "Alle" | Active chip returns to "Alle"; explicit tracks reappear on next generation |
 
+### N12 · UI-Modus-Tab-Leiste
+
+| # | Step | Expected |
+|---|------|----------|
+| N12-1 | Load app | Three mode tabs visible below CFLU header: **⚡ Quick**, **🔧 Optimizer**, **⚙ Advanced** — Advanced highlighted as active |
+| N12-2 | Click **⚡ Quick** | Quick panel shown; all Step 1–3 and Advanced generate button hidden; Quick tab highlighted |
+| N12-3 | In Quick tab: type 2+ characters in "Song wählen" search | Matching tracks appear in list with artist, title, BPM, Camelot |
+| N12-4 | Select a track from Quick search list | Selected-song card appears below list showing song name, artist, BPM, Camelot, genre; "⚡ Generieren" button enabled |
+| N12-5 | Choose segment "C — WOD Intensiv" and position "Anfang", click "⚡ Generieren" | Playlist generated in the main result area — same output as Advanced mode |
+| N12-6 | Choose segment "A — Warmup & Prep", click "⚡ Generieren" | Playlist uses Phase A energy/BPM defaults; plateau-style build |
+| N12-7 | Click **🔧 Optimizer** | Optimizer placeholder panel shown: 🔧 icon + "Playlist-Optimizer / Coming soon — Issue #118" |
+| N12-8 | Click **⚙ Advanced** | Full Step 1–3 sidebar reappears; previously generated playlist still visible; Advanced tab highlighted |
+| N12-9 | Switch tabs rapidly (Quick → Advanced → Optimizer → Quick) | No crash; each switch shows the correct panel; result area unchanged |
+
 ### N11 · Everynoise xy-Score — Genre-Raum-Nähe
 
 | # | Step | Expected |
@@ -237,6 +251,7 @@ Run these steps in order. All must pass before a push is considered confirmed.
 
 | Date | Change | Push / Issue |
 |------|--------|--------------|
+| 2026-06-15 | N12 UI-Modus-Tab-Leiste (Quick/Optimizer/Advanced) added | Phase 2 (#119) |
 | 2026-06-15 | N11 Everynoise xy-Score added | Phase 2 (#132) |
 | 2026-06-15 | N9 generation context snapshot; N10 login modal manual-trigger-only; R6-1/R6-2 updated for no auto-modal | Phase 1 (#147, #150, #152, #153) |
 | 2026-06-15 | N5-1 default corrected (unchecked); N6-6 swap blacklist added; N8 Explicit-Songs Filter added; PROJECT.md C4 test count corrected (369) | Project Audit |

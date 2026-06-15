@@ -34,6 +34,10 @@ body{font-family:var(--ff-ui);background:var(--bg);color:var(--text);min-height:
 
 /* ===== SIDEBAR HEADER & SECTIONS ===== */
 .sb-header{padding:16px 20px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.mode-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg2)}
+.mode-tab{flex:1;background:none;border:none;border-bottom:2px solid transparent;color:var(--text2);font-family:var(--ff-ui);font-size:var(--fz-xs);font-weight:700;padding:9px 4px;cursor:pointer;transition:all .15s;white-space:nowrap;letter-spacing:.02em}
+.mode-tab.active{color:var(--acc);border-bottom-color:var(--acc)}
+.mode-tab:hover:not(.active){color:var(--text);border-bottom-color:var(--text3)}
 .sb-logo{font-family:var(--ff-mono);font-size:var(--fz-2xs);color:var(--acc);letter-spacing:.15em;text-transform:uppercase;margin-bottom:3px}
 .sb-title{font-size:var(--fz-2xl);font-weight:900;letter-spacing:.05em;text-transform:uppercase}
 .sb-section{padding:14px 20px;border-bottom:1px solid var(--border)}

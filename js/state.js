@@ -19,6 +19,7 @@ export const state = {
   lockCamFilter: false,
   generatedWod: [],
   generatedCd: [],
+  uiMode: 'advanced',                            // 'quick' | 'optimizer' | 'advanced' — volatile per session, not persisted
   generationContext: { genre: '', phase: 'C' }, // snapshot of genre + phase at generation time; used by onReplaceTrack
   swapBlacklist: new Set(), // IDs of tracks swapped out since last generation; merged into excludeIds
   crossfadeSec: 20,

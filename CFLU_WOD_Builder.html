@@ -20,7 +20,72 @@
     <div class="sb-title">WOD Playlist Builder</div>
   </div>
 
+  <!-- MODE TAB BAR -->
+  <div class="mode-tabs">
+    <button class="mode-tab" id="mode-tab-quick">⚡ Quick</button>
+    <button class="mode-tab" id="mode-tab-optimizer">🔧 Optimizer</button>
+    <button class="mode-tab active" id="mode-tab-advanced">⚙ Advanced</button>
+  </div>
+
   <div class="sb-scroll">
+
+    <!-- ===== QUICK MODE PANEL ===== -->
+    <div id="mode-quick-panel" style="display:none">
+      <div class="sb-section">
+        <div class="sb-label">Song wählen</div>
+        <div class="search-box">
+          <input type="text" id="q-search" placeholder="Titel oder Interpret...">
+          <button class="search-clear" id="q-search-clear">×</button>
+        </div>
+        <div class="track-count" id="q-search-count">Mind. 2 Zeichen eingeben</div>
+        <select id="q-list" class="track-select" size="5"></select>
+        <div id="q-selected" class="section-hidden">
+          <div class="selected-song">
+            <div class="sel-title" id="q-sel-title">—</div>
+            <div class="sel-artist" id="q-sel-artist">—</div>
+            <div class="sel-meta">
+              <span class="sel-badge" id="q-sel-bpm" style="color:var(--acc)">— BPM</span>
+              <span class="sel-badge" id="q-sel-cam">—</span>
+              <span class="sel-badge" id="q-sel-genre" style="color:var(--text2)">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sb-section">
+        <div class="sb-label">WOD-Segment</div>
+        <select id="q-segment">
+          <option value="A">A — Warmup &amp; Prep</option>
+          <option value="B">B — Skill &amp; Strength</option>
+          <option value="C" selected>C — WOD Intensiv</option>
+          <option value="D">D — Cool-Down</option>
+        </select>
+      </div>
+      <div class="sb-section" id="q-position-section">
+        <div class="sb-label">Position</div>
+        <select id="q-position">
+          <option value="start">Anfang — Song als erstes</option>
+          <option value="mid">Mitte — Song bei ~50%</option>
+          <option value="end">Ende — Playlist baut sich auf Song hin</option>
+        </select>
+      </div>
+      <div class="sb-section">
+        <button class="gen-btn" id="q-gen-btn" disabled>⚡ Generieren</button>
+      </div>
+    </div>
+
+    <!-- ===== OPTIMIZER MODE PANEL ===== -->
+    <div id="mode-optimizer-panel" style="display:none">
+      <div class="sb-section" style="padding:40px 20px;text-align:center">
+        <div style="font-size:2rem;margin-bottom:12px">🔧</div>
+        <div style="color:var(--text2);font-size:var(--fz-sm);line-height:1.6">
+          Playlist-Optimizer<br>
+          <span style="color:var(--text3);font-family:var(--ff-mono);font-size:var(--fz-xs)">Coming soon — Issue #118</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== ADVANCED MODE PANEL (existing content) ===== -->
+    <div id="mode-advanced-panel">
     <!-- CLASS PHASE SELECTOR -->
     <div class="sb-section">
       <div class="sb-label">Klassen-Phase</div>
@@ -274,6 +339,8 @@
     <div class="sb-section">
       <button class="gen-btn" id="gen-btn" disabled>▶ Playlist generieren</button>
     </div>
+
+    </div><!-- end mode-advanced-panel -->
 
   </div><!-- end sb-scroll -->
 </aside>
