@@ -78,7 +78,8 @@ _EDM_KEYWORDS      = ['edm', 'house', 'techno', 'trance', 'dubstep', 'hardstyle'
                       'big beat', 'eurodance', 'hi-nrg', 'bubblegum dance', 'italo disco',
                       'happy hardcore', 'italo dance', 'gabba', 'hands up',
                       'electroclash', 'indie dance', 'elektronische musik', 'electronica',
-                      'indietronica', 'drum and bass', 'dnb', 'jungle', 'uk garage', 'uk dance']
+                      'indietronica', 'drum and bass', 'dnb', 'jungle', 'uk garage', 'uk dance',
+                      'electronic', 'dance']
 _SYNTH_KEYWORDS    = ['synthwave', 'vaporwave', 'chillwave', 'outrun', 'retrowave',
                       'darksynth', 'dreamwave', 'trip-hop', 'downtempo', 'new age', 'ambient',
                       'lo-fi', 'darkwave', 'industrial', 'ebm', 'dark ambient']
@@ -186,6 +187,10 @@ def classify(genres_str, parent_str, bpm, album_date_str=''):
     if any(x in genres for x in _EDM_KEYWORDS) and bpm >= 118:
         return 'EDM / Electronic'
 
+    # Metal vor Synth — verhindert dass 'industrial' in 'industrial metal' Synth auslöst
+    if any(x in genres for x in _METAL_KEYWORDS):
+        return 'Metal & Hard Rock'
+
     if any(x in genres for x in _SYNTH_KEYWORDS):
         return 'Synthwave / Electronica'
 
@@ -204,9 +209,6 @@ def classify(genres_str, parent_str, bpm, album_date_str=''):
         return 'Funk, Soul & R&B'
     if 'blues' in genres and 'rock' not in genres and 'metal' not in genres:
         return 'Funk, Soul & R&B'
-
-    if any(x in genres for x in _METAL_KEYWORDS):
-        return 'Metal & Hard Rock'
 
     if any(x in genres for x in _ROCK_KEYWORDS):
         return 'Rock'
