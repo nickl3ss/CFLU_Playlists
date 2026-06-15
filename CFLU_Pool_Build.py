@@ -32,6 +32,7 @@ import time
 import urllib.parse
 import urllib.request
 from collections import defaultdict
+from datetime import datetime
 
 # ===== KONFIGURATION =====
 PLAYLISTS_DIR = 'Playlists'
@@ -128,8 +129,9 @@ _BPM_GROUPS = [('A',0,90),('B',90,110),('C',110,120),('D',120,130),('E',130,140)
 # damit inherit_genres() diese Tracks als Vererbungsquelle nutzen kann.
 _AI_MODEL = 'claude-haiku-4-5-20251001'
 
-_LASTFM_KEY_FILE  = 'lastfm_api_key.txt'
-_LASTFM_MIN_COUNT = 15  # Tags mit count < 15 werden ignoriert
+_LASTFM_KEY_FILE   = 'lastfm_api_key.txt'
+_LASTFM_CACHE_FILE = 'cflu_lastfm.json'
+_LASTFM_MIN_COUNT  = 15  # Tags mit count < 15 werden ignoriert
 
 # Bekannte Nicht-Genre-Tags auf Last.fm (lowercase) — werden vor classify() gefiltert
 _LASTFM_NOISE_TAGS = {
@@ -790,44 +792,186 @@ def inherit_genres(tracks):
 
 
 # ===== F — LAST.FM GENRE =====
-def _lastfm_fetch_tags(artist: str, track: str, api_key: str) -> list[str] | None:
-    """Fetch genre tags from Last.fm: track.getTopTags first, artist.getTopTags as fallback.
-    Returns:
-      list[str]  — filtered tag names (may be empty if Last.fm responded but found nothing)
-      None       — network/parse error; state must not advance
-    """
-    def _get(params: dict) -> dict | None:
-        params['api_key'] = api_key
-        params['format']  = 'json'
-        params['autocorrect'] = '1'
-        url = 'http://ws.audioscrobbler.com/2.0/?' + urllib.parse.urlencode(params)
+
+def _lastfm_get(params: dict, api_key: str) -> dict | None:
+    """Single Last.fm API call. Returns parsed JSON or None on network/parse error."""
+    p = dict(params)
+    p['api_key']     = api_key
+    p['format']      = 'json'
+    p['autocorrect'] = '1'
+    url = 'http://ws.audioscrobbler.com/2.0/?' + urllib.parse.urlencode(p)
+    try:
+        with urllib.request.urlopen(url, timeout=8) as r:
+            return json.loads(r.read())
+    except Exception:
+        return None
+
+
+def _lastfm_filter_tags(raw_tags: list) -> list[str]:
+    """Filter raw Last.fm tag list to lowercase genre-relevant names."""
+    return [
+        t['name'].lower() for t in raw_tags
+        if int(t.get('count', 0)) >= _LASTFM_MIN_COUNT
+        and t['name'].lower() not in _LASTFM_NOISE_TAGS
+    ]
+
+
+# ── Cache helpers ──────────────────────────────────────────────────────────────
+
+def _lastfm_cache_key(artist: str, title: str) -> str:
+    return f'{artist}::{title}'
+
+
+def _load_lastfm_cache() -> dict:
+    if os.path.exists(_LASTFM_CACHE_FILE):
         try:
-            with urllib.request.urlopen(url, timeout=8) as r:
-                return json.loads(r.read())
+            with open(_LASTFM_CACHE_FILE, encoding='utf-8') as f:
+                return json.load(f)
         except Exception:
-            return None
+            pass
+    return {'tracks': {}, 'artists': {}}
 
-    def _filter(tags: list) -> list[str]:
-        return [
-            t['name'].lower() for t in tags
-            if int(t.get('count', 0)) >= _LASTFM_MIN_COUNT
-            and t['name'].lower() not in _LASTFM_NOISE_TAGS
-        ]
 
-    data = _get({'method': 'track.getTopTags', 'artist': artist, 'track': track})
+def _save_lastfm_cache(cache: dict) -> None:
+    with open(_LASTFM_CACHE_FILE, 'w', encoding='utf-8') as f:
+        json.dump(cache, f, ensure_ascii=False, separators=(',', ':'))
+
+
+def _lastfm_tags_from_cache(cache: dict, artist: str, title: str) -> list[str] | None:
+    """Return filtered tags from cache. None = cache miss (live fetch needed)."""
+    key          = _lastfm_cache_key(artist, title)
+    track_entry  = cache.get('tracks', {}).get(key)
+    artist_entry = cache.get('artists', {}).get(artist)
+
+    if track_entry is None and artist_entry is None:
+        return None  # full cache miss
+
+    raw: list = []
+    if track_entry:
+        raw.extend(track_entry.get('track_tags', []))
+        raw.extend(track_entry.get('album_tags', []))
+    if artist_entry:
+        raw.extend(artist_entry.get('tags', []))
+
+    return _lastfm_filter_tags(raw)
+
+
+# ── Live fetch (cache miss path) ───────────────────────────────────────────────
+
+def _lastfm_fetch_tags(artist: str, track: str, api_key: str) -> list[str] | None:
+    """Live fetch: track.getTopTags first, artist.getTopTags as fallback.
+    Returns:
+      list[str]  — filtered tag names (empty = Last.fm answered but found nothing)
+      None       — network error; state must not advance
+    """
+    data = _lastfm_get({'method': 'track.getTopTags', 'artist': artist, 'track': track}, api_key)
     time.sleep(0.2)
     if data is None:
         return None
-    result = _filter(data.get('toptags', {}).get('tag', []))
+    result = _lastfm_filter_tags(data.get('toptags', {}).get('tag', []))
 
     if not result:
-        data = _get({'method': 'artist.getTopTags', 'artist': artist})
+        data = _lastfm_get({'method': 'artist.getTopTags', 'artist': artist}, api_key)
         time.sleep(0.2)
         if data is None:
             return None
-        result = _filter(data.get('toptags', {}).get('tag', []))
+        result = _lastfm_filter_tags(data.get('toptags', {}).get('tag', []))
 
     return result
+
+
+# ── Initial / refresh fetch (--fetch-lastfm) ──────────────────────────────────
+
+def fetch_lastfm_data(tracks: list) -> None:
+    """Pre-fetch Last.fm track, album and artist data into cflu_lastfm.json.
+    Skips already-cached entries. Run via: python CFLU_Pool_Build.py --fetch-lastfm
+    """
+    if not os.path.exists(_LASTFM_KEY_FILE):
+        print(f'  {_LASTFM_KEY_FILE} nicht gefunden.')
+        return
+    with open(_LASTFM_KEY_FILE, encoding='utf-8') as f:
+        api_key = f.read().strip()
+    if not api_key or api_key.upper().startswith('PASTE_'):
+        print(f'  {_LASTFM_KEY_FILE} nicht ausgefüllt.')
+        return
+
+    cache = _load_lastfm_cache()
+    now   = datetime.now().isoformat(timespec='seconds')
+
+    # ── Tracks ────────────────────────────────────────────────────────────────
+    print(f'\n[F-Init] Tracks  ({len(tracks)} gesamt)')
+    track_new = track_skip = track_err = 0
+    for i, t in enumerate(tracks):
+        key = _lastfm_cache_key(t['artist'], t['song'])
+        if key in cache['tracks']:
+            track_skip += 1
+            continue
+
+        track_data = _lastfm_get(
+            {'method': 'track.getTopTags', 'artist': t['artist'], 'track': t['song']}, api_key)
+        time.sleep(0.2)
+        track_tags = track_data.get('toptags', {}).get('tag', []) if track_data else []
+
+        album_tags: list = []
+        if t.get('album'):
+            alb = _lastfm_get(
+                {'method': 'album.getInfo', 'artist': t['artist'], 'album': t['album']}, api_key)
+            time.sleep(0.2)
+            if alb:
+                album_tags = alb.get('album', {}).get('tags', {}).get('tag', [])
+            elif alb is None:
+                track_err += 1
+
+        cache['tracks'][key] = {
+            'fetched_at': now,
+            'track_tags': track_tags,
+            'album_tags': album_tags,
+        }
+        track_new += 1
+
+        if (i + 1) % 50 == 0:
+            print(f'  ...{i + 1}/{len(tracks)} Tracks verarbeitet')
+
+    print(f'  neu={track_new}  übersprungen={track_skip}  Fehler={track_err}')
+
+    # ── Artists (dedupliziert) ────────────────────────────────────────────────
+    unique_artists = list(dict.fromkeys(t['artist'] for t in tracks))
+    print(f'\n[F-Init] Artists ({len(unique_artists)} unique)')
+    artist_new = artist_skip = 0
+    for i, artist in enumerate(unique_artists):
+        if artist in cache['artists']:
+            artist_skip += 1
+            continue
+
+        tags_data = _lastfm_get({'method': 'artist.getTopTags', 'artist': artist}, api_key)
+        time.sleep(0.2)
+        artist_tags = tags_data.get('toptags', {}).get('tag', []) if tags_data else []
+
+        info_data = _lastfm_get({'method': 'artist.getInfo', 'artist': artist}, api_key)
+        time.sleep(0.2)
+        similar: list[str] = []
+        if info_data:
+            similar = [
+                s.get('name', '') for s in
+                info_data.get('artist', {}).get('similar', {}).get('artist', [])
+            ]
+
+        cache['artists'][artist] = {
+            'fetched_at': now,
+            'tags':       artist_tags,
+            'similar':    similar,
+        }
+        artist_new += 1
+
+        if (i + 1) % 25 == 0:
+            print(f'  ...{i + 1}/{len(unique_artists)} Artists verarbeitet')
+
+    print(f'  neu={artist_new}  übersprungen={artist_skip}')
+
+    _save_lastfm_cache(cache)
+    print('\ncflu_lastfm.json geschrieben.')
+    print(f'  Tracks : {len(cache["tracks"])}')
+    print(f'  Artists: {len(cache["artists"])}')
 
 
 def tag_genres_lastfm(tracks):
@@ -860,17 +1004,52 @@ def tag_genres_lastfm(tracks):
     print(f'  Kandidaten         : {len(candidates)}'
           f'  (=1:{og_counts[1]}, =4:{og_counts[4]}, =5:{og_counts[5]}, =2:{og_counts[2]})')
 
-    tagged = no_find = errors = 0
+    cache         = _load_lastfm_cache()
+    cache_updated = False
+    tagged = no_find = errors = cache_hits = 0
     for i, t in enumerate(candidates):
-        try:
-            tag_names = _lastfm_fetch_tags(t.get('artist', ''), t.get('song', ''), api_key)
-        except Exception:
-            errors += 1
-            continue
+        artist = t.get('artist', '')
+        song   = t.get('song', '')
 
+        # Cache-first lookup
+        tag_names = _lastfm_tags_from_cache(cache, artist, song)
         if tag_names is None:
-            errors += 1
-            continue
+            # Cache miss → live fetch, then write to cache
+            try:
+                raw_track = _lastfm_get(
+                    {'method': 'track.getTopTags', 'artist': artist, 'track': song}, api_key)
+                time.sleep(0.2)
+                if raw_track is None:
+                    errors += 1
+                    continue
+                track_tags = raw_track.get('toptags', {}).get('tag', [])
+
+                raw_artist = _lastfm_get({'method': 'artist.getTopTags', 'artist': artist}, api_key)
+                time.sleep(0.2)
+                if raw_artist is None:
+                    errors += 1
+                    continue
+                artist_tags = raw_artist.get('toptags', {}).get('tag', [])
+
+                key = _lastfm_cache_key(artist, song)
+                cache.setdefault('tracks', {})[key] = {
+                    'fetched_at': datetime.now().isoformat(timespec='seconds'),
+                    'track_tags': track_tags,
+                    'album_tags': [],
+                }
+                if artist not in cache.setdefault('artists', {}):
+                    cache['artists'][artist] = {
+                        'fetched_at': datetime.now().isoformat(timespec='seconds'),
+                        'tags':       artist_tags,
+                        'similar':    [],
+                    }
+                cache_updated = True
+                tag_names = _lastfm_tags_from_cache(cache, artist, song)
+            except Exception:
+                errors += 1
+                continue
+        else:
+            cache_hits += 1
 
         if not tag_names:
             if t.get('open_genre') == 5:
@@ -901,6 +1080,10 @@ def tag_genres_lastfm(tracks):
         if (i + 1) % 10 == 0:
             print(f'  ...{i + 1}/{len(candidates)} verarbeitet ({tagged} gefunden)')
 
+    if cache_updated:
+        _save_lastfm_cache(cache)
+    print(f'  Cache-Hits         : {cache_hits}')
+    print(f'  Live-Fetches       : {len(candidates) - cache_hits - errors}')
     print(f'  Tagged (→6)        : {tagged}')
     if no_find:
         print(f'  Kein Fund (→7)     : {no_find}')
@@ -1449,5 +1632,11 @@ if __name__ == '__main__':
     import sys
     if '--check-xy-correlation' in sys.argv:
         check_xy_color_correlation()
+    elif '--fetch-lastfm' in sys.argv:
+        existing = load_existing()
+        if existing:
+            fetch_lastfm_data(list(existing.values()))
+        else:
+            print('Kein Pool gefunden — erst python CFLU_Pool_Build.py ausführen.')
     else:
         build(rebuild='--rebuild' in sys.argv, reclassify_ai='--reclassify-ai' in sys.argv)

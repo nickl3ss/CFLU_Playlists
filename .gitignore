@@ -7,9 +7,10 @@ cflu_client_secret.txt
 # Anthropic API Key (lokal, nicht ins Repo)
 anthropic_api_key.txt
 
-# Last.fm API Credentials (lokal, nicht ins Repo)
+# Last.fm API Credentials und Cache (lokal, nicht ins Repo)
 lastfm_api_key.txt
 lastfm_api_secret.txt
+cflu_lastfm.json
 
 # Check-script für Webspace als Test für Transformation auf Webspace (lokal, nicht ins Repo)
 check.php
