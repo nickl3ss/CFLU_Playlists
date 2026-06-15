@@ -672,8 +672,12 @@ function _buildUsedFromWod(wod, excludeIdx) {
 function onReplaceTrack(idx) {
   const wod = state.generatedWod;
   if (idx < 0 || idx >= wod.length) return;
+  // Track the outgoing song so it can't be re-selected in future swaps this session
+  const outgoing = wod[idx];
+  state.swapBlacklist.add(outgoing.id || outgoing.song);
   const pool = getPhasePoolWithNeighbours(state.poolGenre, state.currentPhase);
   const { usedIds, usedTitleKeys, usedArtists } = _buildUsedFromWod(wod, idx);
+  state.swapBlacklist.forEach(id => usedIds.add(id));
   const prev = idx > 0 ? wod[idx - 1] : null;
   const next = idx < wod.length - 1 ? wod[idx + 1] : null;
   const maxArtist = Math.max(1, Math.floor(wod.length * 0.1));
@@ -712,6 +716,7 @@ function generatePlaylist() {
 function _gen() {
   if (!state.selectedTrack || state.selectedTrack.bpm <= 0) { alert('Bitte Song wählen.'); return; }
   if (!state.poolGenre) { alert('Bitte Pool-Genre wählen.'); return; }
+  state.swapBlacklist = new Set();
   const genre = state.poolGenre;
   const pool = getPhasePoolWithNeighbours(genre, state.currentPhase);
   const targetSec = state.wodMinutes * 60;

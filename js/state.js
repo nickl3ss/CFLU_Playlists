@@ -19,6 +19,7 @@ export const state = {
   lockCamFilter: false,
   generatedWod: [],
   generatedCd: [],
+  swapBlacklist: new Set(), // IDs of tracks swapped out since last generation; merged into excludeIds
   crossfadeSec: 20,
   // Spotify auth + device state (managed by spotify.js / app.js)
   spConnected: false,
