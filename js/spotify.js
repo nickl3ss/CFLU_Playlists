@@ -41,6 +41,7 @@ export async function checkSpotifyCallback() {
   }
   // Always refresh status from server (handles both callback and page reload with existing session)
   await checkSpotifyStatus();
+  document.dispatchEvent(new CustomEvent('cflu-init-done'));
 }
 
 export async function checkSpotifyStatus() {
@@ -99,7 +100,7 @@ export async function exportPlaylist() {
     showStatus('Zuerst verbinden.', 'error');
     return;
   }
-  const all = [...state.generatedWod, ...state.generatedCd].slice(0, 100); // Invariant 3: max 100
+  const all = [...state.generatedWod, ...state.generatedCd];
   if (!all.length) { showStatus('Keine Playlist.', 'error'); return; }
   const name = document.getElementById('pl-name').value || 'CFLU WOD';
   showStatus('Erstelle Playlist...', 'info');
@@ -114,7 +115,7 @@ export async function exportPlaylist() {
     }
     showStatus('Füge Tracks hinzu...', 'info');
     const uris = all.filter(t => t.id && t.id !== 'nan').map(t => 'spotify:track:' + t.id);
-    for (let i = 0; i < uris.length; i += 100) {
+    for (let i = 0; i < uris.length; i += 100) { // max 100 URIs per API call (Invariant 3)
       await spotifyCall('POST', `/playlists/${pl.id}/items`, { uris: uris.slice(i, i + 100) });
     }
     showStatus('✓ Exportiert!', 'info');
