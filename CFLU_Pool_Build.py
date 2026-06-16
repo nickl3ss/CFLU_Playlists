@@ -834,7 +834,7 @@ def _load_lastfm_cache() -> dict:
 
 def _save_lastfm_cache(cache: dict) -> None:
     with open(_LASTFM_CACHE_FILE, 'w', encoding='utf-8') as f:
-        json.dump(cache, f, ensure_ascii=False, separators=(',', ':'))
+        json.dump(cache, f, ensure_ascii=False, indent=2)
 
 
 def _lastfm_tags_from_cache(cache: dict, artist: str, title: str) -> list[str] | None:
