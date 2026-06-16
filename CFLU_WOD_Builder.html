@@ -439,7 +439,7 @@
 
 <!-- ===== RIGHT PANEL ===== -->
 <aside class="right-panel" id="right-panel">
-  <button class="rp-tab" id="rp-tab" aria-label="Admin &amp; Info" title="Admin &amp; Info">⚙</button>
+  <button class="rp-tab" id="rp-tab" aria-label="Admin &amp; Info" title="Admin &amp; Info">⚙<span id="rp-sync-badge"></span></button>
   <div class="rp-scroll">
     <div class="rp-header">Admin &amp; Info</div>
 
@@ -476,6 +476,14 @@
       <button class="sp-btn" id="upload-reload-btn" style="width:100%;margin-top:6px;display:none;background:var(--bg4);color:var(--acc)">Seite neu laden →</button>
       <div id="upload-status" class="upload-status"></div>
       <div class="upload-format-hint">Soundiiz / Chosic Export · Pflichtfelder: Song, Artist, BPM, Camelot, Energy, Duration, Spotify Track Id</div>
+    </div>
+
+    <!-- LAST.FM SYNC -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+      <div class="sb-label" style="margin-bottom:10px">Last.fm Sync</div>
+      <div id="lastfm-sync-info" style="font-size:var(--fz-xs);color:var(--text2);margin-bottom:10px">Lade…</div>
+      <button class="sp-btn" id="lastfm-sync-btn" style="width:100%;display:none">↺ Vollständig neu synchronisieren</button>
+      <div id="lastfm-sync-msg" class="upload-status"></div>
     </div>
 
     <!-- DATENQUELLEN -->

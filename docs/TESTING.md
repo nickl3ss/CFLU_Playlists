@@ -79,6 +79,20 @@
 | N14-9 | Set Explicit-Songs to **Nur E**, switch to Direktsuche mode, search 2+ chars | Direct search results show only explicit-flagged tracks |
 | N14-10 | Drag genre space cloud (see N1-3) | Cloud rotates; cursor changes to `grabbing`; auto-rotation pauses while dragging |
 
+### N15 · Last.fm Sync-Status Badge + Admin Panel
+
+| # | Step | Expected |
+|---|------|----------|
+| N15-1 | Open Admin Panel (⚙ button, top-right) | "Last.fm Sync" section visible; shows last sync date or "Letzter Last.fm Sync: Nie" if never synced |
+| N15-2 | `cflu_lastfm.json` has `meta.last_full_sync` set to a date >45 days ago | ⚙ badge shows yellow dot; "↺ Vollständig neu synchronisieren" button visible |
+| N15-3 | `meta.last_full_sync` set to a date 30–44 days ago | ⚙ badge shows blue dot; sync button visible |
+| N15-4 | `meta.last_full_sync` set to a date <30 days ago | No badge on ⚙; sync button hidden |
+| N15-5 | Click "↺ Vollständig neu synchronisieren" | Button shows "⏳ Sync läuft…" and becomes disabled; status message "✓ Sync gestartet — dauert ca. 47 Min. Danach Seite neu laden." |
+| N15-6 | GET `/api/lastfm/status` | Returns JSON with `last_full_sync`, `track_count`, `artist_count` |
+| N15-7 | POST `/api/lastfm/sync` | Returns `{"started": true}`; `CFLU_Pool_Build.py --fetch-lastfm` starts in background |
+
+---
+
 ### N13 · Playlist-Optimizer (118-A/C/D/E/F)
 
 | # | Step | Expected |
@@ -281,6 +295,7 @@ Run these steps in order. All must pass before a push is considered confirmed.
 
 | Date | Change | Push / Issue |
 |------|--------|--------------|
+| 2026-06-16 | N15 Last.fm Sync-Status Badge + Admin Panel added | #159 |
 | 2026-06-15 | N13 Playlist-Optimizer (118-A/C/D/E/F) added | Phase 2 (#118) |
 | 2026-06-15 | N12 UI-Modus-Tab-Leiste (Quick/Optimizer/Advanced) added | Phase 2 (#119) |
 | 2026-06-15 | N11 Everynoise xy-Score added | Phase 2 (#132) |

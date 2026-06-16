@@ -25,6 +25,7 @@ import pathlib
 import re
 import secrets
 import socketserver
+import subprocess
 import sys
 import time
 import urllib.error
@@ -32,6 +33,8 @@ import urllib.parse
 import urllib.request
 from datetime import datetime
 from http.server import SimpleHTTPRequestHandler
+
+_LASTFM_CACHE_FILE = 'cflu_lastfm.json'
 
 # L-03: Work from the script's own directory regardless of CWD at launch.
 os.chdir(pathlib.Path(__file__).parent)
@@ -153,6 +156,8 @@ class CFLUHandler(SimpleHTTPRequestHandler):
             self._handle_spotify_status()
         elif path == '/api/spotify/logout':
             self._handle_spotify_logout()
+        elif path == '/api/lastfm/status':
+            self._handle_lastfm_status()
         else:
             super().do_GET()
 
@@ -163,6 +168,8 @@ class CFLUHandler(SimpleHTTPRequestHandler):
             self._handle_upload()
         elif self.path == '/api/spotify/call':
             self._handle_spotify_call()
+        elif self.path == '/api/lastfm/sync':
+            self._handle_lastfm_sync()
         else:
             self._respond(404, {'error': 'not found'})
 
@@ -315,6 +322,34 @@ class CFLUHandler(SimpleHTTPRequestHandler):
             self.wfile.write(resp_body)
         except Exception:
             self._respond(500, {'error': 'proxy error'})
+
+    # ===== Last.fm status & sync =====
+
+    def _handle_lastfm_status(self):
+        try:
+            with open(_LASTFM_CACHE_FILE, encoding='utf-8') as f:
+                cache = json.load(f)
+            meta = cache.get('meta', {})
+            self._respond(200, {
+                'last_full_sync': meta.get('last_full_sync'),
+                'track_count':    len(cache.get('tracks', {})),
+                'artist_count':   len(cache.get('artists', {})),
+            })
+        except FileNotFoundError:
+            self._respond(200, {'last_full_sync': None, 'track_count': 0, 'artist_count': 0})
+        except Exception:
+            self._respond(500, {'error': 'cache read error'})
+
+    def _handle_lastfm_sync(self):
+        try:
+            subprocess.Popen(
+                [sys.executable, 'CFLU_Pool_Build.py', '--fetch-lastfm'],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            self._respond(200, {'started': True})
+        except Exception as e:
+            self._respond(500, {'error': str(e)})
 
     # ===== CSV upload =====
 

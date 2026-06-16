@@ -242,6 +242,39 @@ function onQuickGenerate() {
   _gen();
 }
 
+// ===== LAST.FM SYNC STATUS =====
+async function _checkLastfmSync() {
+  const info  = document.getElementById('lastfm-sync-info');
+  const badge = document.getElementById('rp-sync-badge');
+  const btn   = document.getElementById('lastfm-sync-btn');
+  try {
+    const r = await fetch('/api/lastfm/status');
+    const d = await r.json();
+    if (!d.last_full_sync) {
+      info.textContent = 'Letzter Last.fm Sync: Nie';
+      badge.className  = 'warn';
+      btn.style.display = '';
+      return;
+    }
+    const syncDate = new Date(d.last_full_sync);
+    const days     = Math.floor((Date.now() - syncDate) / 86_400_000);
+    const dateStr  = syncDate.toLocaleDateString('de-DE', {day: '2-digit', month: '2-digit', year: 'numeric'});
+    info.textContent = `Letzter Last.fm Sync: ${dateStr} · vor ${days} Tag${days !== 1 ? 'en' : ''} · ${d.track_count} Tracks`;
+    if (days >= 45) {
+      badge.className   = 'warn';
+      btn.style.display = '';
+    } else if (days >= 30) {
+      badge.className   = 'info';
+      btn.style.display = '';
+    } else {
+      badge.className   = '';
+      btn.style.display = 'none';
+    }
+  } catch {
+    info.textContent = 'Last.fm Sync: Server nicht erreichbar';
+  }
+}
+
 // ===== OPTIMIZER =====
 let _optTracks  = [];   // imported + optionally reordered track list
 let _optTitle   = '';   // original playlist name (for export)
@@ -1270,6 +1303,25 @@ function init() {
   document.getElementById('cd-dur-slider').addEventListener('input', e => onCdDurSlider(e.target));
   // Generate & Spotify
   document.getElementById('gen-btn').addEventListener('click', generatePlaylist);
+  document.getElementById('lastfm-sync-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('lastfm-sync-btn');
+    const msg = document.getElementById('lastfm-sync-msg');
+    btn.disabled = true;
+    btn.textContent = '⏳ Sync läuft…';
+    try {
+      const r = await fetch('/api/lastfm/sync', {method: 'POST'});
+      const d = await r.json();
+      if (d.started) {
+        msg.textContent = '✓ Sync gestartet — dauert ca. 47 Min. Danach Seite neu laden.';
+        msg.className   = 'upload-status info';
+      }
+    } catch {
+      msg.textContent  = 'Fehler beim Starten des Sync.';
+      msg.className    = 'upload-status error';
+      btn.disabled     = false;
+      btn.textContent  = '↺ Vollständig neu synchronisieren';
+    }
+  });
   document.getElementById('sp-connect-btn').addEventListener('click', spotifyLogin);
   document.getElementById('sp-logout-btn').addEventListener('click', spotifyLogout);
   document.getElementById('sp-export-btn2').addEventListener('click', exportPlaylist);
@@ -1368,6 +1420,8 @@ function init() {
     const gsCanvas = document.getElementById('genre-space-canvas');
     if (gsCanvas) initGenreSpace(gsCanvas);
   });
+
+  _checkLastfmSync();
 }
 
 document.addEventListener('DOMContentLoaded', init);

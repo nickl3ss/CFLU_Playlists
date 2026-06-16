@@ -829,7 +829,7 @@ def _load_lastfm_cache() -> dict:
                 return json.load(f)
         except Exception:
             pass
-    return {'tracks': {}, 'artists': {}}
+    return {'meta': {}, 'tracks': {}, 'artists': {}}
 
 
 def _save_lastfm_cache(cache: dict) -> None:
@@ -970,6 +970,7 @@ def fetch_lastfm_data(tracks: list) -> None:
 
     print(f'  neu={artist_new}  übersprungen={artist_skip}')
 
+    cache.setdefault('meta', {})['last_full_sync'] = datetime.now().isoformat(timespec='seconds')
     _save_lastfm_cache(cache)
     print('\ncflu_lastfm.json geschrieben.')
     print(f'  Tracks : {len(cache["tracks"])}')
