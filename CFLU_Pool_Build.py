@@ -1086,9 +1086,9 @@ def tag_genres_lastfm(tracks):
         _save_lastfm_cache(cache)
     print(f'  Cache-Hits         : {cache_hits}')
     print(f'  Live-Fetches       : {len(candidates) - cache_hits - errors}')
-    print(f'  Tagged (→6)        : {tagged}')
+    print(f'  Tagged (->6)       : {tagged}')
     if no_find:
-        print(f'  Kein Fund (→7)     : {no_find}')
+        print(f'  Kein Fund (->7)    : {no_find}')
     if errors:
         print(f'  Netzwerkfehler     : {errors}')
     return tagged
