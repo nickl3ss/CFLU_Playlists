@@ -54,7 +54,7 @@ python cflu_server.py
    ```
 4. Copy your **Client ID**
 
-**Recommended:** save the Client ID in a file named `cflu_client_id.txt` in the app folder. It will be loaded automatically on startup. The file is gitignored — it never leaves your machine.
+**Recommended:** save the Client ID in a file named `keyvault/cflu_client_id.txt`. It will be loaded automatically on startup. The file is gitignored — it never leaves your machine.
 
 Uses PKCE OAuth — no backend, Client ID never written to localStorage.
 

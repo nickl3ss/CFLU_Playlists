@@ -70,14 +70,14 @@ echo " [OK] Port $PORT frei."
 # ---- Spotify-Info --------------------------------------------
 echo ""
 echo " ============================================================"
-if [ -f "cflu_client_id.txt" ]; then
-    echo " Spotify Client ID wird aus cflu_client_id.txt geladen."
+if [ -f "keyvault/cflu_client_id.txt" ]; then
+    echo " Spotify Client ID wird aus keyvault/cflu_client_id.txt geladen."
 else
     echo " SPOTIFY EINRICHTUNG - einmalig:"
     echo " 1. developer.spotify.com/dashboard"
     echo " 2. App erstellen, Web API, Redirect URI:"
     echo "    http://127.0.0.1:$PORT/$HTML_FILE"
-    echo " 3. Client ID in cflu_client_id.txt speichern (auto-geladen)"
+    echo " 3. Client ID in keyvault/cflu_client_id.txt speichern (auto-geladen)"
 fi
 echo " ============================================================"
 echo ""

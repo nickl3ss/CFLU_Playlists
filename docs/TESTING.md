@@ -84,10 +84,10 @@
 | # | Step | Expected |
 |---|------|----------|
 | N15-1 | Open Admin Panel (⚙ button, top-right) | "Last.fm Sync" section visible; shows last sync date or "Letzter Last.fm Sync: Nie" if never synced |
-| N15-2 | `cflu_lastfm.json` has `meta.last_full_sync` set to a date >45 days ago | ⚙ badge shows yellow dot; "↺ Vollständig neu synchronisieren" button visible |
+| N15-2 | `keyvault/cflu_lastfm.json` has `meta.last_full_sync` set to a date >45 days ago | ⚙ badge shows yellow dot; "↺ Vollständig neu synchronisieren" button visible |
 | N15-3 | `meta.last_full_sync` set to a date 30–44 days ago | ⚙ badge shows blue dot; sync button visible |
 | N15-4 | `meta.last_full_sync` set to a date <30 days ago | No badge on ⚙; sync button hidden |
-| N15-5 | Click "↺ Vollständig neu synchronisieren" | Button shows "⏳ Sync läuft…" and becomes disabled; status message "✓ Sync gestartet — dauert ca. 47 Min. Danach Seite neu laden." |
+| N15-5 | Click "↺ Vollständig neu synchronisieren" | Button shows "⏳ Sync läuft…" and becomes disabled; status message "↻ Sync gestartet…" appears; progress updates in real-time until "✓ Sync abgeschlossen — Seite neu laden um aktuelle Daten zu verwenden." |
 | N15-6 | GET `/api/lastfm/status` | Returns JSON with `last_full_sync`, `track_count`, `artist_count` |
 | N15-7 | POST `/api/lastfm/sync` | Returns `{"started": true}`; `CFLU_Pool_Build.py --fetch-lastfm` starts in background |
 
@@ -285,8 +285,8 @@ Run these steps in order. All must pass before a push is considered confirmed.
 | # | Description | Reason |
 |---|-------------|--------|
 | L1 | Spotify export with >100 tracks requires a large pool | Only testable with a full production pool |
-| L2 | AI genre tagging (`--reclassify-ai`) requires `anthropic_api_key.txt` | API key is local-only, not in repo |
-| L3 | OAuth flow requires Spotify Client ID + Client Secret | `cflu_client_id.txt` and `cflu_client_secret.txt` are local-only, not in repo |
+| L2 | AI genre tagging (`--reclassify-ai`) requires `keyvault/anthropic_api_key.txt` | API key is local-only, not in repo |
+| L3 | OAuth flow requires Spotify Client ID + Client Secret | `keyvault/cflu_client_id.txt` and `keyvault/cflu_client_secret.txt` are local-only, not in repo |
 | L4 | Device playback requires Spotify Premium | Free accounts cannot use `PUT /me/player/play` |
 
 ---

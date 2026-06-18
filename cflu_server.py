@@ -7,7 +7,7 @@ Custom HTTP server — stdlib only. Extends SimpleHTTPRequestHandler with GET + 
 Spotify auth: Authorization Code Flow (server-side). The server holds client_id + client_secret
 and the refresh_token; the browser never receives a Spotify access token.
 
-Files (gitignored, local):
+Files (gitignored, local — all in keyvault/):
     cflu_client_id.txt     — Spotify app Client ID
     cflu_client_secret.txt — Spotify app Client Secret
 
@@ -27,6 +27,7 @@ import secrets
 import socketserver
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -34,7 +35,64 @@ import urllib.request
 from datetime import datetime
 from http.server import SimpleHTTPRequestHandler
 
-_LASTFM_CACHE_FILE = 'cflu_lastfm.json'
+_KEYVAULT = 'keyvault'
+_LASTFM_CACHE_FILE = f'{_KEYVAULT}/cflu_lastfm.json'
+_REFRESH_TOKEN_FILE = f'{_KEYVAULT}/cflu_refresh_token.txt'
+
+_lastfm_sync_state: dict = {
+    'running':       False,
+    'phase':         '',       # 'tracks' | 'artists' | 'done'
+    'tracks_done':   0,
+    'tracks_total':  0,
+    'artists_done':  0,
+    'artists_total': 0,
+    'started_at':    None,
+    'finished_at':   None,
+    'error':         None,
+}
+
+
+def _lastfm_sync_reader(proc) -> None:
+    """Background thread: forward subprocess output to PowerShell and parse progress markers."""
+    global _lastfm_sync_state
+    try:
+        for line in proc.stdout:
+            line = line.rstrip()
+            print(f'  [LastFM] {line}', flush=True)
+            m = re.search(r'\[F-Init\] Tracks\s+\((\d+) gesamt\)', line)
+            if m:
+                _lastfm_sync_state['phase'] = 'tracks'
+                _lastfm_sync_state['tracks_total'] = int(m.group(1))
+                continue
+            m = re.search(r'\.\.\.(\d+)/\d+ Tracks verarbeitet', line)
+            if m:
+                _lastfm_sync_state['tracks_done'] = int(m.group(1))
+                continue
+            m = re.search(r'\[F-Init\] Artists \((\d+) unique\)', line)
+            if m:
+                _lastfm_sync_state['phase'] = 'artists'
+                _lastfm_sync_state['artists_total'] = int(m.group(1))
+                _lastfm_sync_state['tracks_done'] = _lastfm_sync_state['tracks_total']
+                continue
+            m = re.search(r'\.\.\.(\d+)/\d+ Artists verarbeitet', line)
+            if m:
+                _lastfm_sync_state['artists_done'] = int(m.group(1))
+                continue
+            if 'cflu_lastfm.json geschrieben' in line:
+                _lastfm_sync_state['phase'] = 'done'
+                _lastfm_sync_state['artists_done'] = _lastfm_sync_state['artists_total']
+        proc.wait()
+        _lastfm_sync_state['running'] = False
+        _lastfm_sync_state['finished_at'] = datetime.now().isoformat(timespec='seconds')
+        if proc.returncode != 0:
+            _lastfm_sync_state['error'] = f'Exit code {proc.returncode}'
+            print(f'  [LastFM] Sync beendet mit Fehler (Code {proc.returncode})', flush=True)
+        else:
+            print('  [LastFM] Sync abgeschlossen.', flush=True)
+    except Exception as exc:
+        _lastfm_sync_state['running'] = False
+        _lastfm_sync_state['error'] = str(exc)
+        print(f'  [LastFM] Reader-Fehler: {exc}', file=sys.stderr, flush=True)
 
 # L-03: Work from the script's own directory regardless of CWD at launch.
 os.chdir(pathlib.Path(__file__).parent)
@@ -67,7 +125,7 @@ _SECURITY_HEADERS = [
 
 _SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token'
 _SPOTIFY_API_BASE = 'https://api.spotify.com/v1'
-_SCOPE = 'playlist-read-private playlist-modify-private user-modify-playback-state user-read-playback-state'
+_SCOPE = 'playlist-read-private playlist-read-collaborative playlist-modify-private user-modify-playback-state user-read-playback-state'
 _REDIRECT_URI = f'http://127.0.0.1:{PORT}/api/spotify/callback'
 
 _sp_pending_state: str | None = None  # CSRF token for current OAuth flow
@@ -82,7 +140,7 @@ _sp_tokens: dict = {
 
 def _load_credentials() -> tuple[str, str]:
     cid = secret = ''
-    for fname, tag in (('cflu_client_id.txt', 'cid'), ('cflu_client_secret.txt', 'secret')):
+    for fname, tag in ((f'{_KEYVAULT}/cflu_client_id.txt', 'cid'), (f'{_KEYVAULT}/cflu_client_secret.txt', 'secret')):
         try:
             with open(fname) as f:
                 val = f.read().strip()
@@ -97,6 +155,56 @@ def _load_credentials() -> tuple[str, str]:
 
 def _basic_auth(cid: str, secret: str) -> str:
     return base64.b64encode(f'{cid}:{secret}'.encode()).decode()
+
+
+def _save_refresh_token(token: str) -> None:
+    """Persist refresh token so the server can auto-connect on next start."""
+    try:
+        with open(_REFRESH_TOKEN_FILE, 'w') as f:
+            f.write(token)
+    except Exception as exc:
+        import sys
+        print(f'  Spotify: Refresh-Token konnte nicht gespeichert werden: {exc}', file=sys.stderr)
+
+
+def _clear_refresh_token() -> None:
+    try:
+        os.remove(_REFRESH_TOKEN_FILE)
+    except FileNotFoundError:
+        pass
+
+
+def _load_saved_session() -> None:
+    """Called once at startup: restore Spotify session from saved refresh token."""
+    cid, secret = _load_credentials()
+    if not cid or not secret:
+        return
+    try:
+        with open(_REFRESH_TOKEN_FILE) as f:
+            saved = f.read().strip()
+    except FileNotFoundError:
+        print('  Spotify: Keine gespeicherte Session — bitte einmalig über Admin-Panel verbinden.')
+        return
+    if not saved:
+        return
+    _sp_tokens['refresh_token'] = saved
+    _refresh_access_token()
+    if not _sp_tokens.get('access_token'):
+        print('  Spotify: Gespeicherter Token abgelaufen oder widerrufen — bitte neu verbinden.')
+        _clear_refresh_token()
+        return
+    try:
+        me_req = urllib.request.Request(f'{_SPOTIFY_API_BASE}/me')
+        me_req.add_header('Authorization', f'Bearer {_sp_tokens["access_token"]}')
+        with urllib.request.urlopen(me_req) as resp:
+            me = json.loads(resp.read())
+        _sp_tokens['user_id'] = me.get('id', '')
+        _sp_tokens['display_name'] = me.get('display_name') or me.get('id', 'Verbunden')
+        print(f'  Spotify: Automatisch verbunden als {_sp_tokens["display_name"]}')
+    except Exception:
+        _sp_tokens['user_id'] = ''
+        _sp_tokens['display_name'] = 'Verbunden'
+        print('  Spotify: Verbunden (Nutzerinfo nicht verfügbar)')
 
 
 def _refresh_access_token() -> None:
@@ -121,6 +229,7 @@ def _refresh_access_token() -> None:
         _sp_tokens['expires_at'] = time.time() + tokens.get('expires_in', 3600) - 60
         if 'refresh_token' in tokens:
             _sp_tokens['refresh_token'] = tokens['refresh_token']
+            _save_refresh_token(tokens['refresh_token'])  # persist rotation
     except Exception:
         _sp_tokens['access_token'] = None  # force re-auth on next call
 
@@ -158,6 +267,8 @@ class CFLUHandler(SimpleHTTPRequestHandler):
             self._handle_spotify_logout()
         elif path == '/api/lastfm/status':
             self._handle_lastfm_status()
+        elif path == '/api/lastfm/progress':
+            self._handle_lastfm_progress()
         else:
             super().do_GET()
 
@@ -179,9 +290,9 @@ class CFLUHandler(SimpleHTTPRequestHandler):
         global _sp_pending_state
         cid, secret = _load_credentials()
         if not cid or not secret:
-            missing = 'cflu_client_id.txt' if not cid else 'cflu_client_secret.txt'
+            missing = f'{_KEYVAULT}/cflu_client_id.txt' if not cid else f'{_KEYVAULT}/cflu_client_secret.txt'
             return self._redirect_to_app(
-                f'?sp_error={urllib.parse.quote(missing + " fehlt — im Projektordner anlegen.")}'
+                f'?sp_error={urllib.parse.quote(missing + " fehlt — im keyvault/-Ordner anlegen.")}'
             )
         _sp_pending_state = secrets.token_urlsafe(32)
         params = urllib.parse.urlencode({
@@ -234,6 +345,8 @@ class CFLUHandler(SimpleHTTPRequestHandler):
         _sp_tokens['access_token'] = tokens['access_token']
         _sp_tokens['refresh_token'] = tokens.get('refresh_token')
         _sp_tokens['expires_at'] = time.time() + tokens.get('expires_in', 3600) - 60
+        if tokens.get('refresh_token'):
+            _save_refresh_token(tokens['refresh_token'])
 
         # Fetch user profile
         try:
@@ -266,6 +379,7 @@ class CFLUHandler(SimpleHTTPRequestHandler):
         _sp_tokens['expires_at'] = 0.0
         _sp_tokens['user_id'] = None
         _sp_tokens['display_name'] = None
+        _clear_refresh_token()
         self._respond(200, {'ok': True})
 
     # ===== Spotify API proxy =====
@@ -340,13 +454,32 @@ class CFLUHandler(SimpleHTTPRequestHandler):
         except Exception:
             self._respond(500, {'error': 'cache read error'})
 
+    def _handle_lastfm_progress(self):
+        self._respond(200, dict(_lastfm_sync_state))
+
     def _handle_lastfm_sync(self):
+        global _lastfm_sync_state
+        if _lastfm_sync_state.get('running'):
+            return self._respond(409, {'error': 'sync already running'})
         try:
-            subprocess.Popen(
-                [sys.executable, 'CFLU_Pool_Build.py', '--fetch-lastfm'],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+            env = {**os.environ, 'PYTHONUNBUFFERED': '1', 'PYTHONIOENCODING': 'utf-8'}
+            proc = subprocess.Popen(
+                [sys.executable, '-u', 'CFLU_Pool_Build.py', '--fetch-lastfm'],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                env=env,
             )
+            _lastfm_sync_state = {
+                'running': True, 'phase': 'start',
+                'tracks_done': 0, 'tracks_total': 0,
+                'artists_done': 0, 'artists_total': 0,
+                'started_at': datetime.now().isoformat(timespec='seconds'),
+                'finished_at': None, 'error': None,
+            }
+            threading.Thread(target=_lastfm_sync_reader, args=(proc,), daemon=True).start()
             self._respond(200, {'started': True})
         except Exception as e:
             self._respond(500, {'error': str(e)})
@@ -415,6 +548,7 @@ socketserver.TCPServer.allow_reuse_address = True
 
 if __name__ == '__main__':
     print(f'Redirect URI für Spotify Dashboard: {_REDIRECT_URI}')
+    _load_saved_session()
     with socketserver.TCPServer(('127.0.0.1', PORT), CFLUHandler) as httpd:
         print(f'CFLU Server läuft auf Port {PORT}')
         httpd.serve_forever()

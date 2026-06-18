@@ -129,8 +129,9 @@ _BPM_GROUPS = [('A',0,90),('B',90,110),('C',110,120),('D',120,130),('E',130,140)
 # damit inherit_genres() diese Tracks als Vererbungsquelle nutzen kann.
 _AI_MODEL = 'claude-haiku-4-5-20251001'
 
-_LASTFM_KEY_FILE   = 'lastfm_api_key.txt'
-_LASTFM_CACHE_FILE = 'cflu_lastfm.json'
+_KEYVAULT          = 'keyvault'
+_LASTFM_KEY_FILE   = f'{_KEYVAULT}/lastfm_api_key.txt'
+_LASTFM_CACHE_FILE = f'{_KEYVAULT}/cflu_lastfm.json'
 _LASTFM_MIN_COUNT  = 15  # Tags mit count < 15 werden ignoriert
 
 # Bekannte Nicht-Genre-Tags auf Last.fm (lowercase) — werden vor classify() gefiltert
@@ -154,6 +155,96 @@ _GENRE_CANONICAL = {
     'Funk, Soul & R&B':      'soul',
 }
 _ALLOWED_GENRES = list(_GENRE_CANONICAL.keys())
+
+# Tag → main genre: explicit keyword-list membership (no substring, no fallback).
+# Built from the same lists as classify() but returns None for unrecognized tags,
+# preventing the classify()-fallback 'Pop & New Wave' from polluting genre_conf.
+# Priority order mirrors classify() (later assignments win for shared tags):
+#   Pop < Rock/Funk < HipHop < Blues < German < DancePop < Synth < Metal < EDM < Punk < Ska/Reggae
+def _build_tag_to_main_genre() -> dict[str, str]:
+    pairs: list[tuple[list, str]] = [
+        (_POP_KEYWORDS,       'Pop & New Wave'),
+        (_ROCK_KEYWORDS,      'Rock'),
+        (_FUNK_SOUL_KEYWORDS, 'Funk, Soul & R&B'),
+        (_HIP_HOP_KEYWORDS,   'Hip Hop / Rap'),
+        (_BLUES_KEYWORDS,     'Funk, Soul & R&B'),
+        (GERMAN_KEYWORDS,     'Deutsche Musik'),
+        (_DANCE_POP_KEYS,     'Pop & New Wave'),   # BPM-neutral default; overridden at call time
+        (_SYNTH_KEYWORDS,     'Synthwave / Electronica'),
+        (_METAL_KEYWORDS,     'Metal & Hard Rock'),
+        (_EDM_KEYWORDS,       'EDM / Electronic'),  # overwrites synth for shared tags
+        (_PUNK_KEYWORDS,      'Punk'),
+        (_SKA_TRIGGER,        'Ska & Reggae'),
+        (_REGGAE_KEYWORDS,    'Ska & Reggae'),
+    ]
+    m: dict[str, str] = {}
+    for keywords, genre in pairs:
+        for tag in keywords:
+            m[tag] = genre
+    return m
+
+_TAG_TO_MAIN_GENRE: dict[str, str] = _build_tag_to_main_genre()
+
+
+def _compute_genre_conf(
+    track_entry: dict, artist_entry: dict | None, bpm: int
+) -> dict[str, float]:
+    """Compute weighted main-genre confidence vector from cached Last.fm tags.
+
+    Each tier contributes (count/100) × tier_confidence to its mapped main genre.
+    Result is normalized so the top genre = 1.0.
+    Returns {} when no usable tags are found (graceful degradation for missing data).
+    """
+    scored: dict[str, float] = {}
+    tiers = [
+        (track_entry.get('track_tags', []),              1.0),
+        (track_entry.get('album_tags', []),              0.8),
+        ((artist_entry or {}).get('tags', []),           0.6),
+    ]
+    for raw_tags, tier_conf in tiers:
+        for tag in raw_tags:
+            name  = tag.get('name', '').lower().strip()
+            count = int(tag.get('count', 0))
+            if count < _LASTFM_MIN_COUNT or name in _LASTFM_NOISE_TAGS:
+                continue
+            # BPM-conditional override for EDM/dance-pop boundary
+            if name in _DANCE_POP_KEYS:
+                genre = 'EDM / Electronic' if bpm >= 118 else 'Pop & New Wave'
+            elif name == 'electronic' or name == 'electronica':
+                genre = 'EDM / Electronic' if bpm >= 118 else 'Synthwave / Electronica'
+            else:
+                genre = _TAG_TO_MAIN_GENRE.get(name)
+            if not genre:
+                continue
+            scored[genre] = scored.get(genre, 0.0) + (count / 100) * tier_conf
+
+    if not scored:
+        return {}
+    max_score = max(scored.values())
+    return {g: round(s / max_score, 3) for g, s in scored.items()}
+
+
+def enrich_genre_conf(tracks: list) -> int:
+    """Set genre_conf on every track that has cached Last.fm data.
+
+    Runs after tag_genres_lastfm(). Enriches ALL tracks (not just open_genre
+    candidates) because even Spotify-classified tracks benefit from the vector.
+    Tracks without cache data are silently skipped (genre_conf stays absent →
+    JS genreDistScore falls back to xyScore).
+    """
+    cache    = _load_lastfm_cache()
+    enriched = 0
+    for t in tracks:
+        key          = _lastfm_cache_key(t.get('artist', ''), t.get('song', ''))
+        track_entry  = cache.get('tracks', {}).get(key)
+        artist_entry = cache.get('artists', {}).get(t.get('artist', ''))
+        if track_entry is None and artist_entry is None:
+            continue
+        conf = _compute_genre_conf(track_entry or {}, artist_entry, int(t.get('bpm', 120)))
+        if conf:
+            t['genre_conf'] = conf
+            enriched += 1
+    return enriched
 
 
 # ===== GENRE-KLASSIFIZIERUNG =====
@@ -900,27 +991,38 @@ def fetch_lastfm_data(tracks: list) -> None:
 
     # ── Tracks ────────────────────────────────────────────────────────────────
     print(f'\n[F-Init] Tracks  ({len(tracks)} gesamt)')
-    track_new = track_skip = track_err = 0
+    track_new = track_skip = track_refetch = track_err = 0
     for i, t in enumerate(tracks):
         key = _lastfm_cache_key(t['artist'], t['song'])
-        if key in cache['tracks']:
+        existing = cache['tracks'].get(key)
+
+        # Migration: re-fetch album tags if cached entry has tags without count.
+        # album.getInfo (old) returns no count; album.getTopTags (new) does.
+        needs_album_refetch = (
+            existing
+            and t.get('album')
+            and existing.get('album_tags')
+            and not any('count' in tag for tag in existing['album_tags'])
+        )
+        if existing and not needs_album_refetch:
             track_skip += 1
             continue
 
-        track_data = _lastfm_get(
-            {'method': 'track.getTopTags', 'artist': t['artist'], 'track': t['song']}, api_key)
-        time.sleep(0.2)
-        track_tags = track_data.get('toptags', {}).get('tag', []) if track_data else []
+        if not existing:
+            track_data = _lastfm_get(
+                {'method': 'track.getTopTags', 'artist': t['artist'], 'track': t['song']}, api_key)
+            time.sleep(0.2)
+            track_tags = track_data.get('toptags', {}).get('tag', []) if track_data else []
+        else:
+            track_tags = existing.get('track_tags', [])
 
         album_tags: list = []
         if t.get('album'):
             alb = _lastfm_get(
-                {'method': 'album.getInfo', 'artist': t['artist'], 'album': t['album']}, api_key)
+                {'method': 'album.getTopTags', 'artist': t['artist'], 'album': t['album']}, api_key)
             time.sleep(0.2)
             if alb:
-                _album = alb.get('album', {})
-                _tags  = _album.get('tags', {}) if isinstance(_album, dict) else {}
-                album_tags = _tags.get('tag', []) if isinstance(_tags, dict) else []
+                album_tags = alb.get('toptags', {}).get('tag', [])
             elif alb is None:
                 track_err += 1
 
@@ -929,12 +1031,16 @@ def fetch_lastfm_data(tracks: list) -> None:
             'track_tags': track_tags,
             'album_tags': album_tags,
         }
-        track_new += 1
+        if needs_album_refetch:
+            track_refetch += 1
+        else:
+            track_new += 1
 
         if (i + 1) % 50 == 0:
             print(f'  ...{i + 1}/{len(tracks)} Tracks verarbeitet')
 
-    print(f'  neu={track_new}  übersprungen={track_skip}  Fehler={track_err}')
+    refetch_msg = f'  re-fetched (album)={track_refetch}  ' if track_refetch else ''
+    print(f'  neu={track_new}  {refetch_msg}übersprungen={track_skip}  Fehler={track_err}')
 
     # ── Artists (dedupliziert) ────────────────────────────────────────────────
     unique_artists = list(dict.fromkeys(t['artist'] for t in tracks))
@@ -1134,9 +1240,9 @@ def tag_moods(tracks):
     Skips tracks that already have non-empty mood_tags (re-run safe).
     Returns count of newly tagged tracks.
     """
-    key_path = 'anthropic_api_key.txt'
+    key_path = f'{_KEYVAULT}/anthropic_api_key.txt'
     if not os.path.exists(key_path):
-        print('  anthropic_api_key.txt nicht gefunden — Mood-Tagging übersprungen.')
+        print('  keyvault/anthropic_api_key.txt nicht gefunden — Mood-Tagging übersprungen.')
         return 0
 
     try:
@@ -1149,7 +1255,7 @@ def tag_moods(tracks):
     with open(key_path, encoding='utf-8') as f:
         api_key = f.read().strip()
     if not api_key:
-        print('  anthropic_api_key.txt ist leer — Mood-Tagging übersprungen.')
+        print('  keyvault/anthropic_api_key.txt ist leer — Mood-Tagging übersprungen.')
         return 0
 
     untagged = [t for t in tracks if not t.get('mood_tags')]
@@ -1287,7 +1393,7 @@ def tag_genres_ai(tracks):
         print('  Installation: pip install anthropic')
         return 0
 
-    api_key_file = 'anthropic_api_key.txt'
+    api_key_file = f'{_KEYVAULT}/anthropic_api_key.txt'
     if not os.path.exists(api_key_file):
         print(f'  {api_key_file} nicht gefunden — AI-Genre übersprungen.')
         return 0
@@ -1485,6 +1591,9 @@ def _reclassify_only(reclassify_ai=False):
     print('\n[F] Last.fm Genre')
     tag_genres_lastfm(tracks)
 
+    conf_count = enrich_genre_conf(tracks)
+    print(f'  genre_conf          : {conf_count}/{len(tracks)} Tracks')
+
     print('\n[A] AI-Genre')
     tag_genres_ai(tracks)
 
@@ -1581,6 +1690,10 @@ def build(rebuild=False, reclassify_ai=False):
     # F — Last.fm Genre (open_genre 1/4/5/2→6, optional)
     print('\n[F] Last.fm Genre')
     tag_genres_lastfm(tracks)
+
+    # F+ — genre_conf enrichment (all tracks with cached Last.fm data)
+    conf_count = enrich_genre_conf(tracks)
+    print(f'  genre_conf          : {conf_count}/{len(tracks)} Tracks')
 
     # A — AI-Genre (open_genre 1/4→2/5, optional; überspringt open_genre=6)
     print('\n[A] AI-Genre')

@@ -25,7 +25,15 @@
 ├── package.json                # {"type":"module"} — enables node js/cflu_tests.js
 ├── pyproject.toml              # Ruff linter config (Python)
 ├── eslint.config.js            # ESLint 9 flat config (JS)
-├── cflu_client_id.txt          # Spotify Client ID (local, .gitignored)
+├── keyvault/                   # All secrets (gitignored — never committed)
+│   ├── cflu_client_id.txt      # Spotify Client ID
+│   ├── cflu_client_secret.txt  # Spotify Client Secret
+│   ├── cflu_refresh_token.txt  # Spotify OAuth refresh token (auto-written)
+│   ├── anthropic_api_key.txt   # Anthropic API key (for AI genre + mood tagging)
+│   ├── lastfm_api_key.txt      # Last.fm API key
+│   ├── lastfm_api_secret.txt   # Last.fm API secret
+│   ├── cflu_lastfm.json        # Last.fm cache (auto-generated)
+│   └── DB.txt                  # Online DB credentials
 ├── cflu.service                # systemd user-service for Linux auto-start
 ├── docs/
 │   ├── PROJECT.md              # Architecture, ADRs, changelog, Key Invariants
@@ -237,7 +245,7 @@ After any change that touches a core module (`algorithm.js`, `state.js`, `spotif
 > "Significant change done. Push to origin?"
 
 ### E2 · Pre-Push Audit (runs when push is confirmed)
-Three personas review the diff + project state and each produce a finding list:
+Four personas review the diff + whole project state and each produce a finding list:
 
 **ME — The German Mechanical Engineer**
 Engineering excellence, latest SE patterns, CI rigor, clean architecture. Never satisfied.
@@ -246,6 +254,11 @@ Flags: code smells, missing abstraction, untested paths, doc gaps, outdated patt
 **PhD — The Mathematical PhD (aspiring EE)**
 Calm and precise. Data protection, algorithmic correctness, edge-case coverage, optimization.
 Flags: unsound logic, missing guards, informal contracts, privacy leaks, inefficient paths.
+
+**BI — The Bioinformatician (fantastic beast)**
+Curious and inventive. Listens to user ideas, imagines features that aren't there yet, and prunes what is.
+Owns: feature ideation, architecture/UI/feature optimization, dead-weight elimination.
+Flags: missing opportunities, feature bloat, redundant components, awkward UX-architecture fit, scope creep.
 
 **UX — The Chill Non-IT User**
 Uses the app, not the code.
@@ -277,12 +290,12 @@ After user confirms testing is done, clear the **New Since Last Push** section a
                     (explicit opt-in; not part of --rebuild; does NOT reset open_genre=6)
 [C] Cleanup         deduplication (artist+title key; locked=1 wins) — runs before G+F+A
 [G] Genre inherit   open_genre=1 → 4: borrow genres_raw from same-artist tracks (sources: 0,2,4,6)
-[F] Last.fm Genre   open_genre=1/4/5/2 → 6; BYOK via lastfm_api_key.txt
+[F] Last.fm Genre   open_genre=1/4/5/2 → 6; BYOK via keyvault/lastfm_api_key.txt
                     track.getTopTags first, artist.getTopTags as fallback; min count=15
                     can set multiple canonicals in genres_raw; AI must not overwrite state 6
                     open_genre=5 + no Last.fm result → open_genre=7 (both failed, no retry)
                     network error (None return) → open_genre unchanged (not counted as "no find")
-[A] AI Genre        open_genre=1/4 → 2 or 5; BYOK via anthropic_api_key.txt; Claude Haiku
+[A] AI Genre        open_genre=1/4 → 2 or 5; BYOK via keyvault/anthropic_api_key.txt; Claude Haiku
                     context per track: album+year, known artist genres from pool, inherited genres
                     skips open_genre=6 (Last.fm already classified)
 [*] Color Enrich    avg_color per track from Everynoise hex data — runs after A, before M; no label

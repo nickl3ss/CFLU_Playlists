@@ -91,7 +91,7 @@ Offene Items → GitHub Issues (https://github.com/nickl3ss/CFLU_Playlists/issue
 Kompletter Ersatz der PKCE-basierten Browser-Auth durch server-seitigen Authorization Code Flow (ADR 15). Web Playback SDK entfernt.
 
 #### `.gitignore`
-- `cflu_client_secret.txt` hinzugefügt (neben `cflu_client_id.txt`)
+- `cflu_client_secret.txt` hinzugefügt (neben `cflu_client_id.txt`); beide jetzt in `keyvault/`
 
 #### `cflu_server.py`
 - Neue Endpunkte: `GET /api/spotify/login`, `GET /api/spotify/callback`, `GET /api/spotify/status`, `GET /api/spotify/logout`, `POST /api/spotify/call`
@@ -384,8 +384,8 @@ Neues Pflichtfeld in jedem Track. Dokumentiert die Herkunft der Genre-Klassifika
 |-------|-----|--------------|
 | `[C]` Cleanup | ✓ | Titeldobbletten entfernen (artist+title-Key; locked=1 gewinnt) — läuft vor G+F+A, kein API-Call für Doubletten |
 | `[G]` Genre-Vererbung | ✓ | `open_genre=1` → `4`: `genres_raw` vom gleichen Künstler erben (sucht in states `0`, `2`, `4`, `6`) |
-| `[F]` Last.fm Genre | ✓ | `open_genre=1/4/5/2` → `6`: Last.fm-Tags via `track.getTopTags` (Fallback: `artist.getTopTags`); kann mehrere Canonical-Genres in `genres_raw` setzen; BYOK via `lastfm_api_key.txt` (#155) |
-| `[A]` AI-Genre | ✓ | `open_genre=1/4` → `2` oder `5`: Claude Haiku, 99%-Confidence-Gate, Songtitel vor Künstler priorisiert, BYOK via `anthropic_api_key.txt`; state-4 bleibt `4` bei kein Fund; überspringt `open_genre=6` |
+| `[F]` Last.fm Genre | ✓ | `open_genre=1/4/5/2` → `6`: Last.fm-Tags via `track.getTopTags` (Fallback: `artist.getTopTags`); kann mehrere Canonical-Genres in `genres_raw` setzen; BYOK via `keyvault/lastfm_api_key.txt` (#155) |
+| `[A]` AI-Genre | ✓ | `open_genre=1/4` → `2` oder `5`: Claude Haiku, 99%-Confidence-Gate, Songtitel vor Künstler priorisiert, BYOK via `keyvault/anthropic_api_key.txt`; state-4 bleibt `4` bei kein Fund; überspringt `open_genre=6` |
 
 #### Bugfixes Pool Builder
 

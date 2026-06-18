@@ -1,16 +1,15 @@
 # CFLU WOD Playlist Builder — .gitignore
 
-# Spotify Client ID (lokal, nicht ins Repo)
-cflu_client_id.txt
-cflu_client_secret.txt
+# Credential vault — all secrets live here (never committed)
+keyvault/cflu_client_id.txt
+keyvault/cflu_client_secret.txt
+keyvault/cflu_refresh_token.txt
+keyvault/anthropic_api_key.txt
+keyvault/lastfm_api_key.txt
+keyvault/lastfm_api_secret.txt
+keyvault/cflu_lastfm.json
+keyvault/DB.txt
 
-# Anthropic API Key (lokal, nicht ins Repo)
-anthropic_api_key.txt
-
-# Last.fm API Credentials und Cache (lokal, nicht ins Repo)
-lastfm_api_key.txt
-lastfm_api_secret.txt
-cflu_lastfm.json
 
 # Check-script für Webspace als Test für Transformation auf Webspace (lokal, nicht ins Repo)
 check.php

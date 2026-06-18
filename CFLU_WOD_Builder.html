@@ -53,12 +53,7 @@
       </div>
       <div class="sb-section">
         <div class="sb-label">WOD-Segment</div>
-        <select id="q-segment">
-          <option value="A">A — Warmup &amp; Prep</option>
-          <option value="B">B — Skill &amp; Strength</option>
-          <option value="C" selected>C — WOD Intensiv</option>
-          <option value="D">D — Cool-Down</option>
-        </select>
+        <select id="q-segment"></select>
       </div>
       <div class="sb-section" id="q-position-section">
         <div class="sb-label">Position</div>
@@ -86,12 +81,7 @@
       </div>
       <div class="sb-section" id="opt-phase-section" style="display:none">
         <div class="sb-label">Phase für Analyse</div>
-        <select id="opt-phase">
-          <option value="A">A — Warmup &amp; Prep</option>
-          <option value="B">B — Skill &amp; Strength</option>
-          <option value="C" selected>C — WOD Intensiv</option>
-          <option value="D">D — Cool-Down</option>
-        </select>
+        <select id="opt-phase"></select>
       </div>
       <div class="sb-section" id="opt-actions" style="display:none">
         <div class="sb-label" id="opt-flow-summary" style="font-family:var(--ff-mono);font-size:var(--fz-xs);color:var(--text2)"></div>
@@ -204,7 +194,7 @@
         <div class="range-wrap">
           <input type="range" id="bpm-tol" min="1" max="40" value="5">
         </div>
-        <div class="range-row"><span class="range-lbl">±1</span><span class="range-lbl">±30</span></div>
+        <div class="range-row"><span class="range-lbl">±1</span><span class="range-lbl">±40</span></div>
         <div class="toggle-row" style="margin-top:10px;margin-bottom:4px">
           <div>
             <div class="toggle-label">log2-Raum zulassen</div>
@@ -335,7 +325,7 @@
       <div class="range-wrap">
         <input type="range" id="xfade-slider" min="0" max="30" value="20" step="1">
       </div>
-      <div class="range-row"><span class="range-lbl">0 s (aus)</span><span class="range-lbl">25 s</span></div>
+      <div class="range-row"><span class="range-lbl">0 s (aus)</span><span class="range-lbl">30 s</span></div>
 
       <div style="margin-top:12px">
         <div class="toggle-row">
@@ -452,7 +442,7 @@
       3. Settings &rarr; Redirect URI eintragen:<br>
       <code>http://127.0.0.1:8888/api/spotify/callback</code><br>
       4. Client ID + Client Secret in lokale Dateien speichern:<br>
-      <code>cflu_client_id.txt</code> &nbsp;·&nbsp; <code>cflu_client_secret.txt</code><br><br>
+      <code>keyvault/cflu_client_id.txt</code> &nbsp;·&nbsp; <code>keyvault/cflu_client_secret.txt</code><br><br>
       <strong>Pro Session:</strong><br>
       Server starten: <code>python cflu_server.py</code><br>
       Browser: <code>http://127.0.0.1:8888/CFLU_WOD_Builder.html</code>
@@ -498,6 +488,10 @@
           <span class="rp-source-name">Chosic</span>
           <span class="rp-source-desc">Playlist-Analyse und CSV-Export für den Pool-Import</span>
         </a>
+        <a href="https://www.last.fm" target="_blank" rel="noopener" class="rp-source-link">
+          <span class="rp-source-name">Last.fm</span>
+          <span class="rp-source-desc">Genre-Tags für Tracks und Künstler via API</span>
+        </a>
         <a href="https://everynoise.com" target="_blank" rel="noopener" class="rp-source-link">
           <span class="rp-source-name">Every Noise at Once</span>
           <span class="rp-source-desc">Genre-Klassifikation, Nachbar-Gewichte und Farbkodierung</span>
@@ -519,9 +513,12 @@
         <p><strong>Kontakt</strong><br>
         <a class="rp-contact-link" data-u="apps" data-h="metaschmerz" data-t="com"></a></p>
         <p><strong>Datenschutz</strong><br>
-        Diese App verarbeitet keine personenbezogenen Daten auf einem Server. Die Spotify-Verbindung
-        erfolgt via OAuth&nbsp;2.0&nbsp;PKCE ausschließlich im Browser — kein Zugriffstoken wird dauerhaft
-        gespeichert (sessionStorage, bereinigt nach Callback gemäß Art.&nbsp;5&nbsp;DSGVO).
+        Diese App verarbeitet keine personenbezogenen Daten auf einem externen Server. Die
+        Spotify-Verbindung erfolgt via OAuth&nbsp;2.0 Authorization Code Flow über den lokalen
+        Python-Server (<code>cflu_server.py</code>). Der Zugriffstoken verbleibt ausschließlich
+        auf dem lokalen Gerät; ein Spotify-Refresh-Token wird zur automatischen
+        Wiederverbindung in <code>keyvault/cflu_refresh_token.txt</code> gespeichert
+        (lokal, nicht übertragen, jederzeit durch Abmelden löschbar, gemäß Art.&nbsp;5&nbsp;DSGVO).
         Hochgeladene CSV-Dateien dienen ausschließlich dem lokalen Pool-Build und werden nicht
         weitergegeben.</p>
         <p><strong>Haftungsausschluss</strong><br>
