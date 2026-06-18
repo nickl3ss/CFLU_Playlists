@@ -319,3 +319,50 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
 .modal-actions{display:flex;gap:10px;margin-top:14px}
 .modal-skip-btn{flex:1;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;font-family:var(--ff-ui);font-size:var(--fz-md);font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:9px 12px;transition:all .15s}
 .modal-skip-btn:hover{border-color:var(--text2);color:var(--text)}
+
+/* ===== REGISTER ===== */
+.reg-search-wrap{padding:10px 16px 6px}
+.reg-search{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-family:var(--ff-mono);font-size:var(--fz-xs);outline:none}
+.reg-search:focus{border-color:var(--text3)}
+.reg-view-toggle{display:flex;gap:6px;padding:4px 16px 8px}
+.reg-view-btn{flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer;font-family:var(--ff-ui);font-size:var(--fz-xs);font-weight:700;padding:5px 6px;letter-spacing:.04em;transition:all .12s}
+.reg-view-btn.active{background:var(--bg5);border-color:var(--text3);color:var(--text)}
+.reg-status{padding:4px 16px;font-size:var(--fz-xs);color:var(--text3);font-family:var(--ff-mono)}
+.reg-list{overflow-y:auto;flex:1;padding:0 0 16px}
+.reg-artist{padding:8px 16px 6px;cursor:pointer;border-bottom:1px solid var(--border);user-select:none;transition:background .1s}
+.reg-artist:hover{background:var(--bg3)}
+.reg-artist.selected{background:var(--bg3)}
+.reg-artist-hdr{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.reg-artist-name{font-family:var(--ff-ui);font-size:var(--fz-sm);font-weight:700;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.reg-artist-cnt{font-family:var(--ff-mono);font-size:var(--fz-2xs);color:var(--text3);flex-shrink:0}
+.reg-children{padding:4px 0 4px 12px}
+.reg-child{padding:5px 8px;border-radius:4px;cursor:pointer;margin:1px 0;transition:background .1s}
+.reg-child:hover{background:var(--bg4)}
+.reg-child.selected{background:var(--bg5)}
+.reg-child-name{display:block;font-size:var(--fz-xs);color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.reg-child-meta{display:block;font-family:var(--ff-mono);font-size:var(--fz-2xs);color:var(--text3);margin-top:1px}
+
+/* Register detail panel */
+.reg-detail{padding:20px 24px;font-family:var(--ff-ui)}
+.reg-detail-empty{color:var(--text3);font-size:var(--fz-sm);padding:40px 0;text-align:center}
+.reg-detail-hdr{margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+.reg-detail-title{font-size:var(--fz-xl);font-weight:900;color:var(--text);line-height:1.2;margin-bottom:4px}
+.reg-detail-sub{font-size:var(--fz-sm);color:var(--text2);margin-bottom:4px}
+.reg-detail-tags{font-family:var(--ff-mono);font-size:var(--fz-xs);color:var(--text3)}
+.reg-en-chip{display:inline-block;padding:2px 8px;border-radius:3px;font-family:var(--ff-mono);font-size:var(--fz-2xs);font-weight:700;margin-bottom:8px;letter-spacing:.04em}
+.reg-section{margin-bottom:16px}
+.reg-section-lbl{font-size:var(--fz-xs);font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
+.reg-table{width:100%;border-collapse:collapse;font-size:var(--fz-xs)}
+.reg-key{color:var(--text3);font-family:var(--ff-mono);padding:3px 10px 3px 0;white-space:nowrap;vertical-align:top;width:28%}
+.reg-val{color:var(--text);word-break:break-word}
+
+/* Source blocks */
+.reg-sources{margin-top:8px}
+.reg-src-block{border:1px solid var(--border);border-radius:5px;margin-bottom:6px;overflow:hidden}
+.reg-src-block.empty{opacity:.5}
+.reg-src-toggle{width:100%;background:var(--bg3);border:none;color:var(--text2);cursor:pointer;font-family:var(--ff-ui);font-size:var(--fz-xs);font-weight:700;text-align:left;padding:8px 10px;letter-spacing:.04em;transition:color .12s}
+.reg-src-toggle::before{content:'▶ ';font-size:.6em;opacity:.7}
+.reg-src-toggle.open::before{content:'▼ '}
+.reg-src-toggle:hover{color:var(--text)}
+.reg-src-body{padding:8px 10px;background:var(--bg2)}
+.reg-src-empty{font-size:var(--fz-xs);color:var(--text3);font-family:var(--ff-mono)}

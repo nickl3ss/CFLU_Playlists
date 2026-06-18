@@ -1,7 +1,10 @@
 // app.js — UI wiring only; no business logic here — delegate to algorithm.js, spotify.js, chart.js etc.
 import { PHASE_CONFIG, MIN_POOL_SIZE,
          POS_BPM, CAM_COLOR, CAM_ZONE1, CAM_ZONE2, DUR_STEPS,
-         bpmStopsForPhase } from './config.js';
+         bpmStopsForPhase,
+         BPM_SLIDER_MIN, BPM_SLIDER_MAX,
+         GOING_WILD_GENRE,
+         LASTFM_STALE_WARN_DAYS, LASTFM_STALE_DANGER_DAYS } from './config.js';
 import { getNeighbours } from './genres.js';
 import { state } from './state.js';
 import { titleKey, fmtDur, fmtMin, lerpColor, toHex, camCompat, calcPhaseScore, bpmHint, effectiveBpm, isHalfDouble } from './utils.js';
@@ -13,6 +16,7 @@ import { spotifyLogin, spotifyLogout, checkSpotifyCallback,
          exportPlaylist, getDevices, playOnDevice } from './spotify.js';
 import { initGenreSpace, updatePlaylistMode, resizeGenreSpace } from './genre_space.js';
 import { parsePlaylistId, importPlaylist, analyseFlow, flowSummary, reorderGreedy, suggestGapFills, exportOptimized } from './optimizer.js';
+import { initRegister, openRegister } from './register.js';
 
 // ===== SLIDER UI =====
 function updateSliderStyle(slider, stops, minV, maxV) {
@@ -164,7 +168,7 @@ function checkPoolAndWarn() {
   if (pool.length < MIN_POOL_SIZE) {
     const neighbours = getNeighbours(genre);
     warn.textContent = `Nur ${pool.length} Tracks für Phase ${state.currentPhase} in "${genre}".`
-      + (neighbours.length ? ` Fallback auf: ${neighbours.slice(0, 2).join(', ')} möglich.` : '');
+      + (neighbours.length ? ` Nachbar-Genres automatisch ergänzt: ${neighbours.slice(0, 2).join(', ')}.` : '');
     warn.style.display = 'block';
   } else {
     warn.style.display = 'none';
@@ -188,13 +192,18 @@ function checkRefBpmAndWarn() {
   warn.style.display = 'block';
 }
 
-// ===== UI MODE (Quick / Optimizer / Advanced) =====
+// ===== UI MODE (Quick / Optimizer / Advanced / Register) =====
 function setUiMode(mode) {
   state.uiMode = mode;
-  ['quick','optimizer','advanced'].forEach(m => {
+  const isRegister = mode === 'register';
+  ['quick','optimizer','advanced','register'].forEach(m => {
     document.getElementById('mode-tab-' + m).classList.toggle('active', m === mode);
     document.getElementById('mode-' + m + '-panel').style.display = m === mode ? '' : 'none';
   });
+  // Register uses its own main panel; WOD result area shown for all other modes
+  document.getElementById('result-area').style.display   = isRegister ? 'none' : '';
+  document.getElementById('reg-main-panel').style.display = isRegister ? '' : 'none';
+  if (isRegister) openRegister();
 }
 
 // ===== QUICK MODE =====
@@ -233,8 +242,9 @@ function onQuickGenerate() {
   const phase    = document.getElementById('q-segment').value;
   const position = document.getElementById('q-position').value;
   const cfg = PHASE_CONFIG[phase];
-  // Apply phase + position to state without touching Advanced panel DOM
+  // Apply phase + position to state; also sync Advanced panel phase tile highlights
   state.currentPhase   = phase;
+  ['A','B','C','D'].forEach(p => document.getElementById('phase-' + p).classList.toggle('active', p === phase));
   state.wodEnergyMin   = cfg.energy ? cfg.energy[0] : 0;
   state.wodEnergyMax   = cfg.energy ? cfg.energy[1] : 100;
   state.bpmTol         = cfg.tolDefault;
@@ -251,28 +261,87 @@ async function _checkLastfmSync() {
     const r = await fetch('/api/lastfm/status');
     const d = await r.json();
     if (!d.last_full_sync) {
-      info.textContent = 'Letzter Last.fm Sync: Nie';
-      badge.className  = 'warn';
-      btn.style.display = '';
-      return;
-    }
-    const syncDate = new Date(d.last_full_sync);
-    const days     = Math.floor((Date.now() - syncDate) / 86_400_000);
-    const dateStr  = syncDate.toLocaleDateString('de-DE', {day: '2-digit', month: '2-digit', year: 'numeric'});
-    info.textContent = `Letzter Last.fm Sync: ${dateStr} · vor ${days} Tag${days !== 1 ? 'en' : ''} · ${d.track_count} Tracks`;
-    if (days >= 45) {
+      info.textContent  = 'Letzter Last.fm Sync: Nie';
       badge.className   = 'warn';
       btn.style.display = '';
-    } else if (days >= 30) {
-      badge.className   = 'info';
-      btn.style.display = '';
     } else {
-      badge.className   = '';
-      btn.style.display = 'none';
+      const syncDate = new Date(d.last_full_sync);
+      const days     = Math.floor((Date.now() - syncDate) / 86_400_000);
+      const dateStr  = syncDate.toLocaleDateString('de-DE', {day: '2-digit', month: '2-digit', year: 'numeric'});
+      info.textContent = `Letzter Last.fm Sync: ${dateStr} · vor ${days} Tag${days !== 1 ? 'en' : ''} · ${d.track_count} Tracks`;
+      if (days >= LASTFM_STALE_DANGER_DAYS) {
+        badge.className   = 'warn';
+        btn.style.display = '';
+      } else if (days >= LASTFM_STALE_WARN_DAYS) {
+        badge.className   = 'info';
+        btn.style.display = '';
+      } else {
+        badge.className   = '';
+        btn.style.display = 'none';
+      }
     }
   } catch {
     info.textContent = 'Last.fm Sync: Server nicht erreichbar';
   }
+  // Auto-resume progress display if a sync was running before page reload
+  try {
+    const rp = await fetch('/api/lastfm/progress');
+    const dp = await rp.json();
+    if (dp.running) {
+      const btn2 = document.getElementById('lastfm-sync-btn');
+      btn2.style.display = '';
+      btn2.disabled      = true;
+      btn2.textContent   = '⏳ Sync läuft…';
+      _pollLastfmProgress();
+    }
+  } catch { /* progress endpoint not available — no active sync */ }
+}
+
+let _lastfmPollTimer = null;
+
+function _pollLastfmProgress() {
+  if (_lastfmPollTimer) { clearTimeout(_lastfmPollTimer); _lastfmPollTimer = null; }
+  const msg = document.getElementById('lastfm-sync-msg');
+  const btn = document.getElementById('lastfm-sync-btn');
+
+  async function poll() {
+    try {
+      const r = await fetch('/api/lastfm/progress');
+      const d = await r.json();
+
+      if (d.error) {
+        msg.textContent = `Sync-Fehler: ${d.error}`;
+        msg.className   = 'upload-status error';
+        btn.disabled    = false;
+        btn.textContent = '↺ Vollständig neu synchronisieren';
+        return;
+      }
+      if (!d.running && d.phase === 'done') {
+        msg.textContent = '✓ Sync abgeschlossen — Seite neu laden um aktuelle Daten zu verwenden.';
+        msg.className   = 'upload-status info';
+        btn.disabled    = false;
+        btn.textContent = '↺ Vollständig neu synchronisieren';
+        _checkLastfmSync();
+        return;
+      }
+      if (!d.running) return;
+
+      const parts = [];
+      if (d.tracks_total > 0) parts.push(`Tracks: ${d.tracks_done}/${d.tracks_total}`);
+      if (d.artists_total > 0) parts.push(`Artists: ${d.artists_done}/${d.artists_total}`);
+      const phaseLabel = d.phase === 'tracks'  ? 'Phase 1/2'
+                       : d.phase === 'artists' ? 'Phase 2/2' : '';
+      const progress   = parts.length ? ` · ${parts.join(' · ')}` : '';
+      msg.textContent  = `↻ Sync läuft${phaseLabel ? ` — ${phaseLabel}` : ''}${progress}`;
+      msg.className    = 'upload-status info';
+
+      _lastfmPollTimer = setTimeout(poll, 2000);
+    } catch {
+      _lastfmPollTimer = setTimeout(poll, 3000);
+    }
+  }
+
+  poll();
 }
 
 // ===== OPTIMIZER =====
@@ -321,6 +390,10 @@ function _renderOptimizerResult(tracks, transitions) {
 }
 
 async function onOptImport() {
+  if (!state.spConnected) {
+    _optSetStatus('Bitte zuerst mit Spotify verbinden (Admin-Panel rechts ⚙).');
+    return;
+  }
   const url = document.getElementById('opt-url').value.trim();
   const pid = parsePlaylistId(url);
   if (!pid) { _optSetStatus('Keine gültige Spotify-Playlist-URL.'); return; }
@@ -340,7 +413,12 @@ async function onOptImport() {
     _optShowActions(true);
     _optRunAnalysis();
   } catch (e) {
-    _optSetStatus(`Fehler: ${e.message}`);
+    const detail = e.detail?.error?.message;
+    if (e.status === 403) {
+      _optSetStatus(`Fehler 403 — ${detail || 'Kein Zugriff'}. Playlist privat oder Spotify-App benötigt Extended Quota Mode. Abmelden → neu verbinden kann helfen (neuer Scope).`);
+    } else {
+      _optSetStatus(`Fehler: ${detail || e.message}`);
+    }
   } finally {
     btn.disabled = false;
     btn.textContent = '⬇ Importieren';
@@ -406,7 +484,7 @@ function onGenreChange() {
 }
 
 function onBpmSlider(el) {
-  const c = updateSliderStyle(el, bpmStopsForPhase(state.currentPhase), 60, 220);
+  const c = updateSliderStyle(el, bpmStopsForPhase(state.currentPhase), BPM_SLIDER_MIN, BPM_SLIDER_MAX);
   const v = +el.value;
   document.getElementById('bpm-val-display').textContent = v + ' BPM';
   document.getElementById('bpm-val-display').style.color = toHex(c);
@@ -456,7 +534,7 @@ function onDirectSearch() {
   const sel = document.getElementById('direct-list');
   sel.innerHTML = '';
   if (q.length < 2) { document.getElementById('direct-count').textContent = 'Mind. 2 Zeichen eingeben'; return; }
-  const genrePool = getPool('Going Wild');
+  const genrePool = getPool(GOING_WILD_GENRE);
   let res = genrePool.filter(t =>
     t.song.toLowerCase().includes(q) || t.artist.toLowerCase().includes(q)
   );
@@ -483,7 +561,7 @@ function onLinkInput() {
   const m = url.match(/track\/([a-zA-Z0-9]+)/);
   if (!m) { document.getElementById('link-status').textContent = ''; return; }
   const tid = m[1];
-  const allTracks = getPool('Going Wild');
+  const allTracks = getPool(GOING_WILD_GENRE);
   const found = allTracks.find(t => t.id === tid);
   if (found) {
     document.getElementById('link-status').textContent = `✓ ${found.artist} — ${found.song}`;
@@ -521,7 +599,7 @@ function updatePoolGenreBadge() {
 function onTrackSelect(sel) {
   const opt = sel.options[sel.selectedIndex];
   if (!opt) return;
-  const allTracks = getPool('Going Wild');
+  const allTracks = getPool(GOING_WILD_GENRE);
   const t = opt._track || allTracks.find(x => (x.id && x.id === opt.value) || x.song === opt.value);
   if (t) selectTrack(t);
 }
@@ -1226,10 +1304,11 @@ function _initGenreDropdowns() {
 
 // ===== INIT =====
 function init() {
-  // UI mode tabs (Quick / Optimizer / Advanced)
-  ['quick','optimizer','advanced'].forEach(m =>
+  // UI mode tabs (Quick / Optimizer / Advanced / Register)
+  ['quick','optimizer','advanced','register'].forEach(m =>
     document.getElementById('mode-tab-' + m).addEventListener('click', () => setUiMode(m))
   );
+  initRegister();
   // Quick mode
   document.getElementById('q-search').addEventListener('input', onQuickSearch);
   document.getElementById('q-search-clear').addEventListener('click', () => {
@@ -1306,20 +1385,26 @@ function init() {
   document.getElementById('lastfm-sync-btn').addEventListener('click', async () => {
     const btn = document.getElementById('lastfm-sync-btn');
     const msg = document.getElementById('lastfm-sync-msg');
-    btn.disabled = true;
+    btn.disabled    = true;
     btn.textContent = '⏳ Sync läuft…';
     try {
       const r = await fetch('/api/lastfm/sync', {method: 'POST'});
       const d = await r.json();
       if (d.started) {
-        msg.textContent = '✓ Sync gestartet — dauert ca. 47 Min. Danach Seite neu laden.';
+        msg.textContent = '↻ Sync gestartet…';
         msg.className   = 'upload-status info';
+        _pollLastfmProgress();
+      } else {
+        msg.textContent = d.error || 'Sync konnte nicht gestartet werden.';
+        msg.className   = 'upload-status error';
+        btn.disabled    = false;
+        btn.textContent = '↺ Vollständig neu synchronisieren';
       }
     } catch {
-      msg.textContent  = 'Fehler beim Starten des Sync.';
-      msg.className    = 'upload-status error';
-      btn.disabled     = false;
-      btn.textContent  = '↺ Vollständig neu synchronisieren';
+      msg.textContent = 'Fehler beim Starten des Sync.';
+      msg.className   = 'upload-status error';
+      btn.disabled    = false;
+      btn.textContent = '↺ Vollständig neu synchronisieren';
     }
   });
   document.getElementById('sp-connect-btn').addEventListener('click', spotifyLogin);
@@ -1363,6 +1448,19 @@ function init() {
 
   // Init log2 toggle from state default
   document.getElementById('log2-toggle').checked = state.allowLog2;
+
+  // Derive BPM slider bounds from config constants so HTML doesn't need to be updated manually
+  const bpmSliderEl = document.getElementById('bpm-slider');
+  bpmSliderEl.min = BPM_SLIDER_MIN;
+  bpmSliderEl.max = BPM_SLIDER_MAX;
+
+  // Populate phase <select> options from PHASE_CONFIG so labels stay in sync
+  ['q-segment', 'opt-phase'].forEach(selId => {
+    const sel = document.getElementById(selId);
+    sel.innerHTML = Object.entries(PHASE_CONFIG).map(([key, cfg]) =>
+      `<option value="${key}"${key === 'C' ? ' selected' : ''}>${key} — ${cfg.label}</option>`
+    ).join('');
+  });
 
   // Populate genre dropdowns from track data (must run before onPhaseSelect reads the select)
   _initGenreDropdowns();

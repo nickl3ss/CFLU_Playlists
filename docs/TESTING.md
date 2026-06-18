@@ -10,6 +10,25 @@
 
 ## New Since Last Push
 
+### N11 · Pool Register Tab (Issue #184)
+
+| # | Step | Expected |
+|---|------|----------|
+| N11-1 | Open app (Python server must be running, Pool Builder run at least once) | Header tab bar shows "▤ Register" as 4th tab |
+| N11-2 | Click "▤ Register" | Sidebar shows search box + Tracks/Alben toggle + loading message; WOD result area hidden; right panel shows "← Artist, Track oder Album wählen" |
+| N11-3 | After data loads | Artist list fills sidebar (A–Z); status message clears |
+| N11-4 | Type an artist name in the search box | List filters live to matching artists; non-matching artists hidden |
+| N11-5 | Clear search box | Full artist list returns |
+| N11-6 | Click an artist in the list | Artist row expands showing its tracks with BPM/Energy/Genre meta; right panel shows artist aggregate (BPM min/med/max, Energy range, top genres) |
+| N11-7 | Click a track under an artist | Right panel shows track detail: Resolved view (Song, Artist, BPM, Energy, Camelot, Genre, Moods, …) + 5 collapsible source blocks (Spotify, Chosic, Last.fm, AI, User) |
+| N11-8 | Click any source block toggle button | Block expands showing raw source data; click again to collapse |
+| N11-9 | Track has genres_raw (Last.fm data) | EveryNoise color chip appears in header with genre name; chip color matches EveryNoise palette |
+| N11-10 | Switch toggle to "Alben" | Artist rows re-expand showing albums instead of tracks; click an album → right panel shows album aggregate |
+| N11-11 | Switch back to "Tracks" | Track view restores; album selection cleared |
+| N11-12 | Click the same artist again (already selected) | Artist row collapses; right panel resets to empty state |
+| N11-13 | Switch to another mode tab (e.g. Advanced) and back to Register | List and detail state persists; data not re-fetched (already loaded) |
+| N11-14 | Run without data files (rename data/ folder) | Status shows "Fehler: HTTP-Fehler beim Laden. Bitte Pool-Builder ausführen." — no crash |
+
 ### N9 · Track Replace: Generation Context Snapshot
 
 | # | Step | Expected |

@@ -10,6 +10,7 @@
 <script src="cflu_tracks.js"></script>
 <script type="module" src="js/app.js"></script>
 <script type="module" src="js/upload.js"></script>
+<script type="module" src="js/register.js"></script>
 </head>
 <body>
 <div class="app">
@@ -25,6 +26,7 @@
     <button class="mode-tab" id="mode-tab-quick">⚡ Quick</button>
     <button class="mode-tab" id="mode-tab-optimizer">🔧 Optimizer</button>
     <button class="mode-tab active" id="mode-tab-advanced">⚙ Advanced</button>
+    <button class="mode-tab" id="mode-tab-register">▤ Register</button>
   </div>
 
   <div class="sb-scroll">
@@ -352,11 +354,34 @@
 
     </div><!-- end mode-advanced-panel -->
 
+    <!-- ===== REGISTER MODE PANEL ===== -->
+    <div id="mode-register-panel" style="display:none">
+      <div class="sb-section">
+        <div class="sb-label">Pool-Register</div>
+        <div class="reg-search-wrap">
+          <input type="text" id="reg-search" class="reg-search" placeholder="Artist oder Track suchen…" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="reg-view-toggle">
+          <button id="reg-view-tracks" class="reg-view-btn active">Tracks</button>
+          <button id="reg-view-albums" class="reg-view-btn">Alben</button>
+        </div>
+        <div id="reg-status" class="reg-status"></div>
+        <div id="reg-list" class="reg-list"></div>
+      </div>
+    </div><!-- end mode-register-panel -->
+
   </div><!-- end sb-scroll -->
 </aside>
 
 <!-- ===== MAIN ===== -->
 <main class="main">
+  <!-- ===== REGISTER DETAIL PANEL ===== -->
+  <div id="reg-main-panel" style="display:none;height:100%;overflow-y:auto">
+    <div id="reg-detail" class="reg-detail">
+      <div class="reg-detail-empty">← Artist, Track oder Album wählen</div>
+    </div>
+  </div>
+
   <div id="result-area" style="display:flex;flex-direction:column;height:100%;overflow:hidden;position:relative">
     <div class="main-top" id="main-top" style="display:none">
       <div class="result-name-row">

@@ -2,6 +2,7 @@
 // Node: node js/cflu_tests.js  (requires package.json {"type":"module"} at project root)
 // Browser: CFLU_Tests.html imports { results } and renders
 
+import { resolveTrack, resolveArtist, resolveArtistAggregates, resolveAlbumAggregates, SOURCE_PRECEDENCE } from './resolve.js';
 import { bpmGroup, groupIdx, neighbour, fmtDur, fmtMin, titleKey, titleDuplicate,
          camCompat, camStrictOk, lerpColor, toHex, toRgb,
          attrScore, calcPhaseScore, calcSortScore, calcEraScore, trapezScore, isHalfDouble,
@@ -24,6 +25,7 @@ function it(name, fn) {
   try { fn(); _cur.tests.push({name, ok: true}); }
   catch (e) { _cur.tests.push({name, ok: false, err: e.message}); }
 }
+function assert(cond, msg) { if (!cond) throw new Error(msg || 'assertion failed'); }
 function expect(actual) {
   const fail = msg => { throw new Error(msg); };
   const m = {
@@ -1233,7 +1235,7 @@ describe('calcSortScore — colorScore [0,10]', () => {
   });
 });
 
-describe('calcSortScore — xyScore [0,10]', () => {
+describe('calcSortScore — genreDistScore xy-Fallback [0,10] (kein genre_conf)', () => {
   const cur  = mkT({id:'cur',song:'Cur',artist:'A',bpm:120,camelot:'9B',energy:72,dur:210,genre:'Rock',bpmg:'D',avg_xy:[0.5,0.5]});
   const base = mkT({id:'b',song:'B',artist:'A',bpm:124,camelot:'10B',energy:76,dur:200,genre:'Rock',bpmg:'D'});
   it('Gleiche Position → xyScore = 10', () => {
@@ -1275,6 +1277,62 @@ describe('calcSortScore — xyScore [0,10]', () => {
     const t2 = Object.assign({},base,{avg_xy:[0.61,0.5]});
     const diff = calcSortScore(t1,cur,'C') - calcSortScore(t2,cur,'C');
     expect(diff).not.toBe(Math.round(diff));
+  });
+});
+
+describe('calcSortScore — genreDistScore genre_conf-Cosine [0,25]', () => {
+  const base = mkT({id:'b',song:'B',artist:'A',bpm:124,camelot:'10B',energy:76,dur:200,genre:'Rock',bpmg:'D'});
+  const cur  = mkT({id:'cur',song:'Cur',artist:'A',bpm:120,camelot:'9B',energy:72,dur:210,genre:'Rock',bpmg:'D'});
+  const curConf = Object.assign({},cur,{genre_conf:{'Rock':1.0,'Pop & New Wave':0.3}});
+
+  it('Identische genre_conf → genreDistScore = 25', () => {
+    const identical = Object.assign({},base,{genre_conf:{'Rock':1.0,'Pop & New Wave':0.3}});
+    const noConf    = Object.assign({},base);
+    expect(calcSortScore(identical,curConf,'C') - calcSortScore(noConf,curConf,'C')).toBe(25);
+  });
+  it('Völlig andere genre_conf → genreDistScore = 0', () => {
+    const ortho  = Object.assign({},base,{genre_conf:{'EDM / Electronic':1.0}});
+    const noConf = Object.assign({},base);
+    // orthogonal vector → cosine = 0 → genreDistScore = 0 (same as fallback with no avg_xy)
+    expect(calcSortScore(ortho,curConf,'C')).toBe(calcSortScore(noConf,curConf,'C'));
+  });
+  it('Ähnliche genre_conf → höherer Score als orthogonale', () => {
+    const similar = Object.assign({},base,{genre_conf:{'Rock':0.9,'Punk':0.2}});
+    const ortho   = Object.assign({},base,{genre_conf:{'EDM / Electronic':1.0}});
+    expect(calcSortScore(similar,curConf,'C')).toBeGreaterThan(calcSortScore(ortho,curConf,'C'));
+  });
+  it('genreDistScore liegt im Bereich [0,25]', () => {
+    const withConf = Object.assign({},base,{genre_conf:{'Rock':1.0,'Metal & Hard Rock':0.5}});
+    const noConf   = Object.assign({},base);
+    const diff = calcSortScore(withConf,curConf,'C') - calcSortScore(noConf,curConf,'C');
+    expect(diff).toBeGreaterThanOrEqual(0);
+    expect(diff).toBeLessThanOrEqual(25);
+  });
+  it('Kein genre_conf auf Kandidat → genreDistScore = 0 (kein Fehler)', () => {
+    const noConf = Object.assign({},base);
+    const score = calcSortScore(noConf,curConf,'C');
+    expect(typeof score).toBe('number');
+    expect(isNaN(score)).toBe(false);
+  });
+  it('Kein genre_conf auf cur → genreDistScore = 0 (kein Fehler)', () => {
+    const withConf = Object.assign({},base,{genre_conf:{'Rock':1.0}});
+    const noConf   = Object.assign({},base);
+    // cur has no genre_conf → fallback to xy; neither has avg_xy → 0
+    expect(calcSortScore(withConf,cur,'C')).toBe(calcSortScore(noConf,cur,'C'));
+  });
+  it('genre_conf vorhanden → überschreibt xy-Fallback', () => {
+    const curXy  = Object.assign({},cur,{genre_conf:{'Rock':1.0},avg_xy:[0.5,0.5]});
+    const sameXy = Object.assign({},base,{avg_xy:[0.5,0.5]});
+    const sameConf = Object.assign({},base,{genre_conf:{'Rock':1.0},avg_xy:[0.5,0.5]});
+    // sameConf uses cosine path (max 25), sameXy uses xy fallback (max 10)
+    expect(calcSortScore(sameConf,curXy,'C')).toBeGreaterThan(calcSortScore(sameXy,curXy,'C'));
+  });
+  it('Leeres genre_conf-Objekt → Fallback auf xy', () => {
+    const curXy    = Object.assign({},cur,{avg_xy:[0.5,0.5]});
+    const emptyConf = Object.assign({},base,{genre_conf:{},avg_xy:[0.5,0.5]});
+    const withXy    = Object.assign({},base,{avg_xy:[0.5,0.5]});
+    // both fall back to xy → same score
+    expect(calcSortScore(emptyConf,curXy,'C')).toBe(calcSortScore(withXy,curXy,'C'));
   });
 });
 
@@ -1495,6 +1553,208 @@ describe('explicitFilter — Explicit-Songs Filter', () => {
   it('nach Test: state zurücksetzen', () => {
     state.explicitFilter = 'allow'; state.lockCamFilter = false;
     expect(state.explicitFilter).toBe('allow');
+  });
+});
+
+// ============================================================
+//  RESOLVE.JS
+// ============================================================
+describe('resolve.js — SOURCE_PRECEDENCE', () => {
+  it('has correct order: user first, chosic last', () => {
+    assert(SOURCE_PRECEDENCE[0] === 'user', 'user must be first');
+    assert(SOURCE_PRECEDENCE[SOURCE_PRECEDENCE.length - 1] === 'chosic', 'chosic must be last');
+    assert(SOURCE_PRECEDENCE.includes('spotify'), 'spotify present');
+    assert(SOURCE_PRECEDENCE.includes('ai'), 'ai present');
+    assert(SOURCE_PRECEDENCE.includes('lastfm'), 'lastfm present');
+  });
+});
+
+describe('resolve.js — resolveTrack', () => {
+  const mkTrack = (overrides = {}) => ({
+    id: 'tid1',
+    avg_color: '#abc',
+    avg_xy: [0.5, 0.8],
+    locked: 0,
+    sources: {
+      spotify: { song: 'MySong', artist: 'ArtA', album: 'AlbX', dur: 210, popularity: 72, explicit: false, isrc: 'ISRC01', label: 'LabelA', added_at: '2024-01-01', album_date: '2024' },
+      chosic:  { bpm: 130, energy: 80, camelot: '8A', dance: 75, acoustic: 5, instrumental: 0, valence: 60, speech: 3, live: 2, loud: -5, key: 'C', time_sig: 4, bpmg: 'H' },
+      lastfm:  { genres_raw: ['pop'], track_tags: ['upbeat'], album_tags: [] },
+      ai:      { genre: 'pop', mood_tags: ['happy'], open_genre: 2 },
+      user:    null,
+      ...overrides,
+    },
+  });
+
+  it('resolves song from spotify when user null', () => {
+    const r = resolveTrack(mkTrack());
+    assert(r.song === 'MySong', 'song from spotify');
+    assert(r.artist === 'ArtA', 'artist from spotify');
+  });
+
+  it('user.song takes precedence over spotify.song', () => {
+    const t = mkTrack({ user: { song: 'Override', artist: null } });
+    const r = resolveTrack(t);
+    assert(r.song === 'Override', 'user override wins');
+  });
+
+  it('resolves bpm from chosic', () => {
+    const r = resolveTrack(mkTrack());
+    assert(r.bpm === 130, 'bpm from chosic');
+  });
+
+  it('user.bpm overrides chosic.bpm', () => {
+    const t = mkTrack({ user: { bpm: 140 } });
+    const r = resolveTrack(t);
+    assert(r.bpm === 140, 'user bpm wins');
+  });
+
+  it('resolves genre from ai when user null', () => {
+    const r = resolveTrack(mkTrack());
+    assert(r.genre === 'pop', 'genre from ai');
+  });
+
+  it('resolves genres_raw from lastfm', () => {
+    const r = resolveTrack(mkTrack());
+    assert(Array.isArray(r.genres_raw), 'genres_raw is array');
+    assert(r.genres_raw[0] === 'pop', 'genres_raw from lastfm');
+  });
+
+  it('empty lastfm gives empty arrays', () => {
+    const t = mkTrack({ lastfm: null });
+    const r = resolveTrack(t);
+    assert(Array.isArray(r.genres_raw) && r.genres_raw.length === 0, 'empty genres_raw');
+    assert(Array.isArray(r.track_tags) && r.track_tags.length === 0, 'empty track_tags');
+  });
+
+  it('avg_color and locked come from top-level', () => {
+    const r = resolveTrack(mkTrack());
+    assert(r.avg_color === '#abc', 'avg_color top-level');
+    assert(r.locked === 0, 'locked top-level');
+  });
+
+  it('all-null sources return null fields without throwing', () => {
+    const t = { id: 'x', sources: { spotify: null, chosic: null, lastfm: null, ai: null, user: null } };
+    const r = resolveTrack(t);
+    assert(r.song === null, 'null song ok');
+    assert(r.bpm === null, 'null bpm ok');
+    assert(r.genre === null, 'null genre ok');
+    assert(Array.isArray(r.mood_tags) && r.mood_tags.length === 0, 'empty mood_tags ok');
+  });
+});
+
+describe('resolve.js — resolveArtist', () => {
+  it('returns name from artist.name when user null', () => {
+    const artist = { id: 'art1', name: 'Test Artist', sources: { lastfm: { tags: ['rock'], similar: ['X'] }, user: null } };
+    const r = resolveArtist(artist);
+    assert(r.name === 'Test Artist', 'name from artist object');
+    assert(r.tags[0] === 'rock', 'lastfm tags present');
+    assert(r.similar[0] === 'X', 'lastfm similar present');
+  });
+
+  it('returns empty arrays when lastfm null', () => {
+    const artist = { id: 'art2', name: 'Art', sources: { lastfm: null, user: null } };
+    const r = resolveArtist(artist);
+    assert(Array.isArray(r.tags) && r.tags.length === 0, 'empty tags');
+    assert(Array.isArray(r.similar) && r.similar.length === 0, 'empty similar');
+  });
+});
+
+describe('resolve.js — resolveArtistAggregates', () => {
+  const mkRawTrack = (id, bpm, energy, genre, moods = []) => ({
+    id,
+    sources: {
+      spotify: { song: 's', artist: 'A' },
+      chosic:  { bpm, energy },
+      lastfm:  null,
+      ai:      { genre, mood_tags: moods, open_genre: 2 },
+      user:    null,
+    },
+  });
+
+  it('computes bpm min/median/max over 3 tracks', () => {
+    const artist = { id: 'art1', track_ids: ['t1', 't2', 't3'] };
+    const tracksById = {
+      t1: mkRawTrack('t1', 100, 60, 'pop'),
+      t2: mkRawTrack('t2', 140, 80, 'pop'),
+      t3: mkRawTrack('t3', 120, 70, 'rock'),
+    };
+    const agg = resolveArtistAggregates(artist, tracksById);
+    assert(agg.track_count === 3, 'track count');
+    assert(agg.bpm_min === 100, 'bpm min');
+    assert(agg.bpm_max === 140, 'bpm max');
+    assert(agg.bpm_median === 120, 'bpm median');
+  });
+
+  it('counts genres correctly', () => {
+    const artist = { id: 'art1', track_ids: ['t1', 't2', 't3'] };
+    const tracksById = {
+      t1: mkRawTrack('t1', 120, 70, 'pop'),
+      t2: mkRawTrack('t2', 130, 75, 'pop'),
+      t3: mkRawTrack('t3', 110, 65, 'rock'),
+    };
+    const agg = resolveArtistAggregates(artist, tracksById);
+    assert(agg.genre_counts['pop'] === 2, 'pop count 2');
+    assert(agg.genre_counts['rock'] === 1, 'rock count 1');
+  });
+
+  it('counts mood_tags across tracks', () => {
+    const artist = { id: 'art1', track_ids: ['t1', 't2'] };
+    const tracksById = {
+      t1: mkRawTrack('t1', 120, 70, 'pop', ['happy', 'energetic']),
+      t2: mkRawTrack('t2', 130, 75, 'pop', ['happy']),
+    };
+    const agg = resolveArtistAggregates(artist, tracksById);
+    assert(agg.mood_counts['happy'] === 2, 'happy count 2');
+    assert(agg.mood_counts['energetic'] === 1, 'energetic count 1');
+  });
+
+  it('returns zeros for artist with no tracks', () => {
+    const artist = { id: 'art0', track_ids: [] };
+    const agg = resolveArtistAggregates(artist, {});
+    assert(agg.track_count === 0, 'zero tracks');
+    assert(agg.bpm_min === null, 'null bpm_min');
+  });
+
+  it('handles even number of bpms for median', () => {
+    const artist = { id: 'art1', track_ids: ['t1', 't2'] };
+    const tracksById = {
+      t1: mkRawTrack('t1', 100, 70, 'pop'),
+      t2: mkRawTrack('t2', 120, 75, 'pop'),
+    };
+    const agg = resolveArtistAggregates(artist, tracksById);
+    assert(agg.bpm_median === 110, 'even median = avg of middle two');
+  });
+});
+
+describe('resolve.js — resolveAlbumAggregates', () => {
+  const mkRawTrack = (id, genre) => ({
+    id,
+    sources: {
+      spotify: { song: 's', artist: 'A' },
+      chosic:  { bpm: 120, energy: 70 },
+      lastfm:  null,
+      ai:      { genre, mood_tags: [], open_genre: 2 },
+      user:    null,
+    },
+  });
+
+  it('counts genres for album tracks', () => {
+    const album = { id: 'alb1', name: 'Alb', date: '2023', track_ids: ['t1', 't2', 't3'], sources: {} };
+    const tracksById = {
+      t1: mkRawTrack('t1', 'rock'),
+      t2: mkRawTrack('t2', 'rock'),
+      t3: mkRawTrack('t3', 'pop'),
+    };
+    const agg = resolveAlbumAggregates(album, tracksById);
+    assert(agg.track_count === 3, 'track count 3');
+    assert(agg.genre_counts['rock'] === 2, 'rock 2');
+    assert(agg.genre_counts['pop'] === 1, 'pop 1');
+  });
+
+  it('returns zero for empty album', () => {
+    const album = { id: 'alb0', track_ids: [], sources: {} };
+    const agg = resolveAlbumAggregates(album, {});
+    assert(agg.track_count === 0, 'zero');
   });
 });
 
