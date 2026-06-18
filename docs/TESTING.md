@@ -84,7 +84,7 @@
 | # | Step | Expected |
 |---|------|----------|
 | N15-1 | Open Admin Panel (⚙ button, top-right) | "Last.fm Sync" section visible; shows last sync date or "Letzter Last.fm Sync: Nie" if never synced |
-| N15-2 | `keyvault/cflu_lastfm.json` has `meta.last_full_sync` set to a date >45 days ago | ⚙ badge shows yellow dot; "↺ Vollständig neu synchronisieren" button visible |
+| N15-2 | `cflu_lastfm.json` has `meta.last_full_sync` set to a date >45 days ago | ⚙ badge shows yellow dot; "↺ Vollständig neu synchronisieren" button visible |
 | N15-3 | `meta.last_full_sync` set to a date 30–44 days ago | ⚙ badge shows blue dot; sync button visible |
 | N15-4 | `meta.last_full_sync` set to a date <30 days ago | No badge on ⚙; sync button hidden |
 | N15-5 | Click "↺ Vollständig neu synchronisieren" | Button shows "⏳ Sync läuft…" and becomes disabled; status message "↻ Sync gestartet…" appears; progress updates in real-time until "✓ Sync abgeschlossen — Seite neu laden um aktuelle Daten zu verwenden." |

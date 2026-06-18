@@ -36,7 +36,7 @@ from datetime import datetime
 from http.server import SimpleHTTPRequestHandler
 
 _KEYVAULT = 'keyvault'
-_LASTFM_CACHE_FILE = f'{_KEYVAULT}/cflu_lastfm.json'
+_LASTFM_CACHE_FILE = 'cflu_lastfm.json'
 _REFRESH_TOKEN_FILE = f'{_KEYVAULT}/cflu_refresh_token.txt'
 
 _lastfm_sync_state: dict = {

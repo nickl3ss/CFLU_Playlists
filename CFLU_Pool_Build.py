@@ -131,7 +131,7 @@ _AI_MODEL = 'claude-haiku-4-5-20251001'
 
 _KEYVAULT          = 'keyvault'
 _LASTFM_KEY_FILE   = f'{_KEYVAULT}/lastfm_api_key.txt'
-_LASTFM_CACHE_FILE = f'{_KEYVAULT}/cflu_lastfm.json'
+_LASTFM_CACHE_FILE = 'cflu_lastfm.json'
 _LASTFM_MIN_COUNT  = 15  # Tags mit count < 15 werden ignoriert
 
 # Bekannte Nicht-Genre-Tags auf Last.fm (lowercase) — werden vor classify() gefiltert

@@ -7,8 +7,10 @@ keyvault/cflu_refresh_token.txt
 keyvault/anthropic_api_key.txt
 keyvault/lastfm_api_key.txt
 keyvault/lastfm_api_secret.txt
-keyvault/cflu_lastfm.json
 keyvault/DB.txt
+
+# Last.fm metadata cache (auto-generated, not a secret)
+cflu_lastfm.json
 
 
 # Check-script für Webspace als Test für Transformation auf Webspace (lokal, nicht ins Repo)

@@ -32,7 +32,6 @@
 │   ├── anthropic_api_key.txt   # Anthropic API key (for AI genre + mood tagging)
 │   ├── lastfm_api_key.txt      # Last.fm API key
 │   ├── lastfm_api_secret.txt   # Last.fm API secret
-│   ├── cflu_lastfm.json        # Last.fm cache (auto-generated)
 │   └── DB.txt                  # Online DB credentials
 ├── cflu.service                # systemd user-service for Linux auto-start
 ├── docs/
