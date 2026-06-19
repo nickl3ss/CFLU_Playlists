@@ -1253,8 +1253,10 @@ function makeRow(idx, t, num, delta, cc, isCd, isRef) {
   row.className = 'tr' + (isCd ? ' cooldown' : '') + (isRef ? ' ref-track' : '');
   row.dataset.idx = idx;
   const engColor = t.energy >= 90 ? '#1db954' : t.energy >= 75 ? '#a855f7' : t.energy >= 60 ? '#f7c948' : '#535353';
-  const song   = t.song.length > 32 ? t.song.slice(0, 30) + '…' : t.song;
-  const artist = t.artist.length > 28 ? t.artist.slice(0, 26) + '…' : t.artist;
+  const songRaw   = t.song   || '';
+  const artistRaw = t.artist || '';
+  const song   = songRaw.length   > 32 ? songRaw.slice(0, 30)   + '…' : songRaw;
+  const artist = artistRaw.length > 28 ? artistRaw.slice(0, 26) + '…' : artistRaw;
   const explicitBadge = t.explicit ? '<span class="explicit-badge">E</span>' : '';
   const genreColor = t.avg_color || 'var(--text2)';
   let genreHtml = '';

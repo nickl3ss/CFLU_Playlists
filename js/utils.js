@@ -28,7 +28,6 @@ export function lerpColor(t, stops) {
   }
   return stops[stops.length - 1];
 }
-export function toRgb(c) { return `rgb(${c.r},${c.g},${c.b})`; }
 export function toHex(c) { return '#' + [c.r, c.g, c.b].map(x => x.toString(16).padStart(2, '0')).join(''); }
 
 export function camCompat(c1, c2) {
@@ -172,18 +171,33 @@ export function calcEraScore(t, cur) {
 }
 
 // calcSortScore — linear combination of calibrated-by-use components:
-//   camPoints    [0,100,200]  Camelot compatibility; green outweighs all other differences.
-//   phasePoints  [0–200]      calcPhaseScore (0–100) × 2, equal weight to Camelot.
-//   energyPoints [0–100]      direct energy value; secondary tie-breaker.
-//   bridge       [0,50]       bonus for bridge-subgenre tracks.
-//   dEnergy      (≤0)         penalty: Δenergy ×-2 outside ±15.
-//   loudScore    [0,7]        reward: 7 at same loudness, 0 at diff ≥7 dB.
-//   valenceScore [0,6]        reward: 6 at same valence, 0 at diff ≥30.
-//   danceScore   [0,5]        reward: 5 at same danceability (B/C only), 0 at diff ≥25.
-//   moodScore    [0,8]        reward: proportional tag overlap from mood_tags field.
-//   colorScore   [0,10]       reward: similar Everynoise avg_color (sonic texture proximity).
-//   xyScore      [0,10]       reward: similar Everynoise avg_xy position (genre space proximity); no Math.round() — sub-integer diffs are visible in ranking.
-//   eraScore     [0,30]       reward: ≤5yr gap = 30, linear decay to 0 at ≥15yr gap.
+//   camPoints      [0,100,200]  Camelot compatibility; green outweighs all other differences.
+//   phasePoints    [0–200]      calcPhaseScore (0–100) × 2, equal weight to Camelot.
+//   energyPoints   [0–100]      direct energy value; secondary tie-breaker.
+//   bridge         [0,50]       bonus for bridge-subgenre tracks.
+//   dEnergy        (≤0)         penalty: Δenergy ×-2 outside ±15.
+//   loudScore      [0,7]        reward: 7 at same loudness, 0 at diff ≥7 dB.
+//   valenceScore   [0,6]        reward: 6 at same valence, 0 at diff ≥30.
+//   danceScore     [0,5]        reward: 5 at same danceability (B/C only), 0 at diff ≥25.
+//   moodScore      [0,8]        reward: proportional tag overlap from mood_tags field.
+//   colorScore     [0,10]       reward: similar Everynoise avg_color (sonic texture proximity).
+//   genreDistScore [0,25]       reward: cosine similarity of Last.fm genre_conf vectors;
+//                               falls back to xyScore [0,10] when genre_conf absent on either track.
+//   eraScore       [0,30]       reward: ≤5yr gap = 30, linear decay to 0 at ≥15yr gap.
+function _cosineSim(a, b) {
+  // Cosine similarity between two genre_conf objects {mainId: float}.
+  // Returns 0 if either is falsy/empty.
+  if (!a || !b) return 0;
+  let dot = 0, na = 0, nb = 0;
+  for (const [id, va] of Object.entries(a)) {
+    na += va * va;
+    if (b[id] !== undefined) dot += va * b[id];
+  }
+  for (const vb of Object.values(b)) nb += vb * vb;
+  if (!na || !nb) return 0;
+  return dot / (Math.sqrt(na) * Math.sqrt(nb));
+}
+
 function _colorDist(h1, h2) {
   if (!h1 || !h2 || h1.length < 7 || h2.length < 7) return 0;
   const p = h => [parseInt(h.slice(1,3),16)/255, parseInt(h.slice(3,5),16)/255, parseInt(h.slice(5,7),16)/255];
@@ -214,11 +228,16 @@ export function calcSortScore(t, cur, phase, allowLog2 = false) {
     ? Math.round(8 * t.mood_tags.filter(tag => cur.mood_tags.includes(tag)).length / Math.min(t.mood_tags.length, cur.mood_tags.length)) : 0;
   const colorScore = (t.avg_color && cur.avg_color)
     ? Math.max(0, Math.round(10 * (1 - _colorDist(t.avg_color, cur.avg_color) / 1.732))) : 0;
-  const xyScore    = (t.avg_xy && cur.avg_xy)
-    ? Math.max(0, 10 * (1 - Math.sqrt((t.avg_xy[0] - cur.avg_xy[0]) ** 2 + (t.avg_xy[1] - cur.avg_xy[1]) ** 2) / Math.SQRT2)) : 0;
+  // genreDistScore: cosine similarity of Last.fm genre_conf vectors (max 25).
+  // Falls back to Everynoise avg_xy distance (max 10) when genre_conf absent.
+  const genreDistScore = (t.genre_conf && cur.genre_conf && Object.keys(t.genre_conf).length && Object.keys(cur.genre_conf).length)
+    ? Math.max(0, Math.round(25 * _cosineSim(t.genre_conf, cur.genre_conf)))
+    : (t.avg_xy && cur.avg_xy)
+      ? Math.max(0, 10 * (1 - Math.sqrt((t.avg_xy[0] - cur.avg_xy[0]) ** 2 + (t.avg_xy[1] - cur.avg_xy[1]) ** 2) / Math.SQRT2))
+      : 0;
   const eraScore   = calcEraScore(t, cur);
 
-  return camPoints + phasePoints + energyPoints + bpmTransScore + bridge + dEnergy + loudScore + valScore + danceScore + moodScore + colorScore + xyScore + eraScore;
+  return camPoints + phasePoints + energyPoints + bpmTransScore + bridge + dEnergy + loudScore + valScore + danceScore + moodScore + colorScore + genreDistScore + eraScore;
 }
 
 const _BPM_HINTS = {

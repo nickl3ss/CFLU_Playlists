@@ -4,7 +4,7 @@
 
 import { resolveTrack, resolveArtist, resolveArtistAggregates, resolveAlbumAggregates, SOURCE_PRECEDENCE } from './resolve.js';
 import { bpmGroup, groupIdx, neighbour, fmtDur, fmtMin, titleKey, titleDuplicate,
-         camCompat, camStrictOk, lerpColor, toHex, toRgb,
+         camCompat, camStrictOk, lerpColor, toHex,
          attrScore, calcPhaseScore, calcSortScore, calcEraScore, trapezScore, isHalfDouble,
          camelotZoneDistance, bpmHint, calcBpmTransitionScore, effectiveBpm } from './utils.js';
 import { GENRE_CONFIG, getNeighboursWeighted, getNeighbours, bridgeTags,
@@ -62,7 +62,6 @@ function expect(actual) {
 // ============================================================
 //  STATE SETUP
 // ============================================================
-state.maxJump      = 10;
 state.wodEnergyMin = 50;
 state.wodEnergyMax = 85;
 state.currentPhase = 'C';
@@ -238,9 +237,9 @@ describe('pickNext — nächsten Track auswählen', () => {
     const next=pickNext([T.a2,T.b1,T.a3],T.a1,new Set(),new Set(),new Map(),10);
     expect(next.bpm).toBeGreaterThanOrEqual(T.a1.bpm);
   });
-  it('BPM-Sprung <= maxJump', () => {
+  it('BPM-Sprung liegt im log2-Toleranzbereich (d < 0.135)', () => {
     const next=pickNext([T.a2,T.a3,T.b1],T.a1,new Set(),new Set(),new Map(),10);
-    expect(next.bpm - T.a1.bpm).toBeLessThanOrEqual(state.maxJump);
+    expect(Math.abs(Math.log2(next.bpm / T.a1.bpm))).toBeLessThan(0.135);
   });
   it('BPM-Ratio > 10 % → null (log2-Score = 0.00, kein Fallback)', () => {
     // T.far: 145 BPM from 120 BPM — ratio=1.208, d=0.272 > 0.135 → score=0.00 → ausgeschlossen
@@ -403,13 +402,11 @@ describe('camStrictOk — Strikter Camelot-Check', () => {
   it('null → false',                            () => expect(camStrictOk(null,'9B')).toBeFalsy());
 });
 
-describe('toHex / toRgb — Farb-Konvertierung', () => {
+describe('toHex — Farb-Konvertierung', () => {
   it('toHex Schwarz',       () => expect(toHex({r:0,g:0,b:0})).toBe('#000000'));
   it('toHex Weiß',          () => expect(toHex({r:255,g:255,b:255})).toBe('#ffffff'));
   it('toHex Spotify-Grün',  () => expect(toHex({r:29,g:185,b:84})).toBe('#1db954'));
   it('toHex zweistellig',   () => expect(toHex({r:1,g:2,b:3})).toBe('#010203'));
-  it('toRgb Format',        () => expect(toRgb({r:29,g:185,b:84})).toBe('rgb(29,185,84)'));
-  it('toRgb Schwarz',       () => expect(toRgb({r:0,g:0,b:0})).toBe('rgb(0,0,0)'));
 });
 
 describe('buildPlateau — Phase A Plateau-Algorithmus', () => {
@@ -598,7 +595,7 @@ describe('pickNext — Top-5 Zufall und Carry-over', () => {
       const t = pickNext(pool, cur, new Set(), new Set(), new Map(), 10, []);
       if (!t) continue;
       expect(t.bpm).toBeGreaterThanOrEqual(cur.bpm);
-      expect(t.bpm - cur.bpm).toBeLessThanOrEqual(state.maxJump);
+      expect(Math.abs(Math.log2(t.bpm / cur.bpm))).toBeLessThan(0.135);
       expect(t.energy).toBeGreaterThanOrEqual(state.wodEnergyMin);
       expect(t.energy).toBeLessThanOrEqual(state.wodEnergyMax);
     }
@@ -629,16 +626,12 @@ describe('pickNext — Top-5 Zufall und Carry-over', () => {
   });
 
   it('buildUp produziert bei Mehrfachaufruf unterschiedliche Playlists', () => {
-    // maxJump=10 nötig damit ≥3 Kandidaten pro Schritt für Zufallspick existieren
-    // (state.maxJump=5 per DJ-Norm-Default aus #94 würde nur 1 Kandidat liefern)
-    // 10 Läufe statt 3: P(alle identisch) = (1/3)^9 < 0.01% — zuverlässig
-    const saved = state.maxJump; state.maxJump = 10;
-    try {
-      const fullPool = [T.a1,T.a2,T.a3,T.b1,T.b2,T.b3,T.c1];
-      const runs = Array.from({length: 10}, () =>
-        buildUp(fullPool, T.a1, new Set(), new Set(), new Map(), 0, 5).map(t=>t.id).join(','));
-      expect(new Set(runs).size).toBeGreaterThan(1);
-    } finally { state.maxJump = saved; }
+    // Pool hat ≥3 gleichwertige Kandidaten pro Schritt → Top-5-Zufallspick liefert Variation.
+    // 10 Läufe: P(alle identisch) = (1/3)^9 < 0.01% — zuverlässig.
+    const fullPool = [T.a1,T.a2,T.a3,T.b1,T.b2,T.b3,T.c1];
+    const runs = Array.from({length: 10}, () =>
+      buildUp(fullPool, T.a1, new Set(), new Set(), new Map(), 0, 5).map(t=>t.id).join(','));
+    expect(new Set(runs).size).toBeGreaterThan(1);
   });
 });
 
@@ -720,9 +713,9 @@ describe('pickPrev — vorherigen Track auswählen', () => {
     const prev = pickPrev([T.pre, T.low], T.a1, new Set(), new Set(), new Map(), 10);
     if (prev) expect(prev.bpm).toBeLessThanOrEqual(T.a1.bpm);
   });
-  it('BPM-Abfall <= maxJump', () => {
+  it('BPM-Abfall liegt im log2-Toleranzbereich (d < 0.135)', () => {
     const prev = pickPrev([T.pre, T.low], T.a1, new Set(), new Set(), new Map(), 10);
-    if (prev) expect(T.a1.bpm - prev.bpm).toBeLessThanOrEqual(state.maxJump);
+    if (prev) expect(Math.abs(Math.log2(T.a1.bpm / prev.bpm))).toBeLessThan(0.135);
   });
   it('Bereits verwendeter Track → null', () => {
     expect(pickPrev([T.pre], T.a1, new Set(['pre']), new Set(), new Map(), 10)).toBeNull();
@@ -1020,7 +1013,7 @@ describe('pickNext — Subgenre-Eskalation', () => {
   const diffSubgenre = mkT({id:'sg2',song:'Other Track',artist:'Band O',bpm:124,camelot:'10B',energy:76,dur:200,genre:'Rock',bpmg:'D',genres_raw:['classic rock']});
 
   it('Track mit gleichem genres_raw-Tag wird bevorzugt (Stufe 1)', () => {
-    state.maxJump = 10; state.wodEnergyMin = 50; state.wodEnergyMax = 90; state.currentPhase = 'C';
+    state.wodEnergyMin = 50; state.wodEnergyMax = 90; state.currentPhase = 'C';
     const pool = [sameSubgenre, diffSubgenre];
     const results = new Set();
     for (let i = 0; i < 20; i++) {
@@ -1031,7 +1024,7 @@ describe('pickNext — Subgenre-Eskalation', () => {
   });
 
   it('Neighbour-Genre-Track erscheint wenn kein Same-Genre-Track verfügbar (Stufe 4)', () => {
-    state.maxJump = 10; state.wodEnergyMin = 50; state.wodEnergyMax = 90; state.currentPhase = 'C';
+    state.wodEnergyMin = 50; state.wodEnergyMax = 90; state.currentPhase = 'C';
     const curRock = {bpm:120, camelot:'9B', energy:72, genre:'Rock', genres_raw:[]};
     const punkTrack = mkT({id:'pk1',song:'Punk Track',artist:'Band P',bpm:124,camelot:'10B',energy:76,dur:200,genre:'Punk',bpmg:'D',genres_raw:[]});
     const t = pickNext([punkTrack], curRock, new Set(), new Set(), new Map(), 10, []);

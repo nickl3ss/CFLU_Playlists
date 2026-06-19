@@ -257,9 +257,6 @@ export function updatePlaylistMode(wod) {
   _rotGroup.add(_playlistMarkers);
 }
 
-export function clearPlaylistMode() {
-  _clearPlaylistObjects();
-}
 
 export function resizeGenreSpace() { _onResize(); }
 

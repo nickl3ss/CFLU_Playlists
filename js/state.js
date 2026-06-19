@@ -5,7 +5,6 @@ export const state = {
   selectedTrack: null,
   poolGenre: '',
   position: 'start',
-  maxJump: 5,      // deprecated — stillgelegt; wird vom Algorithmus nicht mehr gelesen
   allowLog2: false, // log2-Score: Half/Double-Time ×2/÷2 als kompatibel werten
   explicitFilter: 'allow', // 'allow' | 'exclude' | 'only'
   bpmTol: 5,

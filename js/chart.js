@@ -39,7 +39,7 @@ export function drawChart(wodCount) {
   };
 }
 
-export function _drawChart(wodCount, hoverIdx) {
+function _drawChart(wodCount, hoverIdx) {
   const canvas = document.getElementById('bpm-canvas');
   if (!canvas || !state.chartCtx || !state.bpmChartData.length) return;
   const W = canvas.offsetWidth || 800;

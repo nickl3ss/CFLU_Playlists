@@ -7,6 +7,8 @@ import { state } from './state.js';
 
 const NEIGHBOUR_BLEND_FACTOR = 0.3;
 
+const _energyOk = (t, min, max) => t.energy >= min && t.energy <= max;
+
 function td() {
   // Lazy accessor — only evaluated when generation runs, not at module load time
   return typeof TRACK_DATA !== 'undefined' ? TRACK_DATA : {tracks: [], stats: {}};
@@ -97,7 +99,7 @@ function _pick(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carr
     if (titleDuplicate(t.song, usedTitleKeys)) return false;
     const ak = t.artist.split(',')[0].trim().toLowerCase();
     if ((usedArtists.get(ak) || 0) >= maxArtist) return false;
-    if (t.energy < wodEnergyMin || t.energy > wodEnergyMax) return false;
+    if (!_energyOk(t, wodEnergyMin, wodEnergyMax)) return false;
     if (!_camLockOk(t)) return false;
     if (state.explicitFilter === 'exclude' && t.explicit) return false;
     if (state.explicitFilter === 'only' && !t.explicit) return false;
@@ -158,7 +160,7 @@ function _pick(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carr
         if (t.genre !== nb.mainId) return false;
         // Restore energy check unless the track is a half/double-time match
         const isHD = allowLog2 && isHalfDouble(cur.bpm, t.bpm);
-        if (!isHD && (t.energy < wodEnergyMin || t.energy > wodEnergyMax)) return false;
+        if (!isHD && !_energyOk(t, wodEnergyMin, wodEnergyMax)) return false;
         return true;
       });
       const s4cam = applyInnerCamelot(s4);
@@ -268,7 +270,7 @@ export function buildDown(pool, endT, usedIds, usedTitleKeys, usedArtists, count
       if (titleDuplicate(t.song, usedTitleKeys)) return false;
       const ak = t.artist.split(',')[0].trim().toLowerCase();
       if ((usedArtists.get(ak) || 0) >= maxArtist) return false;
-      if (t.energy < wodEnergyMin || t.energy > wodEnergyMax) return false;
+      if (!_energyOk(t, wodEnergyMin, wodEnergyMax)) return false;
       if (!_camLockOk(t)) return false;
       if (state.explicitFilter === 'exclude' && t.explicit) return false;
       if (state.explicitFilter === 'only' && !t.explicit) return false;

@@ -63,7 +63,11 @@
     ├── algorithm.js            # Playlist generation — no DOM, no state writes
     ├── chart.js                # BPM chart — reads state, writes canvas only
     ├── spotify.js              # Auth proxy + export + device control — browser never holds Spotify token (Invariant 2)
+    ├── genre_space.js          # 3D genre/BPM visualisation (Three.js) — reads state + TRACK_DATA, writes canvas only
+    ├── optimizer.js            # Playlist import, flow analysis, reorder, gap fill — no DOM, no token handling
     ├── upload.js               # CSV upload UI (standalone <script> in HTML) + exported pure helpers (Node.js-safe)
+    ├── resolve.js              # SOURCE_PRECEDENCE + pure resolve functions — no DOM, no state, no Spotify calls
+    ├── register.js             # Pool Register tab — lazy-loads data/*.json, writes DOM only; no Spotify, no state mutation
     └── app.js                  # UI wiring — imports all modules; no business logic
 ```
 
