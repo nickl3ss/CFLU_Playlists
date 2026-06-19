@@ -154,6 +154,8 @@ function onPhaseSelect(phase) {
     state.wodMinutes = 15;
     document.getElementById('dur-slider').value = DUR_STEPS.indexOf(15);
     document.getElementById('dur-badge').textContent = '15 min';
+    document.getElementById('q-dur-slider').value = DUR_STEPS.indexOf(15);
+    document.getElementById('q-dur-badge').textContent = '15 min';
   }
   updateFilterList();
   updateAmpel();
@@ -695,6 +697,9 @@ function onDurSlider(el) {
   const min = DUR_STEPS[+el.value];
   state.wodMinutes = min;
   document.getElementById('dur-badge').textContent = min + ' min';
+  document.getElementById('q-dur-badge').textContent = min + ' min';
+  const other = el.id === 'dur-slider' ? 'q-dur-slider' : 'dur-slider';
+  document.getElementById(other).value = el.value;
   onLenChange();
 }
 function onLenChange() {
@@ -1375,6 +1380,7 @@ function init() {
   );
   // Settings
   document.getElementById('dur-slider').addEventListener('input', e => onDurSlider(e.target));
+  document.getElementById('q-dur-slider').addEventListener('input', e => onDurSlider(e.target));
   document.getElementById('xfade-slider').addEventListener('input', e => onXfadeSlider(e.target));
   document.getElementById('log2-toggle').addEventListener('change', onLog2Toggle);
   document.getElementById('cd-toggle').addEventListener('change', onCdToggle);
