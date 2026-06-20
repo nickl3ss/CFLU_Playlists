@@ -14,7 +14,7 @@ import { addTrack, pickNext, pickPrev,
          buildUp, buildDown, buildPlateau, buildDecreasing, buildAlternating, pickReplacement } from './algorithm.js';
 import { state } from './state.js';
 import { sanitizeFilename, extractPlaylistName, formatUploadSuccess, classifyUploadResult } from './upload.js';
-import { bpmStopsForPhase, PHASE_CONFIG, RED, YEL, GRN } from './config.js';
+import { bpmStopsForPhase, PHASE_CONFIG, RED, YEL, GRN, MONO_STEP_BACK_BPM } from './config.js';
 
 // ============================================================
 //  MINI TEST FRAMEWORK
@@ -288,9 +288,9 @@ describe('buildUp — Playlist aufwärts aufbauen', () => {
   it('Erster Track ist immer startT', () => {
     expect(buildUp(FULL_POOL,T.a1,new Set(),new Set(),new Map(),0,0)[0].id).toBe('a1');
   });
-  it('BPM steigt nie', () => {
+  it('BPM fällt nie um mehr als MONO_STEP_BACK_BPM', () => {
     const res=buildUp([T.a1,T.a2,T.a3,T.b1,T.b2,T.b3,T.c1],T.a1,new Set(),new Set(),new Map(),0,0);
-    for(let i=1;i<res.length;i++) expect(res[i].bpm).toBeGreaterThanOrEqual(res[i-1].bpm);
+    for(let i=1;i<res.length;i++) expect(res[i].bpm).toBeGreaterThanOrEqual(res[i-1].bpm - MONO_STEP_BACK_BPM);
   });
   it('Kein Track doppelt', () => {
     const res=buildUp([T.a1,T.a2,T.a3,T.b1,T.b2,T.b3,T.c1],T.a1,new Set(),new Set(),new Map(),0,0);
@@ -656,7 +656,7 @@ describe('Integration — vollständige Playlist', () => {
     const after=buildUp(pool,ref,used,tks,arts,0,3);
     after.shift();
     for(let i=1;i<before.length;i++) expect(before[i].bpm).toBeGreaterThanOrEqual(before[i-1].bpm);
-    for(let i=1;i<after.length;i++)  expect(after[i].bpm).toBeGreaterThanOrEqual(after[i-1].bpm);
+    for(let i=1;i<after.length;i++)  expect(after[i].bpm).toBeGreaterThanOrEqual(after[i-1].bpm - MONO_STEP_BACK_BPM);
   });
   it('Kein Track doppelt in kombinierter Playlist', () => {
     const res=buildUp([T.pre,T.a1,T.a2,T.a3,T.b1,T.b2,T.b3,T.c1],T.a1,new Set(),new Set(),new Map(),0,0);
@@ -795,9 +795,9 @@ describe('buildAlternating — Midpoint Alternating-Build', () => {
     const mid = Math.floor(res.length / 2);
     expect(Math.abs(idx - mid)).toBeLessThanOrEqual(1);
   });
-  it('BPM-Monotonie: jeder Track >= Vorgänger', () => {
+  it('BPM fällt nie um mehr als MONO_STEP_BACK_BPM pro Schritt', () => {
     const res = buildAlternating(altPool, T.a1, new Set(['a1']), new Set(), new Map(), targetSec);
-    for (let i = 1; i < res.length; i++) expect(res[i].bpm).toBeGreaterThanOrEqual(res[i-1].bpm);
+    for (let i = 1; i < res.length; i++) expect(res[i].bpm).toBeGreaterThanOrEqual(res[i-1].bpm - MONO_STEP_BACK_BPM);
   });
   it('Kein Track doppelt', () => {
     const res = buildAlternating(altPool, T.a1, new Set(['a1']), new Set(), new Map(), targetSec);

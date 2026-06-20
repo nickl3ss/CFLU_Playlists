@@ -337,7 +337,7 @@ After user confirms testing is done, clear the **New Since Last Push** section a
 1. Redirect URI must be exactly `http://127.0.0.1:{PORT}/api/spotify/callback` (default PORT=8888) — must match Spotify Dashboard exactly
 2. `client_secret` and `refresh_token` must **never** leave the server (cflu_server.py). The browser never holds a Spotify token — all API calls proxied through `POST /api/spotify/call`.
 3. Spotify export: max. 100 tracks per batch (API limit) — always hard-cap
-4. BPM must never go backwards in phase B/C (ascending phases)
+4. BPM in ascending phases (B/C) may step back by at most `MONO_STEP_BACK_BPM` (10 BPM effective) per pick; large backward steps are forbidden. Overall trend must rise — enforced by `getPhasePool` BPM-band filter preventing out-of-band drift.
 5. BPM groups: max. ±1 step per move (except _pick() stage 4 BPM escalation)
 6. _pick() stage 4 (BPM escalation) intentionally ignores energy filter and BPM groups — last resort within _pick(), not a UI phase
 7. `cflu_tracks.js` must be loaded BEFORE the ES modules (`<script>` in `<head>`)

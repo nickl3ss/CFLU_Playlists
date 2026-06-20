@@ -10,6 +10,16 @@
 
 ## New Since Last Push
 
+### N12 · BPM-Übergänge — Spotify-sicherer Gate & relaxierte Monotonie
+
+| # | Step | Erwartet |
+|---|------|----------|
+| N12-1 | Phase C Playlist generieren (Position=Start); BPM-Chart öffnen | BPM-Kurve steigt über die Playlist; kein Sprung größer als ~7,5 % des aktuellen BPM (Gate) |
+| N12-2 | BPM-Chart: einzelne Kurvensenken prüfen | Bis zu 10 BPM Rückschritt zwischen zwei aufeinanderfolgenden Tracks möglich (kein harter Fehler) |
+| N12-3 | Log aufklappen → EINSTELLUNGEN-Block lesen | Kein "Ziel-BPM"-Eintrag (wurde entfernt); Referenz-Song BPM steht im Song-Block |
+| N12-4 | Generierungslog: BPM-Übergänge prüfen | Keine Übergänge die 4:3 oder 3:2 Ratio nur grob approximieren (z.B. 140→174 erscheint nicht mehr) |
+| N12-5 | Phase C mit leerem BPM-Gewicht (Score-Gewichte: BPM=0) generieren | BPM bleibt im Phase-C-Band [125–195]; kein Drift in Phase-B-Territorium |
+
 ### N11 · Pool Register Tab (Issue #184)
 
 | # | Step | Expected |

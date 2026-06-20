@@ -826,8 +826,6 @@ function buildGenLog(genre, wod, cd, warnMsgs) {
   }
   add(`  WOD-Dauer:       ${state.wodMinutes} min`);
   if (state.crossfadeSec > 0) add(`  Crossfade:       ${state.crossfadeSec}s (Spotify Mixing)`);
-  const bpmTarget = +document.getElementById('bpm-slider').value;
-  add(`  Ziel-BPM:        ${bpmTarget} BPM  ±${state.bpmTol}`);
   add(`  Energy-Bereich:  ${state.wodEnergyMin}–${state.wodEnergyMax}`);
   const sw = state.scoreWeights;
   add(`  Score-Gewichte:  BPM:${sw.bpm} Cam:${sw.camelot} E:${sw.energy} Loud:${sw.loudness} Val:${sw.valence} Dance:${sw.dance}`);

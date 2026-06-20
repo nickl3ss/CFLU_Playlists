@@ -1,6 +1,6 @@
 // algorithm.js — playlist generation only; no DOM, no state writes, no Spotify calls
 // TRACK_DATA accessed lazily — safe to import in Node.js tests without cflu_tracks.js
-import { GERMAN_GENRES, PHASE_CONFIG, CAM_ZONE1, CAM_ZONE2 } from './config.js';
+import { GERMAN_GENRES, PHASE_CONFIG, CAM_ZONE1, CAM_ZONE2, BPM_GATE_MIN_SCORE, MONO_STEP_BACK_BPM } from './config.js';
 import { getNeighboursWeighted, getRoleBonus, getSubgenres, bridgeTagsForMain } from './genres.js';
 import { titleKey, titleDuplicate, camStrictOk, camCompat, calcPhaseScore, calcSortScore, isHalfDouble, calcBpmTransitionScore, effectiveBpm } from './utils.js';
 import { state } from './state.js';
@@ -29,7 +29,12 @@ export function getPhasePool(genre, phase) {
   const cfg = PHASE_CONFIG[phase] || {};
   const eMin = cfg.energy ? cfg.energy[0] : 0;
   const eMax = cfg.energy ? cfg.energy[1] : 100;
-  return base.filter(t => t.energy >= eMin && t.energy <= eMax);
+  const [bpmLo, bpmHi] = cfg.bpm || [0, 999];
+  return base.filter(t => {
+    if (t.energy < eMin || t.energy > eMax) return false;
+    const eff = effectiveBpm(t.bpm, phase);
+    return eff >= bpmLo && eff <= bpmHi;
+  });
 }
 
 export function getPhasePoolWithNeighbours(genre, phase) {
@@ -81,13 +86,15 @@ function _pick(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carr
   const { wodEnergyMin, wodEnergyMax, currentPhase } = state;
   const maxArtist = Math.max(1, Math.floor(totalTracks * 0.1));
 
-  // BPM gate: score 0.00 = hard exclude within a phase.
-  // Monotonicity: effective BPM (×2/÷2 normalised to phase band) must not reverse direction.
+  // BPM gate: score must reach BPM_GATE_MIN_SCORE (Spotify-crossfade-safe threshold).
+  // Ascending monotonicity: effective BPM may step back by at most MONO_STEP_BACK_BPM
+  // so the playlist trends upward overall without being locked step-by-step.
+  // Descending monotonicity: stays strict (no forward step allowed).
   const bpmOk = t => {
-    if (calcBpmTransitionScore(cur.bpm, t.bpm) === 0) return false;
+    if (calcBpmTransitionScore(cur.bpm, t.bpm) < BPM_GATE_MIN_SCORE) return false;
     const effCur = effectiveBpm(cur.bpm, currentPhase);
     const effT   = effectiveBpm(t.bpm, currentPhase);
-    if (asc  && effT <  effCur) return false;
+    if (asc  && effT < effCur - MONO_STEP_BACK_BPM) return false;
     if (!asc && effT >  effCur) return false;
     return true;
   };
@@ -266,7 +273,7 @@ export function buildDown(pool, endT, usedIds, usedTitleKeys, usedArtists, count
     const cands = pool.filter(t => {
       if (usedIds.has(t.id || t.song)) return false;
       if (t.bpm > cur.bpm) return false;
-      if (calcBpmTransitionScore(cur.bpm, t.bpm) === 0) return false;
+      if (calcBpmTransitionScore(cur.bpm, t.bpm) < BPM_GATE_MIN_SCORE) return false;
       if (titleDuplicate(t.song, usedTitleKeys)) return false;
       const ak = t.artist.split(',')[0].trim().toLowerCase();
       if ((usedArtists.get(ak) || 0) >= maxArtist) return false;
@@ -352,7 +359,7 @@ export function buildDecreasing(pool, startBpm, usedIds, usedTitleKeys, usedArti
       cands = pool.filter(t => {
         if (!baseFilter(t)) return false;
         if (t.bpm > cur.bpm) return false;
-        return calcBpmTransitionScore(cur.bpm, t.bpm) > 0;
+        return calcBpmTransitionScore(cur.bpm, t.bpm) >= BPM_GATE_MIN_SCORE;
       }).sort((a, b) => a.bpm - b.bpm);
 
       if (!cands.length) {
@@ -366,7 +373,7 @@ export function buildDecreasing(pool, startBpm, usedIds, usedTitleKeys, usedArti
       cands = pool.filter(t => {
         if (!baseFilter(t)) return false;
         if (t.bpm > cur.bpm) return false;
-        return calcBpmTransitionScore(cur.bpm, t.bpm) > 0;
+        return calcBpmTransitionScore(cur.bpm, t.bpm) >= BPM_GATE_MIN_SCORE;
       }).sort((a, b) => calcPhaseScore(b, 'D') - calcPhaseScore(a, 'D'));
     }
 
