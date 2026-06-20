@@ -82,6 +82,17 @@ function _camLockOk(t) {
   return true;
 }
 
+function _pfOk(t) {
+  const pf = state.poolFilter;
+  if (pf.minBpm > 0 && t.bpm < pf.minBpm) return false;
+  if (pf.maxBpm < 220 && t.bpm > pf.maxBpm) return false;
+  if (pf.minEnergy > 0 && (t.energy || 0) < pf.minEnergy) return false;
+  if (pf.minValence > 0 && (t.valence || 0) < pf.minValence) return false;
+  if (pf.minDance > 0 && (t.dance || 0) < pf.minDance) return false;
+  if (pf.minPopularity > 0 && (t.popularity || 0) < pf.minPopularity) return false;
+  return true;
+}
+
 function _pick(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carryover, asc) {
   const { wodEnergyMin, wodEnergyMax, currentPhase } = state;
   const maxArtist = Math.max(1, Math.floor(totalTracks * 0.1));
@@ -328,6 +339,7 @@ export function pickReplacement(pool, prev, next, excludeIds, usedTitleKeys, use
     if (state.explicitFilter === 'only' && !t.explicit) return false;
     if (prev && calcBpmTransitionScore(prev.bpm, t.bpm) === 0) return false;
     if (next && calcBpmTransitionScore(t.bpm, next.bpm) === 0) return false;
+    if (!_pfOk(t)) return false;
     return true;
   });
   if (!cands.length) return null;

@@ -1,5 +1,5 @@
 // state.js — single mutable app state; never import app.js or algorithm.js (would create cycles)
-import { SCORE_WEIGHTS_DEFAULT } from './config.js';
+import { SCORE_WEIGHTS_DEFAULT, POOL_FILTER_DEFAULT } from './config.js';
 export const state = {
   currentPhase: 'C',
   selMode: 'filter',
@@ -7,6 +7,7 @@ export const state = {
   poolGenre: '',
   position: 'start',
   scoreWeights: { ...SCORE_WEIGHTS_DEFAULT },
+  poolFilter: { ...POOL_FILTER_DEFAULT },
   explicitFilter: 'allow', // 'allow' | 'exclude' | 'only'
   bpmTol: 5,
   camLetter: 'both',   // 'A' | 'both' | 'B'

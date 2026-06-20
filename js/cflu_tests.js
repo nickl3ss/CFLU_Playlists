@@ -1594,6 +1594,61 @@ describe('explicitFilter — Explicit-Songs Filter', () => {
 });
 
 // ============================================================
+//  poolFilter — Track-Filter Hard Gate
+// ============================================================
+describe('poolFilter — Track-Filter Hard Gate', () => {
+  const prev = mkT({id:'pf0',song:'Prev',artist:'Band P',bpm:120,camelot:'9B',energy:75,dur:200,genre:'Rock',bpmg:'D'});
+  const next = mkT({id:'pf1',song:'Next',artist:'Band N',bpm:124,camelot:'9B',energy:75,dur:200,genre:'Rock',bpmg:'D'});
+  const cand = mkT({id:'pfc',song:'Cand',artist:'Band C',bpm:122,camelot:'9B',energy:78,valence:60,dance:55,popularity:40,dur:200,genre:'Rock',bpmg:'D'});
+
+  function tryPick(filter) {
+    Object.assign(state.poolFilter, { minBpm:0, maxBpm:220, minEnergy:0, minValence:0, minDance:0, minPopularity:0 }, filter);
+    state.lockCamFilter = false;
+    state.explicitFilter = 'allow';
+    const r = pickReplacement([cand], prev, next, new Set(), new Set(), new Map(), 5, 'C', false);
+    return r;
+  }
+
+  it('default (kein Filter) → Kandidat wird zurückgegeben', () => {
+    expect(tryPick({})).not.toBeNull();
+  });
+  it('minBpm zu hoch → Kandidat ausgeschlossen', () => {
+    expect(tryPick({ minBpm: 130 })).toBeNull();
+  });
+  it('minBpm ≤ Kandidat → Kandidat durchgelassen', () => {
+    expect(tryPick({ minBpm: 122 })).not.toBeNull();
+  });
+  it('maxBpm zu niedrig → Kandidat ausgeschlossen', () => {
+    expect(tryPick({ maxBpm: 110 })).toBeNull();
+  });
+  it('maxBpm ≥ Kandidat → Kandidat durchgelassen', () => {
+    expect(tryPick({ maxBpm: 122 })).not.toBeNull();
+  });
+  it('minEnergy zu hoch → Kandidat ausgeschlossen', () => {
+    expect(tryPick({ minEnergy: 80 })).toBeNull();
+  });
+  it('minEnergy ≤ Kandidat → Kandidat durchgelassen', () => {
+    expect(tryPick({ minEnergy: 78 })).not.toBeNull();
+  });
+  it('minValence zu hoch → Kandidat ausgeschlossen', () => {
+    expect(tryPick({ minValence: 65 })).toBeNull();
+  });
+  it('minDance zu hoch → Kandidat ausgeschlossen', () => {
+    expect(tryPick({ minDance: 60 })).toBeNull();
+  });
+  it('minPopularity zu hoch → Kandidat ausgeschlossen', () => {
+    expect(tryPick({ minPopularity: 50 })).toBeNull();
+  });
+  it('minPopularity = 0 (default) → kein Filter aktiv', () => {
+    expect(tryPick({ minPopularity: 0 })).not.toBeNull();
+  });
+  it('nach Tests: poolFilter zurücksetzen', () => {
+    Object.assign(state.poolFilter, { minBpm:0, maxBpm:220, minEnergy:0, minValence:0, minDance:0, minPopularity:0 });
+    expect(state.poolFilter.minBpm).toBe(0);
+  });
+});
+
+// ============================================================
 //  RESOLVE.JS
 // ============================================================
 describe('resolve.js — SOURCE_PRECEDENCE', () => {

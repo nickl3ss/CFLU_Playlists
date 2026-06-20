@@ -24,7 +24,7 @@
   <!-- MODE TAB BAR -->
   <div class="mode-tabs">
     <button class="mode-tab" id="mode-tab-quick">⚡ Quick</button>
-    <button class="mode-tab" id="mode-tab-optimizer">🔧 Optimizer</button>
+    <button class="mode-tab" id="mode-tab-optimizer" disabled title="Nicht verfügbar — Spotify Extended Quota Mode benötigt">🔧 Optimizer</button>
     <button class="mode-tab active" id="mode-tab-advanced">⚙ Advanced</button>
     <button class="mode-tab" id="mode-tab-register">▤ Register</button>
   </div>
@@ -161,33 +161,41 @@
       <select id="genre-sel" style="margin-bottom:10px"></select>
 
       <!-- CAMELOT FILTER — wirkt auf alle Suchmodi -->
-      <div id="cam-filter-wrap" style="margin-bottom:8px;padding-top:8px;border-top:1px solid var(--border)">
-        <div class="sb-label">Tonart-Filter <span class="badge" id="cam-filter-badge" style="display:none"></span></div>
-        <!-- 3-Stufen-Slider: A / Beide / B -->
-        <div class="range-wrap" style="margin-bottom:2px">
-          <input type="range" id="cam-letter-slider" min="0" max="2" step="1" value="1">
+      <details class="sb-section scoring-collapse" id="cam-filter-section">
+        <summary class="scoring-summary">Tonart-Filter <span class="badge" id="cam-filter-badge" style="display:none;margin-left:4px"></span></summary>
+        <div id="cam-filter-wrap" style="padding:4px 10px 0">
+          <div class="cam-filter-inner">
+            <div class="cam-controls">
+              <!-- 3-Stufen-Slider: A / Beide / B -->
+              <div class="range-wrap" style="margin-bottom:2px">
+                <input type="range" id="cam-letter-slider" min="0" max="2" step="1" value="1">
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;margin-bottom:8px">
+                <span class="range-lbl">A</span>
+                <span class="range-lbl" style="text-align:center">Beide</span>
+                <span class="range-lbl" style="text-align:right">B</span>
+              </div>
+              <!-- Camelot-Zahlen -->
+              <div class="search-box">
+                <input type="text" id="cam-numbers"
+                       placeholder="8 9 10  oder  11-2"
+                       autocomplete="off"
+                       style="font-family:'IBM Plex Mono',monospace;font-size:.72rem">
+                <button class="search-clear" id="clear-cam-numbers" style="display:none">×</button>
+              </div>
+              <div class="track-count" id="cam-hint" style="min-height:14px"></div>
+              <div class="toggle-row" id="cam-lock-row" style="margin-top:8px;opacity:.4;pointer-events:none">
+                <span class="toggle-label" style="font-size:var(--fz-xs)">Auf Playlist anwenden</span>
+                <label class="toggle"><input type="checkbox" id="cam-lock-toggle"><span class="toggle-slider"></span></label>
+              </div>
+            </div>
+            <div class="cam-wheel-wrap">
+              <svg id="cam-wheel" viewBox="0 0 180 180" width="148" height="148"></svg>
+              <div class="cam-wheel-legend"><span class="cwl-a">A min</span><span class="cwl-b">B maj</span></div>
+            </div>
+          </div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;margin-bottom:8px">
-          <span class="range-lbl">A</span>
-          <span class="range-lbl" style="text-align:center">Beide Tonarten</span>
-          <span class="range-lbl" style="text-align:right">B</span>
-        </div>
-        <!-- Camelot-Zahlen: Einzeln, kommagetrennt oder Bereiche mit wrap-around -->
-        <div class="search-box">
-          <input type="text" id="cam-numbers"
-                 placeholder="Zahlen: 8 9 10  oder  11-2  (wrap-around)"
-                 autocomplete="off"
-                 style="font-family:'IBM Plex Mono',monospace;font-size:.72rem">
-          <button class="search-clear" id="clear-cam-numbers" style="display:none">×</button>
-        </div>
-        <div class="track-count" id="cam-hint" style="min-height:14px"></div>
-      </div>
-      <div class="toggle-row" id="cam-lock-row" style="margin-top:8px;margin-bottom:8px;opacity:.4;pointer-events:none">
-        <div>
-          <div class="toggle-label">Tonart-Filter auf Playlist anwenden</div>
-        </div>
-        <label class="toggle"><input type="checkbox" id="cam-lock-toggle"><span class="toggle-slider"></span></label>
-      </div>
+      </details>
 
       <!-- MODE: Genre & BPM Filter -->
       <div id="sel-filter">
@@ -312,54 +320,6 @@
       <div class="ampel-hint" id="ampel-hint"></div>
     </div>
 
-    <!-- SCORING WEIGHTS (collapsible, between step2 and step3) -->
-    <details class="sb-section scoring-collapse" id="scoring-weight-section">
-      <summary class="scoring-summary">Score-Gewichtung</summary>
-      <div class="scoring-web-wrap">
-        <svg id="scoring-radar" viewBox="0 0 200 200" width="100%" height="160"></svg>
-      </div>
-      <div class="scoring-inputs">
-        <div class="sw-row">
-          <span class="sw-lbl">BPM</span>
-          <input type="range" class="sw-slider" id="sw-bpm" min="0" max="100" value="40">
-          <input type="number" class="sw-num" id="sn-bpm" min="0" max="100" value="40">
-        </div>
-        <div class="sw-row">
-          <span class="sw-lbl">Camelot</span>
-          <input type="range" class="sw-slider" id="sw-camelot" min="0" max="100" value="20">
-          <input type="number" class="sw-num" id="sn-camelot" min="0" max="100" value="20">
-        </div>
-        <div class="sw-row">
-          <span class="sw-lbl">Energy</span>
-          <input type="range" class="sw-slider" id="sw-energy" min="0" max="100" value="15">
-          <input type="number" class="sw-num" id="sn-energy" min="0" max="100" value="15">
-        </div>
-        <div class="sw-row">
-          <span class="sw-lbl">Loudness</span>
-          <input type="range" class="sw-slider" id="sw-loudness" min="0" max="100" value="10">
-          <input type="number" class="sw-num" id="sn-loudness" min="0" max="100" value="10">
-        </div>
-        <div class="sw-row">
-          <span class="sw-lbl">Valence</span>
-          <input type="range" class="sw-slider" id="sw-valence" min="0" max="100" value="8">
-          <input type="number" class="sw-num" id="sn-valence" min="0" max="100" value="8">
-        </div>
-        <div class="sw-row">
-          <span class="sw-lbl">Dance</span>
-          <input type="range" class="sw-slider" id="sw-dance" min="0" max="100" value="7">
-          <input type="number" class="sw-num" id="sn-dance" min="0" max="100" value="7">
-        </div>
-        <div class="sw-row">
-          <span class="sw-lbl">Pop</span>
-          <input type="range" class="sw-slider" id="sw-popularity" min="0" max="100" value="5">
-          <input type="number" class="sw-num" id="sn-popularity" min="0" max="100" value="5">
-        </div>
-      </div>
-      <div class="sw-reset-row">
-        <button id="sw-reset-btn" class="sw-reset-btn">↺ Reset</button>
-      </div>
-    </details>
-
     <!-- STEP 3: SETTINGS -->
     <div class="sb-section" id="step3" style="opacity:.4;pointer-events:none">
       <div class="sb-label">Schritt 3 — Einstellungen</div>
@@ -394,6 +354,110 @@
         </div>
       </div>
     </div>
+
+    <!-- SCORING WEIGHTS + PLAYLIST FILTER -->
+    <details class="sb-section scoring-collapse" id="scoring-weight-section">
+      <summary class="scoring-summary">Score-Gewichtung & Playlist-Filter</summary>
+      <!-- Spider webs side by side -->
+      <div class="scoring-dual-row">
+        <div class="scoring-half">
+          <div class="scoring-half-label">Gewichtung</div>
+          <div class="scoring-web-wrap">
+            <svg id="scoring-radar" viewBox="0 0 200 200" width="100%" height="120"></svg>
+          </div>
+        </div>
+        <div class="scoring-half">
+          <div class="scoring-half-label">Playlist-Filter</div>
+          <div class="scoring-web-wrap">
+            <svg id="filter-radar" viewBox="0 0 200 200" width="100%" height="120"></svg>
+          </div>
+        </div>
+      </div>
+      <!-- Paired slider rows: same attribute aligned horizontally -->
+      <div class="scoring-inputs-paired">
+        <div class="sw-pair">
+          <div class="sw-half sw-half-empty"></div>
+          <div class="sw-half">
+            <span class="sw-lbl">BPM↓</span>
+            <input type="range" class="sw-slider" id="pf-minBpm" min="0" max="220" step="5" value="0">
+            <input type="number" class="sw-num" id="pfn-minBpm" min="0" max="220" value="0">
+          </div>
+        </div>
+        <div class="sw-pair">
+          <div class="sw-half sw-half-empty"></div>
+          <div class="sw-half">
+            <span class="sw-lbl">BPM↑</span>
+            <input type="range" class="sw-slider" id="pf-maxBpm" min="0" max="220" step="5" value="220">
+            <input type="number" class="sw-num" id="pfn-maxBpm" min="0" max="220" value="220">
+          </div>
+        </div>
+        <div class="sw-pair">
+          <div class="sw-half">
+            <span class="sw-lbl">E</span>
+            <input type="range" class="sw-slider" id="sw-energy" min="0" max="100" value="15">
+            <input type="number" class="sw-num" id="sn-energy" min="0" max="100" value="15">
+          </div>
+          <div class="sw-half">
+            <span class="sw-lbl">E≥</span>
+            <input type="range" class="sw-slider" id="pf-minEnergy" min="0" max="100" value="0">
+            <input type="number" class="sw-num" id="pfn-minEnergy" min="0" max="100" value="0">
+          </div>
+        </div>
+        <div class="sw-pair">
+          <div class="sw-half">
+            <span class="sw-lbl">Val</span>
+            <input type="range" class="sw-slider" id="sw-valence" min="0" max="100" value="8">
+            <input type="number" class="sw-num" id="sn-valence" min="0" max="100" value="8">
+          </div>
+          <div class="sw-half">
+            <span class="sw-lbl">Val≥</span>
+            <input type="range" class="sw-slider" id="pf-minValence" min="0" max="100" value="0">
+            <input type="number" class="sw-num" id="pfn-minValence" min="0" max="100" value="0">
+          </div>
+        </div>
+        <div class="sw-pair">
+          <div class="sw-half">
+            <span class="sw-lbl">Dance</span>
+            <input type="range" class="sw-slider" id="sw-dance" min="0" max="100" value="7">
+            <input type="number" class="sw-num" id="sn-dance" min="0" max="100" value="7">
+          </div>
+          <div class="sw-half">
+            <span class="sw-lbl">Dce≥</span>
+            <input type="range" class="sw-slider" id="pf-minDance" min="0" max="100" value="0">
+            <input type="number" class="sw-num" id="pfn-minDance" min="0" max="100" value="0">
+          </div>
+        </div>
+        <div class="sw-pair">
+          <div class="sw-half">
+            <span class="sw-lbl">Pop</span>
+            <input type="range" class="sw-slider" id="sw-popularity" min="0" max="100" value="5">
+            <input type="number" class="sw-num" id="sn-popularity" min="0" max="100" value="5">
+          </div>
+          <div class="sw-half">
+            <span class="sw-lbl">Pop≥</span>
+            <input type="range" class="sw-slider" id="pf-minPopularity" min="0" max="100" value="0">
+            <input type="number" class="sw-num" id="pfn-minPopularity" min="0" max="100" value="0">
+          </div>
+        </div>
+        <div class="sw-pair">
+          <div class="sw-half">
+            <span class="sw-lbl">Loud</span>
+            <input type="range" class="sw-slider" id="sw-loudness" min="0" max="100" value="10">
+            <input type="number" class="sw-num" id="sn-loudness" min="0" max="100" value="10">
+          </div>
+          <div class="sw-half sw-half-empty"></div>
+        </div>
+      </div>
+      <!-- Reset buttons aligned under each column -->
+      <div class="scoring-reset-paired">
+        <div class="sw-reset-half">
+          <button id="sw-reset-btn" class="sw-reset-btn">↺ Reset</button>
+        </div>
+        <div class="sw-reset-half">
+          <button id="pf-reset-btn" class="sw-reset-btn">↺ Reset</button>
+        </div>
+      </div>
+    </details>
 
     <!-- GENERATE -->
     <div class="sb-section">
