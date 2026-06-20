@@ -10,6 +10,26 @@
 
 ## New Since Last Push
 
+### N16 · Camelot-Wheel, Playlist-Filter, UI-Restructure
+
+| # | Step | Erwartet |
+|---|------|----------|
+| N16-1 | Tonart-Filter-Section öffnen | Collapsible `<details>` mit ▶ "TONART-FILTER"; Camelot-Wheel (SVG, 12 Segmente) rechts neben A/B-Slider und Zahlen-Input |
+| N16-2 | Wheel bei leerem Filter (alle aktiv) | Alle 12 Segmente in Vollfarbe (Regenbogen); innerer Ring (A minor) ~55 % Helligkeit; äußerer Ring (B major) Vollfarbe |
+| N16-3 | Zahlen-Input "9 10 11" eingeben | Segmente 9, 10, 11 leuchten; alle anderen neutral (fast schwarz) |
+| N16-4 | Segment 5 im Wheel anklicken | Segment 5 leuchtet auf; Zahlen-Input zeigt "9 10 11 5" (sortiert: "5 9 10 11"); Kamelot-Hint aktualisiert sich |
+| N16-5 | Leuchtendes Segment anklicken | Segment wird neutral; Zahl aus Input entfernt |
+| N16-6 | A/B-Slider auf "A" schieben | Nur innerer Ring (A) farbig; äußerer Ring (B) neutral — auch bei selektierten Nummern |
+| N16-7 | "Auf Playlist anwenden" Toggle unter Zahlen-Input | Toggle erscheint erst aktiv (nicht ausgegraut) wenn ein Camelot-Filter gesetzt ist |
+| N16-8 | Phase auf D wechseln | Score-Gewichtung & Playlist-Filter-Panel: BPM↓ springt auf Phase-D-Minimum (60), BPM↑ auf Maximum (100), E≥ auf 15, Val≥ auf 40 — sichtbar in Slidern und Zahlenfeldern |
+| N16-9 | Phase auf C wechseln | Filter-Werte wechseln zu Phase-C-Defaults: BPM 125–195, E≥75, Val≥60, Dce≥60 |
+| N16-10 | Playlist generieren mit Swap-Filter gesetzt (z.B. Pop≥75) | Generierungs-Log zeigt "Swap-Filter: Pop≥75  (gilt für Tausch-Kandidaten)" — NICHT "Playlist-Filter" |
+| N16-11 | Generierungslauf ohne Swap-Filter | Kein "Swap-Filter"-Eintrag im Log |
+| N16-12 | ↺ Reset im Playlist-Filter-Panel klicken | Filter-Werte springen auf die aktuellen Phase-Defaults (nicht auf 0/220) |
+| N16-13 | Score-Gewichtung & Playlist-Filter section: Lage prüfen | Section erscheint UNTER Cool-Down und UNMITTELBAR ÜBER "▶ Playlist generieren" |
+| N16-14 | 🔧 Optimizer-Tab anklicken | Tab ist ausgegraut/disabled; Cursor zeigt not-allowed; kein Panel öffnet sich |
+| N16-15 | ↺ Track-Tausch bei aktivem Swap-Filter (Pop≥75) | Ersatz-Track hat Popularity ≥ 75; automatisch generierte Tracks sind davon nicht betroffen |
+
 ### N13 · Popularity als Scoring-Kriterium
 
 | # | Step | Erwartet |

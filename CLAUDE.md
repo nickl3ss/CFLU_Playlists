@@ -248,6 +248,26 @@ gh issue close <nr> --reason "completed" --comment "AC: ✓ ... ✓ ... ✓ ..."
 
 ---
 
+## ⛔ NEVER PUSH WITHOUT
+
+This is a hard checklist. Every item must be done before `git push`. No exceptions.
+
+```
+□  D3  node js/cflu_tests.js    → exit 0 (all green)
+□  D3  npm run lint              → no errors
+□  D3  ruff check .              → only if .py files changed
+□  D4  docs/TESTING.md updated  → "New Since Last Push" section reflects this commit
+□  D5  Issues closed             → gh issue close <nr> for every resolved issue
+□  E2  Persona audit run         → all 4 personas (ME / PhD / BI / UX) reviewed
+□  E2  Quick Wins fixed          → committed before push
+□  E2  Findings → Issues         → gh issue create for every non-quick-win finding
+```
+
+The `.githooks/pre-push` script enforces D3 automatically and prints a reminder for E2/D4/D5.
+If you are about to push without completing this list — STOP and complete it first.
+
+---
+
 ## Step E · Push Gate
 
 ### E1 · Push Prompt

@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# pre-push hook — enforces D3 quality gate before every push
+# Install: git config core.hooksPath .githooks
+
+set -euo pipefail
+
+echo ""
+echo "╔══════════════════════════════════════════════════════╗"
+echo "║          CFLU PRE-PUSH GATE (Step D3 + E2)          ║"
+echo "╚══════════════════════════════════════════════════════╝"
+echo ""
+
+# ── D3a · JS Tests ─────────────────────────────────────────
+echo "▶ D3a  node js/cflu_tests.js"
+if ! node js/cflu_tests.js; then
+  echo ""
+  echo "✗  Tests FAILED — push blocked. Fix tests first."
+  exit 1
+fi
+echo ""
+
+# ── D3b · ESLint ───────────────────────────────────────────
+echo "▶ D3b  npm run lint"
+if ! npm run lint; then
+  echo ""
+  echo "✗  Lint FAILED — push blocked. Fix errors first."
+  exit 1
+fi
+echo ""
+
+# ── D3c · Ruff (only if Python files changed) ──────────────
+PY_CHANGED=$(git diff --name-only HEAD @{u} 2>/dev/null | grep '\.py$' || true)
+if [ -n "$PY_CHANGED" ]; then
+  echo "▶ D3c  ruff check . (Python files changed)"
+  if ! ruff check .; then
+    echo ""
+    echo "✗  Ruff FAILED — push blocked. Fix Python issues first."
+    exit 1
+  fi
+  echo ""
+fi
+
+# ── D4 · TESTING.md freshness check ────────────────────────
+TESTING_CHANGED=$(git diff --name-only HEAD @{u} 2>/dev/null | grep 'docs/TESTING.md' || true)
+TESTING_STAGED=$(git diff --cached --name-only 2>/dev/null | grep 'docs/TESTING.md' || true)
+CORE_CHANGED=$(git diff --name-only HEAD @{u} 2>/dev/null | \
+  grep -E '^(js/|css/|CFLU_WOD_Builder\.html|cflu_server\.py|CFLU_Pool_Build\.py)' || true)
+
+if [ -n "$CORE_CHANGED" ] && [ -z "$TESTING_CHANGED" ] && [ -z "$TESTING_STAGED" ]; then
+  echo "⚠  WARNING: Core files changed but docs/TESTING.md was NOT updated."
+  echo "   Step D4 requires TESTING.md to be updated in the same commit."
+  echo "   Proceeding, but please update TESTING.md before confirming push."
+  echo ""
+fi
+
+# ── E2 · Persona Audit reminder ────────────────────────────
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  ✓ All automated gates passed."
+echo ""
+echo "  MANDATORY before this push counts as complete:"
+echo "  □  E2 Pre-Push Audit (4 personas: ME / PhD / BI / UX)"
+echo "     → Quick Wins: fix now and amend/re-commit"
+echo "     → Issues: gh issue create for each finding"
+echo "  □  D5 Close resolved issues:"
+echo "     gh issue close <nr> --reason completed --comment 'AC: ✓ ...'"
+echo "  □  E3 After push: send test request to user"
+echo "     → Present docs/TESTING.md § New Since Last Push"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""

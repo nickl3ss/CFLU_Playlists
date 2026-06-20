@@ -1046,7 +1046,7 @@ function buildGenLog(genre, wod, cd, warnMsgs) {
   if (pf.minValence > 0) pfParts.push(`Val≥${pf.minValence}`);
   if (pf.minDance > 0) pfParts.push(`Dce≥${pf.minDance}`);
   if (pf.minPopularity > 0) pfParts.push(`Pop≥${pf.minPopularity}`);
-  if (pfParts.length) add(`  Playlist-Filter: ${pfParts.join('  ')}`);
+  if (pfParts.length) add(`  Swap-Filter:     ${pfParts.join('  ')}  (gilt für Tausch-Kandidaten)`);
   if (state.cdActive) add(`  Cool-Down:       aktiv · ${state.cdMinutes} min`);
   if (state.camLetter !== 'both' || state.camNumbers.length > 0) {
     const parts = [];
