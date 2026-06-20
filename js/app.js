@@ -4,7 +4,8 @@ import { PHASE_CONFIG, MIN_POOL_SIZE,
          bpmStopsForPhase,
          BPM_SLIDER_MIN, BPM_SLIDER_MAX,
          GOING_WILD_GENRE,
-         LASTFM_STALE_WARN_DAYS, LASTFM_STALE_DANGER_DAYS } from './config.js';
+         LASTFM_STALE_WARN_DAYS, LASTFM_STALE_DANGER_DAYS,
+         SCORE_WEIGHTS_DEFAULT } from './config.js';
 import { getNeighbours } from './genres.js';
 import { state } from './state.js';
 import { titleKey, fmtDur, fmtMin, lerpColor, toHex, camCompat, calcPhaseScore, bpmHint, effectiveBpm, isHalfDouble } from './utils.js';
@@ -1446,6 +1447,18 @@ function init() {
   _SW_KEYS.forEach(key => {
     document.getElementById('sw-' + key)?.addEventListener('input', e => onScoreWeightChange(key, e.target.value));
     document.getElementById('sn-' + key)?.addEventListener('input', e => onScoreWeightChange(key, e.target.value));
+  });
+  document.getElementById('sw-reset-btn')?.addEventListener('click', () => {
+    Object.assign(state.scoreWeights, SCORE_WEIGHTS_DEFAULT);
+    _SW_KEYS.forEach(key => {
+      const v = SCORE_WEIGHTS_DEFAULT[key];
+      const sl = document.getElementById('sw-' + key);
+      const nm = document.getElementById('sn-' + key);
+      if (sl) sl.value = v;
+      if (nm) nm.value = v;
+    });
+    drawScoringRadar();
+    try { localStorage.setItem('cflu_score_weights', JSON.stringify(state.scoreWeights)); } catch (e) { void e; }
   });
   document.getElementById('cd-dur-slider').addEventListener('input', e => onCdDurSlider(e.target));
   // Generate & Spotify

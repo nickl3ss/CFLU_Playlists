@@ -161,6 +161,8 @@
 | N5-5 | Generate a playlist | Generation log shows "Score-Gewichte: BPM:80 Cam:20 E:15 Loud:10 Val:8 Dance:7" (or current values) |
 | N5-6 | Reload the page | Score-weight slider values persist (localStorage) |
 | N5-7 | Generate a playlist; check BPM chart | Adjacent tracks may show ×2/÷2 BPM jumps (e.g. 80→160) — these are Ratio-Lattice compatible transitions (d ≤ 0.135 against 2:1 ratio) |
+| N5-8 | Move any slider away from default, then click **↺ Reset** | All 6 sliders snap back to defaults (BPM:40 Cam:20 E:15 Loud:10 Val:8 Dance:7); radar polygon resets; numeric inputs update |
+| N5-9 | Reload page after Reset | Default values persisted in localStorage; sliders load at default positions |
 
 ---
 
