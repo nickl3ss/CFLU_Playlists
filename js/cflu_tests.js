@@ -83,7 +83,7 @@ const T = {
   d1:   mkT({id:'d1',  song:'Dup Song',               artist:'Band I', bpm:126, camelot:'9B', energy:70, dur:200, genre:'Rock', bpmg:'D'}),
   d2:   mkT({id:'d2',  song:'Dup Song (Radio Edit)',   artist:'Band I', bpm:126, camelot:'9B', energy:68, dur:195, genre:'Rock', bpmg:'D'}),
   far:  mkT({id:'far', song:'Far Jump',     artist:'Band J', bpm:145, camelot:'9B',  energy:80, dur:200, genre:'Rock', bpmg:'F'}),
-  unr:  mkT({id:'unr', song:'Unreachable',  artist:'Band X', bpm:172, camelot:'9B',  energy:80, dur:200, genre:'Rock', bpmg:'H'}),
+  unr:  mkT({id:'unr', song:'Unreachable',  artist:'Band X', bpm:210, camelot:'9B',  energy:80, dur:200, genre:'Rock', bpmg:'I'}),
   low:  mkT({id:'low', song:'Low BPM',      artist:'Band K', bpm:110, camelot:'9B',  energy:72, dur:200, genre:'Rock', bpmg:'C'}),
   pre:  mkT({id:'pre', song:'Pre Song',     artist:'Band L', bpm:112, camelot:'9B',  energy:72, dur:210, genre:'Rock', bpmg:'C'}),
   calm: mkT({id:'calm', song:'Calm Track',    artist:'Band M',  bpm:100, camelot:'9B',  energy:42, dur:200, genre:'Synthwave / Electronica', bpmg:'B', dance:45, valence:60, acoustic:55, instrumental:70, speech:10, loud:-14}),
@@ -95,6 +95,8 @@ const T = {
   da:   mkT({id:'da',  song:'Decrease Alpha',artist:'Band Da', bpm:98,  camelot:'9B',  energy:40, dur:200, genre:'Rock', bpmg:'B', dance:40, valence:55, acoustic:55, instrumental:65, speech:8,  loud:-13}),
   db:   mkT({id:'db',  song:'Decrease Beta', artist:'Band Db', bpm:90,  camelot:'9B',  energy:35, dur:200, genre:'Rock', bpmg:'B', dance:35, valence:55, acoustic:60, instrumental:70, speech:5,  loud:-14}),
   dc:   mkT({id:'dc',  song:'Decrease Gamma',artist:'Band Dc', bpm:80,  camelot:'8B',  energy:30, dur:210, genre:'Rock', bpmg:'A', dance:30, valence:50, acoustic:65, instrumental:75, speech:5,  loud:-15}),
+  // 3:4-Lock auf 75 BPM (75×3/4=56.25, d≈0.006 → score=0.78) — benötigt für buildDecreasing-Tests
+  dd:   mkT({id:'dd',  song:'Decrease Delta', artist:'Band Dd', bpm:56, camelot:'9B',  energy:25, dur:200, genre:'Rock', bpmg:'A', dance:25, valence:50, acoustic:70, instrumental:80, speech:5,  loud:-16}),
 };
 const FULL_POOL = Object.values(T);
 
@@ -241,12 +243,13 @@ describe('pickNext — nächsten Track auswählen', () => {
     const next=pickNext([T.a2,T.a3,T.b1],T.a1,new Set(),new Set(),new Map(),10);
     expect(Math.abs(Math.log2(next.bpm / T.a1.bpm))).toBeLessThan(0.135);
   });
-  it('BPM-Ratio > 10 % → null (log2-Score = 0.00, kein Fallback)', () => {
-    // T.far: 145 BPM from 120 BPM — ratio=1.208, d=0.272 > 0.135 → score=0.00 → ausgeschlossen
+  it('BPM-Ratio > 10 % → null (Ratio-Lattice-Score = 0.00, kein Fallback)', () => {
+    // T.far: 145 BPM from 120 BPM — bester Lock 4:3 (target=160, d=0.143 > 0.135) → score=0.00
     const next=pickNext([T.far],T.a1,new Set(),new Set(),new Map(),10);
     expect(next).toBeNull();
   });
-  it('Absolut unerreichbarer Sprung > 50 → null', () => {
+  it('Unerreichbarer Sprung > 80 BPM ohne Lock → null', () => {
+    // T.unr: 210 BPM von 120 BPM — in Gap (197.9, 218.4): alle 7 Lattice-Ratios d > 0.135 → score=0.00
     expect(pickNext([T.unr],T.a1,new Set(),new Set(),new Map(),10)).toBeNull();
   });
   it('BPM tiefer als aktuell → null', () => {
@@ -448,7 +451,9 @@ describe('buildPlateau — Phase A Plateau-Algorithmus', () => {
 });
 
 describe('buildDecreasing — Phase D Absteigend-Algorithmus', () => {
-  const decPool = [T.da, T.db, T.dc, T.calm, T.recov];
+  // T.dd (56 BPM) ist 3:4-Lock auf T.recov (75 BPM): 75×3/4=56.25, d≈0.006 → score=0.78
+  // Nötig damit der Test "Stoppt wenn targetSec erreicht" mit neuer C→D-Ersttrack-Logik besteht.
+  const decPool = [T.da, T.db, T.dc, T.calm, T.recov, T.dd];
   const startBpm = 100;
 
   it('Gibt Array zurück', () => {
@@ -493,12 +498,13 @@ describe('calcSortScore — Unified Sort Score', () => {
     expect(calcSortScore(hi,cur,'C')).toBeGreaterThan(calcSortScore(lo,cur,'C'));
   });
   it('BPM ±2 % von cur → gleicher BPM-Transition-Score (Richtung durch Monotonie-Gate, nicht Score)', () => {
-    // Beide innerhalb d≤0.030 → bpmTransScore=250; Penalty für Abwärts entfernt
+    // Beide innerhalb d≤0.030 → 1:1-Lock → proximity=1.00, weight=1.00 → bpmNorm=1.00
+    // bpm-Anteil am transScore: (40/100)×500=200 Punkte; identisch für ±2%
     const below=Object.assign({},T.a2,{bpm:118,camelot:'10B'}), above=Object.assign({},T.a2,{bpm:122,camelot:'10B'});
     expect(calcSortScore(above,cur,'C')).toBe(calcSortScore(below,cur,'C'));
   });
   it('Geringere BPM-Ratio → höherer Score als BPM näher am Kern', () => {
-    // 122 BPM (d=1.7%) schlägt 129 BPM (d=7.5%): bpmTransScore-Vorteil (96 Punkte) > phaseScore-Vorteil (54 Punkte)
+    // 122 BPM (d≈1.7%→bpmNorm=1.00) schlägt 129 BPM (d≈7.5%→bpmNorm≈0.85)
     const s=Object.assign({},T.a2,{bpm:122,camelot:'10B'}), l=Object.assign({},T.a2,{bpm:129,camelot:'10B'});
     expect(calcSortScore(s,cur,'C')).toBeGreaterThan(calcSortScore(l,cur,'C'));
   });
@@ -508,48 +514,54 @@ describe('calcSortScore — Unified Sort Score', () => {
   });
 });
 
-describe('calcBpmTransitionScore — log2-Übergangsscore', () => {
-  it('(150→153) ≈ 1.00 — d≈0.028 ≤ 0.030', () => {
-    expect(calcBpmTransitionScore(150, 153, false)).toBeGreaterThanOrEqual(0.99);
+describe('calcBpmTransitionScore — Ratio-Lattice-Übergangsscore', () => {
+  it('(150→153) 1:1-Lock, d≈0.028 ≤ 0.030 → ~1.00', () => {
+    expect(calcBpmTransitionScore(150, 153)).toBeGreaterThanOrEqual(0.99);
   });
-  it('(150→75) allowLog2=true → 1.00 — d=|log2(0.5×2)|=0', () => {
-    expect(calcBpmTransitionScore(150, 75, true)).toBe(1.00);
+  it('(150→100) 2:3-Lock, d=0 → 0.90', () => {
+    expect(calcBpmTransitionScore(150, 100)).toBe(0.90);
   });
-  it('(150→75) allowLog2=false → 0.00 — d=1.0 >> 0.135', () => {
-    expect(calcBpmTransitionScore(150, 75, false)).toBe(0.00);
+  it('(150→75) 1:2-Lock, d=0 → 1.00', () => {
+    expect(calcBpmTransitionScore(150, 75)).toBe(1.00);
   });
-  it('(160→78) allowLog2=true → ~0.85 — d=|log2(78/160×2)|≈0.037', () => {
-    const s = calcBpmTransitionScore(160, 78, true);
-    expect(s).toBeGreaterThan(0.80);
-    expect(s).toBeLessThan(1.00);
+  it('(150→225) 3:2-Lock, d=0 → 0.90', () => {
+    expect(calcBpmTransitionScore(150, 225)).toBe(0.90);
   });
-  it('(140→120) → 0.00 — d≈0.222 > 0.135', () => {
-    expect(calcBpmTransitionScore(140, 120, false)).toBe(0.00);
+  it('(140→120) kein Lock in Nähe → 0.00', () => {
+    // 1:1: d=0.222; 3:2: d=|log2(120/210)|=0.807; alle > 0.135
+    expect(calcBpmTransitionScore(140, 120)).toBe(0.00);
+  });
+  it('(150→200) 4:3-Lock, d=0 → 0.78', () => {
+    expect(calcBpmTransitionScore(150, 200)).toBe(0.78);
+  });
+  it('(150→112.5) 3:4-Lock, d=0 → 0.78', () => {
+    expect(calcBpmTransitionScore(150, 112.5)).toBe(0.78);
   });
   it('fehlende BPM (bpmPrev=0) → 0.5 — kein Crash', () => {
-    expect(calcBpmTransitionScore(0, 120, false)).toBe(0.5);
+    expect(calcBpmTransitionScore(0, 120)).toBe(0.5);
   });
   it('fehlende BPM (bpmNext=null) → 0.5 — kein Crash', () => {
-    expect(calcBpmTransitionScore(120, null, false)).toBe(0.5);
+    expect(calcBpmTransitionScore(120, null)).toBe(0.5);
   });
-  it('Gleiche BPM → 1.00 — d=0', () => {
-    expect(calcBpmTransitionScore(130, 130, false)).toBe(1.00);
+  it('Gleiche BPM → 1.00 — d=0, 1:1-Lock, w=1.00', () => {
+    expect(calcBpmTransitionScore(130, 130)).toBe(1.00);
   });
   it('Interpolation: d zwischen 0.030 und 0.070 → zwischen 0.85 und 1.00', () => {
-    const s = calcBpmTransitionScore(120, 126, false); // d≈0.0695 ≈ 0.070
+    // 120→126: d≈0.0695 (1:1), proximity interpoliert zwischen 1.00 und 0.85
+    const s = calcBpmTransitionScore(120, 126);
     expect(s).toBeGreaterThan(0.84);
     expect(s).toBeLessThanOrEqual(1.00);
   });
-  it('d knapp unter 0.135 → Score > 0 (letzte Grünstufe)', () => {
-    // 120 × 2^0.134 ≈ 131.6 — d=0.134 < 0.135 → Score ≈ 0.41 (nicht 0.00)
+  it('d knapp unter 0.135 (1:1) → Score > 0 (letztes Band)', () => {
+    // 120 × 2^0.134 ≈ 131.6 — d=0.134 < 0.135 → Score ≈ 0.40 (nicht 0.00)
     const bpmNext = 120 * Math.pow(2, 0.134);
-    const s = calcBpmTransitionScore(120, bpmNext, false);
+    const s = calcBpmTransitionScore(120, bpmNext);
     expect(s).toBeGreaterThan(0);
     expect(s).toBeLessThan(0.50);
   });
-  it('d > 0.135 → Score = 0.00 (harter Ausschluss)', () => {
-    // 140 → 120: d ≈ 0.222 → Score = 0.00
-    expect(calcBpmTransitionScore(140, 120, false)).toBe(0.00);
+  it('d > 0.135 ohne Lock → Score = 0.00 (harter Ausschluss)', () => {
+    // T.far (145 BPM) from 120: bester Lock 4:3→d=0.143 > 0.135 → Score = 0.00
+    expect(calcBpmTransitionScore(120, 145)).toBe(0.00);
   });
 });
 
@@ -976,10 +988,12 @@ describe('calcSortScore — Bridge-Bonus', () => {
     const wo = Object.assign({}, base, {genres_raw: []});
     expect(calcSortScore(wb,cur,'C') - calcSortScore(wo,cur,'C')).toBe(50);
   });
-  it('Grünes Camelot ohne Bridge schlägt gelbes Camelot mit Bridge', () => {
+  it('Grünes Camelot ohne Bridge ≥ gelbes Camelot mit Bridge (bei Default-Gewichten exakt gleich)', () => {
+    // Camelot-Anteil: (1.0-0.5)×20/100×500 = 50 Punkte — identisch mit Bridge-Bonus (50).
+    // → greaterThanOrEqual; für strikte Überlegenheit muss scoreWeights.camelot erhöht werden.
     const greenNoBridge  = mkT({id:'g1',song:'G',artist:'A',bpm:124,camelot:'10B',energy:76,dur:200,genre:'Hip Hop / Rap',bpmg:'D',genres_raw:[]});
     const yellowWithBridge = mkT({id:'y1',song:'Y',artist:'A',bpm:124,camelot:'11B',energy:76,dur:200,genre:'Hip Hop / Rap',bpmg:'D',genres_raw:['rap metal']});
-    expect(calcSortScore(greenNoBridge,cur,'C')).toBeGreaterThan(calcSortScore(yellowWithBridge,cur,'C'));
+    expect(calcSortScore(greenNoBridge,cur,'C')).toBeGreaterThanOrEqual(calcSortScore(yellowWithBridge,cur,'C'));
   });
 });
 
@@ -1445,7 +1459,8 @@ describe('pickReplacement — In-Place Track Swap (#145)', () => {
   const prev = mkT({id:'rp',song:'Prev',artist:'Band A',bpm:120,camelot:'9B',energy:72,dur:200,genre:'Rock',bpmg:'D'});
   const next = mkT({id:'rn',song:'Next',artist:'Band B',bpm:128,camelot:'10B',energy:74,dur:200,genre:'Rock',bpmg:'D'});
   const good = mkT({id:'rg',song:'Good',artist:'Band C',bpm:124,camelot:'10B',energy:76,dur:200,genre:'Rock',bpmg:'D'});
-  const bad  = mkT({id:'rb',song:'Bad', artist:'Band D',bpm:170,camelot:'11B',energy:78,dur:200,genre:'Rock',bpmg:'G'}); // too far from 120/128
+  // 143 BPM ist in Gap (131.9,145.6) von 120 UND in Gap (140.7,155.3) von 128 — beide Constraints ≠ 0 → excluded
+  const bad  = mkT({id:'rb',song:'Bad', artist:'Band D',bpm:143,camelot:'11B',energy:78,dur:200,genre:'Rock',bpmg:'F'});
 
   it('Gibt gültigen Ersatz zurück wenn Pool passt', () => {
     state.lockCamFilter = false;

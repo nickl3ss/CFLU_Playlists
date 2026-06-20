@@ -56,6 +56,7 @@ archive/
 /Methodik/
 
 # Interne Entwicklungs-Prompts
+/docs/implementationPrompts
 claude_code_prompt_playlist_generator.md
 claude_code_cflu_onboarding_prompt.md
 

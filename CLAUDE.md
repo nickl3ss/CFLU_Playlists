@@ -35,12 +35,19 @@
 │   └── DB.txt                  # Online DB credentials
 ├── cflu.service                # systemd user-service for Linux auto-start
 ├── docs/
-│   ├── PROJECT.md              # Architecture, ADRs, changelog, Key Invariants
+│   ├── DOMAIN.md               # Domain theory: sports science + music theory (no implementation)
+│   ├── REQUIREMENTS.md         # What the system must do (MUST/SHOULD/MAY) — derived from DOMAIN.md
+│   ├── PROJECT.md              # Architecture, data model, scoring algorithm, ADRs, Key Invariants
 │   ├── TESTING.md              # Manual + regression test protocol (updated per commit)
-│   └── references/             # Background research — WOD music theory, genre network analysis
+│   ├── implementationPrompts/  # Historical Claude Code implementation prompts (reference only)
+│   └── references/             # Background research: WOD music theory, genre network, BPM theory
 │       ├── WODability_Playlist-WodMusicTheory.md
 │       ├── Genre_MatchingTheory.md
-│       └── Genre_NetworkResearch.md
+│       ├── Genre_NetworkResearch.md
+│       ├── Genre_Position-Aware_Displacement.md
+│       ├── BPM_theory.md
+│       ├── API_Guide_Spotify.md
+│       └── API_Guide_Last.fm.md
 ├── Playlists/                  # Spotify CSV exports (source data for pool build — .gitignored)
 ├── .github/
 │   └── ISSUE_TEMPLATE/

@@ -8,6 +8,11 @@ export const CAM_ZONE2 = new Set(['8A','9A','10A','11A','12A','1A']);
 // Keep in sync with SUFFIX_RE in CFLU_Pool_Build.py
 export const SUFFIX_RE = /[\s\-–(]*(radio\s*edit|single\s*edit|album\s*version|original\s*mix|club\s*mix|extended\s*(mix|version)?|long\s*version|remaster(ed)?.*|feat\..*|ft\..*|live.*|acoustic.*|mono.*|stereo.*)[^)]*\)?/gi;
 export const MIN_POOL_SIZE = 15;
+export const GOING_WILD_GENRE = 'Going Wild';  // sentinel: all genres in pool
+export const BPM_SLIDER_MIN = 60;
+export const BPM_SLIDER_MAX = 220;
+export const LASTFM_STALE_WARN_DAYS   = 30;  // show sync button (info badge)
+export const LASTFM_STALE_DANGER_DAYS = 45;  // show sync button (warn badge)
 
 export const PHASE_CONFIG = {
   A: {
@@ -56,29 +61,38 @@ export const BPM_STOPS = [
 export function bpmStopsForPhase(phase) {
   const cfg = PHASE_CONFIG[phase];
   if (!cfg) return BPM_STOPS;
-  const SMIN = 60, SMAX = 220, range = SMAX - SMIN;
-  const p = v => (v - SMIN) / range;
+  const range = BPM_SLIDER_MAX - BPM_SLIDER_MIN;
+  const p = v => (v - BPM_SLIDER_MIN) / range;
   const [bLo, bHi] = cfg.bpm;
   const [cLo, cHi] = cfg.bpmCore;
   const stops = [];
-  if (bLo > SMIN) { stops.push({p: 0, ...RED}); }
+  if (bLo > BPM_SLIDER_MIN) { stops.push({p: 0, ...RED}); }
   stops.push({p: p(bLo), ...YEL});   // RED fades into YEL at acceptable-zone start
   stops.push({p: p(cLo), ...GRN});   // YEL fades into GRN at ideal-zone start
   stops.push({p: p(cHi), ...GRN});   // solid GRN through ideal zone
   stops.push({p: p(bHi), ...YEL});   // GRN fades into YEL at ideal-zone end
-  if (bHi < SMAX) { stops.push({p: 1, ...RED}); }  // YEL fades into RED at acceptable-zone end
+  if (bHi < BPM_SLIDER_MAX) { stops.push({p: 1, ...RED}); }  // YEL fades into RED at acceptable-zone end
   return stops;
 }
-// log2-based BPM transition scoring thresholds.
-// Each entry [d_threshold, score]: d ≤ threshold → score (linearly interpolated between entries).
-// d > last threshold → 0.00 (hard exclusion within a phase).
+// log2-based BPM transition scoring: Ratio-Lattice model.
+// breakpoints: [d_threshold, proximity] — linearly interpolated; d > last → 0.00.
+// RATIO_LATTICE: integer ratios with lock weights. SCORE = proximity × lock_weight.
 export const BPM_TRANSITION_CONFIG = {
   breakpoints: [
     [0.030, 1.00],   // ±2 % — unhörbar
     [0.070, 0.85],   // ±5 % — Standard-Toleranz (DJ-Norm)
     [0.135, 0.40],   // ±10 % — hörbar; nur bei starkem Genre/Camelot-Match akzeptieren
   ],
+  RATIO_LATTICE: [
+    { p: 1, q: 1, w: 1.00 },
+    { p: 2, q: 1, w: 1.00 }, { p: 1, q: 2, w: 1.00 },
+    { p: 3, q: 2, w: 0.90 }, { p: 2, q: 3, w: 0.90 },
+    { p: 4, q: 3, w: 0.78 }, { p: 3, q: 4, w: 0.78 },
+  ],
 };
+
+export const TRANSITION_BUDGET = 500;
+export const SCORE_WEIGHTS_DEFAULT = { bpm: 40, camelot: 20, energy: 15, loudness: 10, valence: 8, dance: 7 };
 
 export const CAM_COLOR = {green:'#1db954',yellow:'#f7c948',red:'#f15e6c',unknown:'#535353'};
 

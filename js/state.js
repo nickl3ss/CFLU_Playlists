@@ -5,7 +5,7 @@ export const state = {
   selectedTrack: null,
   poolGenre: '',
   position: 'start',
-  allowLog2: false, // log2-Score: Half/Double-Time ×2/÷2 als kompatibel werten
+  scoreWeights: { bpm: 40, camelot: 20, energy: 15, loudness: 10, valence: 8, dance: 7 },
   explicitFilter: 'allow', // 'allow' | 'exclude' | 'only'
   bpmTol: 5,
   camLetter: 'both',   // 'A' | 'both' | 'B'

@@ -22,6 +22,7 @@ Verwendung:
     python CFLU_Pool_Build.py --rebuild # Full-Update (dynamische Felder erhalten)
 """
 
+import base64
 import csv
 import glob
 import json
@@ -132,6 +133,8 @@ _AI_MODEL = 'claude-haiku-4-5-20251001'
 _KEYVAULT          = 'keyvault'
 _LASTFM_KEY_FILE   = f'{_KEYVAULT}/lastfm_api_key.txt'
 _LASTFM_CACHE_FILE = 'cflu_lastfm.json'
+_DATA_DIR          = pathlib.Path(__file__).parent / 'data'
+_ID_MAP_FILE       = _DATA_DIR / 'id_map.json'
 _LASTFM_MIN_COUNT  = 15  # Tags mit count < 15 werden ignoriert
 
 # Bekannte Nicht-Genre-Tags auf Last.fm (lowercase) — werden vor classify() gefiltert
@@ -1539,6 +1542,360 @@ def generate_genre_map():
     print(f'  cflu_genres.js      : {len(rows)} Genres geschrieben ({kb} KB)')
 
 
+# ===== I — SPOTIFY ID RESOLVE =====
+
+def _read_keyvault(filename: str) -> str:
+    try:
+        with open(f'{_KEYVAULT}/{filename}', encoding='utf-8') as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return ''
+
+
+def _get_spotify_access_token() -> str | None:
+    """Obtain a fresh Spotify access token via the saved refresh token."""
+    cid     = _read_keyvault('cflu_client_id.txt')
+    secret  = _read_keyvault('cflu_client_secret.txt')
+    refresh = _read_keyvault('cflu_refresh_token.txt')
+    if not all([cid, secret, refresh]):
+        return None
+    auth = base64.b64encode(f'{cid}:{secret}'.encode()).decode()
+    data = urllib.parse.urlencode({
+        'grant_type': 'refresh_token',
+        'refresh_token': refresh,
+    }).encode()
+    req = urllib.request.Request(
+        'https://accounts.spotify.com/api/token',
+        data=data,
+        headers={
+            'Authorization': f'Basic {auth}',
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read())['access_token']
+    except Exception as exc:
+        print(f'  Spotify-Token-Fehler: {exc}')
+        return None
+
+
+def resolve_spotify_ids(tracks: list) -> dict:
+    """
+    Phase [I] — Spotify ID Resolve.
+    Fetches artist_ids + album_id for each track via GET /v1/tracks (50 per batch).
+    Persists results incrementally in data/id_map.json.
+    Requires Spotify credentials in keyvault/. Safe to re-run; skips already-resolved IDs.
+    Returns the full id_map dict.
+    """
+    print('\n[I] Spotify ID Resolve')
+    _DATA_DIR.mkdir(exist_ok=True)
+
+    # Load existing map
+    id_map: dict = {}
+    if _ID_MAP_FILE.exists():
+        try:
+            with open(_ID_MAP_FILE, encoding='utf-8') as f:
+                id_map = json.load(f).get('tracks', {})
+            print(f'  Bestehende ID-Map  : {len(id_map)} Einträge')
+        except Exception:
+            pass
+
+    todo_ids = [t['id'] for t in tracks if t.get('id') and t['id'] not in id_map]
+    if not todo_ids:
+        print(f'  Alle {len(id_map)} Tracks bereits aufgelöst — übersprungen')
+        return id_map
+
+    token = _get_spotify_access_token()
+    if not token:
+        print('  Spotify-Auth nicht verfügbar — --resolve-ids übersprungen')
+        return id_map
+
+    batch_size = 50
+    new_count  = 0
+    for i in range(0, len(todo_ids), batch_size):
+        batch = todo_ids[i:i + batch_size]
+        url   = f'https://api.spotify.com/v1/tracks?ids={",".join(batch)}'
+        req   = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}'})
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                items = json.loads(resp.read()).get('tracks') or []
+            for item in items:
+                if item and item.get('id'):
+                    id_map[item['id']] = {
+                        'artist_ids':   [f'artist:{a["id"]}' for a in (item.get('artists') or [])],
+                        'artist_names': [a['name'] for a in (item.get('artists') or [])],
+                        'album_id':     f'album:{item["album"]["id"]}' if item.get('album') else None,
+                        'album_name':   item['album']['name'] if item.get('album') else None,
+                    }
+                    new_count += 1
+        except Exception as exc:
+            print(f'  Batch {i // batch_size + 1}: Fehler — {exc}')
+        if (i // batch_size + 1) % 20 == 0:
+            print(f'  ...{min(i + batch_size, len(todo_ids))}/{len(todo_ids)} verarbeitet')
+
+    out = {
+        'generated_at': datetime.now().isoformat(timespec='seconds'),
+        'track_count':  len(id_map),
+        'tracks':       id_map,
+    }
+    with open(_ID_MAP_FILE, 'w', encoding='utf-8') as f:
+        json.dump(out, f, ensure_ascii=False, separators=(',', ':'))
+    print(f'  Neu aufgelöst      : {new_count}  Gesamt: {len(id_map)}')
+    print(f'  data/id_map.json geschrieben')
+    return id_map
+
+
+# ===== J — JSON EXPORT =====
+
+def _normalize_id(name: str) -> str:
+    import unicodedata
+    nfkd  = unicodedata.normalize('NFKD', name.lower())
+    ascii_ = nfkd.encode('ascii', 'ignore').decode()
+    return re.sub(r'[^a-z0-9]+', '-', ascii_).strip('-')[:80]
+
+
+def _get_artist_ids(track: dict, id_map: dict) -> list[str]:
+    entry = id_map.get(track.get('id', ''))
+    if entry:
+        return entry['artist_ids']
+    return [f'artist:{_normalize_id(a.strip())}' for a in track.get('artist', '').split(',') if a.strip()]
+
+
+def _get_album_id(track: dict, id_map: dict) -> str | None:
+    entry = id_map.get(track.get('id', ''))
+    if entry and entry.get('album_id'):
+        return entry['album_id']
+    album = track.get('album', '')
+    year  = (track.get('album_date') or '')[:4]
+    return f'album:{_normalize_id(album)}:{year}' if album else None
+
+
+def _export_genres_json() -> None:
+    """Write data/genres.json — EveryNoise tag data (x/y/rgb/hex/z) keyed by tag name."""
+    everynoise: dict = {}
+    if _EVERYNOISE_CSV.exists():
+        with open(_EVERYNOISE_CSV, encoding='utf-8', newline='') as f:
+            for row in csv.DictReader(f):
+                name    = row.get('genre', '').strip().lower()
+                hex_col = row.get('hex_colour', '').strip()
+                if not name or len(hex_col) != 7:
+                    continue
+                try:
+                    x = float(row.get('x', 0))
+                    y = float(row.get('y', 0))
+                    r = int(hex_col[1:3], 16)
+                    g = int(hex_col[3:5], 16)
+                    b = int(hex_col[5:7], 16)
+                    z = round(0.21 * r + 0.72 * g + 0.07 * b)
+                except (ValueError, IndexError):
+                    continue
+                everynoise[name] = {'x': x, 'y': y, 'r': r, 'g': g, 'b': b, 'z': z, 'hex': hex_col}
+
+    out = {
+        'schema_version': '1.0',
+        'generated_at':   datetime.now().isoformat(timespec='seconds'),
+        'everynoise':     everynoise,
+    }
+    with open(_DATA_DIR / 'genres.json', 'w', encoding='utf-8') as f:
+        json.dump(out, f, ensure_ascii=False, separators=(',', ':'))
+    kb = (_DATA_DIR / 'genres.json').stat().st_size // 1024
+    print(f'  data/genres.json    : {len(everynoise)} Tags ({kb} KB)')
+
+
+def export_json(tracks: list) -> None:
+    """
+    Phase [J] — JSON Export.
+    Writes data/tracks.json, data/artists.json, data/albums.json,
+    data/genres.json, data/schema.version.json.
+    Uses data/id_map.json for Spotify artist/album IDs when available;
+    falls back to normalized name-based IDs.
+    """
+    print('\n[J] JSON Export')
+    _DATA_DIR.mkdir(exist_ok=True)
+
+    # Load Spotify ID map (optional)
+    id_map: dict = {}
+    if _ID_MAP_FILE.exists():
+        try:
+            with open(_ID_MAP_FILE, encoding='utf-8') as f:
+                id_map = json.load(f).get('tracks', {})
+        except Exception:
+            pass
+
+    # Load Last.fm cache (optional)
+    lf_tracks:  dict = {}
+    lf_artists: dict = {}
+    if os.path.exists(_LASTFM_CACHE_FILE):
+        try:
+            with open(_LASTFM_CACHE_FILE, encoding='utf-8') as f:
+                lf = json.load(f)
+            lf_tracks  = lf.get('tracks', {})
+            lf_artists = lf.get('artists', {})
+        except Exception:
+            pass
+
+    track_objs: list  = []
+    artist_map: dict  = {}  # artist_id → {id, name, track_ids, lf_data}
+    album_map:  dict  = {}  # album_id  → {id, name, date, track_ids, album_tags}
+
+    for t in tracks:
+        tid        = t.get('id', '')
+        artist_ids = _get_artist_ids(t, id_map)
+        album_id   = _get_album_id(t, id_map)
+        lf_key     = _lastfm_cache_key(t.get('artist', ''), t.get('song', ''))
+        lf_track   = lf_tracks.get(lf_key, {})
+
+        track_objs.append({
+            'id':        tid,
+            'refs':      {'artist_ids': artist_ids, 'album_id': album_id},
+            'avg_color': t.get('avg_color'),
+            'avg_xy':    t.get('avg_xy'),
+            'locked':    t.get('locked', 0),
+            'sources': {
+                'spotify': {
+                    'song':       t.get('song'),
+                    'artist':     t.get('artist'),
+                    'album':      t.get('album'),
+                    'album_date': t.get('album_date'),
+                    'dur':        t.get('dur'),
+                    'popularity': t.get('popularity'),
+                    'explicit':   t.get('explicit', False),
+                    'isrc':       t.get('isrc'),
+                    'label':      t.get('label'),
+                    'added_at':   t.get('added_at'),
+                },
+                'chosic': {
+                    'bpm':          t.get('bpm'),
+                    'energy':       t.get('energy'),
+                    'camelot':      t.get('camelot'),
+                    'dance':        t.get('dance'),
+                    'acoustic':     t.get('acoustic'),
+                    'instrumental': t.get('instrumental'),
+                    'valence':      t.get('valence'),
+                    'speech':       t.get('speech'),
+                    'live':         t.get('live'),
+                    'loud':         t.get('loud'),
+                    'key':          t.get('key'),
+                    'time_sig':     t.get('time_sig'),
+                    'bpmg':         t.get('bpmg'),
+                },
+                'lastfm': {
+                    'genres_raw': t.get('genres_raw') or [],
+                    'track_tags': lf_track.get('track_tags', []),
+                    'album_tags': lf_track.get('album_tags', []),
+                },
+                'ai': {
+                    'mood_tags':  t.get('mood_tags') or [],
+                    'open_genre': t.get('open_genre', 0),
+                    'genre':      t.get('genre'),
+                },
+                'user': None,
+            },
+        })
+
+        # Accumulate artist objects
+        id_entry      = id_map.get(tid, {})
+        artist_names  = id_entry.get('artist_names') or [a.strip() for a in t.get('artist', '').split(',')]
+        for idx, aid in enumerate(artist_ids):
+            aname = artist_names[idx] if idx < len(artist_names) else (artist_names[0] if artist_names else '')
+            if aid not in artist_map:
+                artist_map[aid] = {
+                    'id':       aid,
+                    'name':     aname,
+                    'track_ids': [],
+                    'lf_data':  lf_artists.get(aname, {}),
+                }
+            artist_map[aid]['track_ids'].append(tid)
+
+        # Accumulate album objects
+        if album_id:
+            al_name = id_entry.get('album_name') or t.get('album', '')
+            if album_id not in album_map:
+                album_map[album_id] = {
+                    'id':         album_id,
+                    'name':       al_name,
+                    'date':       t.get('album_date'),
+                    'track_ids':  [],
+                    'album_tags': lf_track.get('album_tags', []),
+                }
+            album_map[album_id]['track_ids'].append(tid)
+
+    # — Write tracks.json —
+    with open(_DATA_DIR / 'tracks.json', 'w', encoding='utf-8') as f:
+        json.dump({
+            'schema_version': '1.0',
+            'generated_at':   datetime.now().isoformat(timespec='seconds'),
+            'track_count':    len(track_objs),
+            'tracks':         track_objs,
+        }, f, ensure_ascii=False, separators=(',', ':'))
+    kb = (_DATA_DIR / 'tracks.json').stat().st_size // 1024
+    print(f'  data/tracks.json    : {len(track_objs)} Tracks ({kb} KB)')
+
+    # — Write artists.json —
+    artist_objs = {
+        aid: {
+            'id':       a['id'],
+            'name':     a['name'],
+            'track_ids': a['track_ids'],
+            'sources': {
+                'lastfm': {
+                    'tags':    a['lf_data'].get('tags', []),
+                    'similar': a['lf_data'].get('similar', []),
+                } if a['lf_data'] else None,
+                'user': None,
+            },
+        }
+        for aid, a in artist_map.items()
+    }
+    with open(_DATA_DIR / 'artists.json', 'w', encoding='utf-8') as f:
+        json.dump({
+            'schema_version': '1.0',
+            'generated_at':   datetime.now().isoformat(timespec='seconds'),
+            'artist_count':   len(artist_objs),
+            'artists':        artist_objs,
+        }, f, ensure_ascii=False, separators=(',', ':'))
+    kb = (_DATA_DIR / 'artists.json').stat().st_size // 1024
+    print(f'  data/artists.json   : {len(artist_objs)} Artists ({kb} KB)')
+
+    # — Write albums.json —
+    album_objs = {
+        alid: {
+            'id':        al['id'],
+            'name':      al['name'],
+            'date':      al['date'],
+            'track_ids': al['track_ids'],
+            'sources': {
+                'lastfm': {'album_tags': al['album_tags']} if al.get('album_tags') else None,
+                'user':   None,
+            },
+        }
+        for alid, al in album_map.items()
+    }
+    with open(_DATA_DIR / 'albums.json', 'w', encoding='utf-8') as f:
+        json.dump({
+            'schema_version': '1.0',
+            'generated_at':   datetime.now().isoformat(timespec='seconds'),
+            'album_count':    len(album_objs),
+            'albums':         album_objs,
+        }, f, ensure_ascii=False, separators=(',', ':'))
+    kb = (_DATA_DIR / 'albums.json').stat().st_size // 1024
+    print(f'  data/albums.json    : {len(album_objs)} Alben ({kb} KB)')
+
+    # — genres.json + schema.version.json —
+    _export_genres_json()
+    with open(_DATA_DIR / 'schema.version.json', 'w', encoding='utf-8') as f:
+        json.dump({
+            'schema_version': '1.0',
+            'generated_at':   datetime.now().isoformat(timespec='seconds'),
+            'track_count':    len(track_objs),
+            'artist_count':   len(artist_objs),
+            'album_count':    len(album_objs),
+            'id_map_present': _ID_MAP_FILE.exists(),
+        }, f, ensure_ascii=False, indent=2)
+    print(f'  data/schema.version.json geschrieben')
+
+
 # ===== R — REKLASSIFIZIERUNG (kein CSV-Import) =====
 def _reclassify_only(reclassify_ai=False):
     """
@@ -1625,6 +1982,7 @@ def _reclassify_only(reclassify_ai=False):
     kb = len(file_content.encode('utf-8')) // 1024
     print(f'\ncflu_tracks.js geschrieben ({kb} KB, {len(tracks)} Tracks)')
     generate_genre_map()
+    export_json(tracks)
     print('\nGenre-Verteilung:')
     gc = defaultdict(int)
     for t in tracks:
@@ -1731,6 +2089,7 @@ def build(rebuild=False, reclassify_ai=False):
     kb = len(file_content.encode('utf-8')) // 1024
     print(f'\ncflu_tracks.js geschrieben ({kb} KB, {len(tracks)} Tracks)')
     generate_genre_map()
+    export_json(tracks)
     print('\nGenre-Verteilung:')
     gc = defaultdict(int)
     for t in tracks:
@@ -1752,6 +2111,12 @@ if __name__ == '__main__':
         existing = load_existing()
         if existing:
             fetch_lastfm_data(list(existing.values()))
+        else:
+            print('Kein Pool gefunden — erst python CFLU_Pool_Build.py ausführen.')
+    elif '--resolve-ids' in sys.argv:
+        existing = load_existing()
+        if existing:
+            resolve_spotify_ids(list(existing.values()))
         else:
             print('Kein Pool gefunden — erst python CFLU_Pool_Build.py ausführen.')
     else:

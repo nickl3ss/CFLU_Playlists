@@ -204,13 +204,6 @@
           <input type="range" id="bpm-tol" min="1" max="40" value="5">
         </div>
         <div class="range-row"><span class="range-lbl">±1</span><span class="range-lbl">±40</span></div>
-        <div class="toggle-row" style="margin-top:10px;margin-bottom:4px">
-          <div>
-            <div class="toggle-label">log2-Raum zulassen</div>
-            <div class="toggle-sub" title="Wertet Tracks mit halbem/doppeltem Tempo als kompatibel (gleiches Beatgrid).">Half/Double-Time ×2/÷2</div>
-          </div>
-          <label class="toggle"><input type="checkbox" id="log2-toggle" checked><span class="toggle-slider"></span></label>
-        </div>
         <div class="track-count" id="filter-count">— Tracks</div>
 
         <div style="margin-top:8px">
@@ -318,6 +311,46 @@
       </div>
       <div class="ampel-hint" id="ampel-hint"></div>
     </div>
+
+    <!-- SCORING WEIGHTS (collapsible, between step2 and step3) -->
+    <details class="sb-section scoring-collapse" id="scoring-weight-section">
+      <summary class="scoring-summary">Score-Gewichtung</summary>
+      <div class="scoring-web-wrap">
+        <svg id="scoring-radar" viewBox="0 0 200 200" width="100%" height="160"></svg>
+      </div>
+      <div class="scoring-inputs">
+        <div class="sw-row">
+          <span class="sw-lbl">BPM</span>
+          <input type="range" class="sw-slider" id="sw-bpm" min="0" max="100" value="40">
+          <input type="number" class="sw-num" id="sn-bpm" min="0" max="100" value="40">
+        </div>
+        <div class="sw-row">
+          <span class="sw-lbl">Camelot</span>
+          <input type="range" class="sw-slider" id="sw-camelot" min="0" max="100" value="20">
+          <input type="number" class="sw-num" id="sn-camelot" min="0" max="100" value="20">
+        </div>
+        <div class="sw-row">
+          <span class="sw-lbl">Energy</span>
+          <input type="range" class="sw-slider" id="sw-energy" min="0" max="100" value="15">
+          <input type="number" class="sw-num" id="sn-energy" min="0" max="100" value="15">
+        </div>
+        <div class="sw-row">
+          <span class="sw-lbl">Loudness</span>
+          <input type="range" class="sw-slider" id="sw-loudness" min="0" max="100" value="10">
+          <input type="number" class="sw-num" id="sn-loudness" min="0" max="100" value="10">
+        </div>
+        <div class="sw-row">
+          <span class="sw-lbl">Valence</span>
+          <input type="range" class="sw-slider" id="sw-valence" min="0" max="100" value="8">
+          <input type="number" class="sw-num" id="sn-valence" min="0" max="100" value="8">
+        </div>
+        <div class="sw-row">
+          <span class="sw-lbl">Dance</span>
+          <input type="range" class="sw-slider" id="sw-dance" min="0" max="100" value="7">
+          <input type="number" class="sw-num" id="sn-dance" min="0" max="100" value="7">
+        </div>
+      </div>
+    </details>
 
     <!-- STEP 3: SETTINGS -->
     <div class="sb-section" id="step3" style="opacity:.4;pointer-events:none">

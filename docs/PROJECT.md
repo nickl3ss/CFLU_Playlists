@@ -1,503 +1,232 @@
-# PROJECT.md — CFLU WOD Playlist Builder
+# PROJECT.md — CFLU WOD Builder
 
-## Projektübersicht
-
-Lokaler, regelbasierter Playlist-Generator für alle vier Phasen eines CrossFit-Trainings (Whiteboard, Skill, WOD, Cool-Down). Auf Basis des aktuellen Track-Pools erstellt der Builder phasenoptimierte Playlists mit Camelot-Kompatibilität, BPM-Steuerung und direktem Spotify-Export — alles lokal ohne Backend, betrieben via `cflu_server.py`. Entwickelt und genutzt für CrossFit Ludwigshafen.
+> Technical reference for the CFLU WOD Builder. Covers architecture, data model, scoring algorithm, and architectural decision records (ADRs).
+>
+> **Domain theory** → `DOMAIN.md` · **Requirements** → `REQUIREMENTS.md` · **Test protocol** → `TESTING.md`  
+> **Change history** → `git log` · **Open issues** → https://github.com/nickl3ss/CFLU_Playlists/issues
 
 ---
 
-## Architektur
+## Architecture
 
-### Komponenten
+### Components
 
-| ID | Name | Pfad | Verantwortung |
-|----|------|------|---------------|
-| C1 | Pool Builder | `CFLU_Pool_Build.py` | ETL-Pipeline: liest `Playlists/**/*.csv` rekursiv, dedup per Spotify Track-ID, schreibt `cflu_tracks.js`. Phasen: E-T-L-C-G-A-[Color]-M. Standard: Add-only (`--rebuild` für vollständigen Update). `parent_genres` intern für `classify()` benötigt, aber nicht in `cflu_tracks.js` geschrieben (`_JS_EXCLUDE_FIELDS`). |
-| C2 | WOD Builder UI | `CFLU_WOD_Builder.html` + `js/` + `css/` | Haupt-UI: Song-Auswahl, Playlist-Generierung, BPM-Chart, Spotify-Export |
-| C3 | Track Data | `cflu_tracks.js` | Auto-generierter Track-Pool (non-module global `TRACK_DATA`) |
-| C4 | Tests | `js/cflu_tests.js` + `CFLU_Tests.html` | Kanonische Testklasse (dual-mode): `node js/cflu_tests.js` → stdout + Exit-Code; Browser: `CFLU_Tests.html` importiert und rendert. 376 Tests. |
+| ID | Name | Path | Responsibility |
+|----|------|------|----------------|
+| C1 | Pool Builder | `CFLU_Pool_Build.py` | ETL pipeline: reads `Playlists/**/*.csv`, deduplicates by Spotify track ID, writes `cflu_tracks.js`. Standard mode: add-only; `--rebuild` for full update. |
+| C2 | WOD Builder UI | `CFLU_WOD_Builder.html` + `js/` + `css/` | Main UI: song selection, playlist generation, BPM chart, Spotify export |
+| C3 | Track Data | `cflu_tracks.js` | Auto-generated track pool (non-module global `TRACK_DATA`) |
+| C4 | Tests | `js/cflu_tests.js` + `CFLU_Tests.html` | Canonical test class (dual-mode): `node js/cflu_tests.js` → stdout + exit code; browser: `CFLU_Tests.html` renders. 403 tests. |
+| C5 | Server | `cflu_server.py` | Local HTTP server (port 8888): serves static files, handles CSV upload, proxies all Spotify API calls |
 
-### JS-Module (C2 intern)
+### JS Modules (C2 internal)
 
-| Modul | Verantwortung |
-|-------|---------------|
-| `js/config.js` | Konstanten: PHASE_CONFIG, BPM_RANGES, DUR_STEPS, Farb-Stops, `bpmStopsForPhase(phase)` |
-| `js/state.js` | Mutabler App-Zustand (currentPhase, selectedTrack, poolGenre, lockCamFilter, Token, …) |
-| `js/utils.js` | Pure Helpers: bpmGroup, camCompat, calcPhaseScore, calcEraScore, calcSortScore, titleDuplicate, camelotZoneDistance, `bpmHint`, … |
-| `js/genres.js` | GENRE_CONFIG: 10 Main Genres (Everynoise-derived neighbour weights), Bridge-Subgenres, Rollen-Affinität |
-| `js/algorithm.js` | Kern: pickNext/pickPrev (4-stufig), buildUp/Down/Plateau/Decreasing/Alternating |
-| `js/chart.js` | BPM-Step-Chart + bidirektionale Hover-Synchronisation |
-| `js/spotify.js` | Spotify auth proxy, playlist export, device control — browser never holds a token |
-| `js/upload.js` | CSV-Upload-Helfer: sanitizeFilename, extractPlaylistName, formatUploadSuccess |
-| `js/app.js` | UI-Handler, _gen(), renderResult(), Event-Wiring, Init |
+| Module | Responsibility |
+|--------|----------------|
+| `js/config.js` | Constants only: `PHASE_CONFIG`, `BPM_RANGES`, `BPM_TRANSITION_CONFIG`, `TRANSITION_BUDGET`, `SCORE_WEIGHTS_DEFAULT`, colour stops, `bpmStopsForPhase()` |
+| `js/state.js` | Single mutable app state — never import `app.js` (cycle prevention) |
+| `js/utils.js` | Pure helpers: `bpmGroup`, `camCompat`, `calcBpmTransitionScore`, `calcSortScore`, `calcPhaseScore`, `calcEraScore`, `effectiveBpm`, `bpmHint`, `titleDuplicate`, `camelotZoneDistance` |
+| `js/genres.js` | `GENRE_CONFIG`: 12 main genres, Everynoise-derived neighbour weights, bridge subgenres, role affinity |
+| `js/algorithm.js` | Core generation: `_pick()` (4-stage), `buildUp/Down/Plateau/Decreasing/Alternating`, `pickReplacement` |
+| `js/optimizer.js` | Playlist import, flow analysis (`analyseFlow`), greedy reorder, gap fill — no DOM, no Spotify token handling |
+| `js/chart.js` | BPM step chart + bidirectional hover synchronisation |
+| `js/spotify.js` | Spotify auth proxy, playlist export, device control — browser never holds a token (Key Invariant 2) |
+| `js/genre_space.js` | 3D Everynoise star map (Three.js) — reads state + `GENRE_MAP` + `TRACK_DATA`; writes canvas only |
+| `js/upload.js` | CSV upload helpers (`sanitizeFilename`, `extractPlaylistName`, `formatUploadSuccess`) — standalone `<script>` in HTML |
+| `js/resolve.js` | `SOURCE_PRECEDENCE` + pure resolve functions — no DOM, no state, no Spotify calls |
+| `js/register.js` | Pool Register tab — lazy-loads `data/*.json`, writes DOM only |
+| `js/app.js` | UI wiring: imports all modules, event handlers, `_gen()`, `renderResult()`, init |
 
-### Abhängigkeiten
+### Module Dependency Graph
 
 ```
-cflu_tracks.js  (non-module global, lädt zuerst → TRACK_DATA global)
-     ↓
+cflu_tracks.js    (non-module global → TRACK_DATA)
+cflu_genres.js    (non-module global → GENRE_MAP)
+       ↓
 config.js
-     ↓
-utils.js   (importiert: config.js)
-genres.js  (importiert: config.js)
-     ↓
-algorithm.js (importiert: config.js, state.js, utils.js, genres.js)
-chart.js     (importiert: state.js)
-spotify.js   (importiert: state.js)
-upload.js    (importiert: –; standalone &lt;script&gt; in HTML; exportierte Funktionen genutzt von cflu_tests.js)
-     ↓
-app.js (importiert alle Module, verdrahtet Events)
+       ↓
+utils.js     (← config.js)
+genres.js    (← config.js)
+       ↓
+algorithm.js  (← config, state, utils, genres)
+optimizer.js  (← utils; algorithm for getAllTracks)
+chart.js      (← state)
+spotify.js    (← state)
+genre_space.js (← state, GENRE_MAP, TRACK_DATA)
+upload.js     (standalone <script>)
+resolve.js    (standalone pure module)
+register.js   (← resolve, spotify)
+       ↓
+app.js (← all modules)
 ```
 
 ---
 
-## Entscheidungen (ADR)
+## Data Model
 
-| # | Entscheidung | Begründung | Datum |
-|---|-------------|------------|-------|
-| 1 | Vanilla ES-Module, kein Build-System | Kein Node.js benötigt; direkter Browser-Import via Python http.server; maximale Transparenz | 2024 |
-| 2 | `cflu_tracks.js` als non-module global `<script>` | Track-Pool; non-module erlaubt lazy Zugriff aus ES-Modulen ohne Top-Level-Import; importierbar in Tests ohne echte Daten | 2025 |
-| 3 | ~~Spotify PKCE ohne Backend~~ → superseded by ADR 15 | Ursprünglich: PKCE im Browser, kein Backend. Abgelöst durch server-seitige Authorization Code Flow (ADR 15). | 2024 |
-| 4 | `cflu_server.py` als lokaler Server | Custom SimpleHTTPRequestHandler mit POST /api/upload-csv; Spotify OAuth benötigt `http://`-Redirect (kein `file://`) | 2024/2026 |
-| 5 | cflu_tracks.js im Repo (obwohl generiert) | Vollständige Nutzbarkeit nach Clone ohne Pool-Rebuild-Pflicht; nach CSV-Update neu committen | 2025 |
-| 6 | state.poolGenre als SSOT für Generations-Pool-Genre | genre-sel steuert nur Filter-Modus; Direktsuche und Spotify-Link setzen poolGenre aus t.genre; externer Track: manueller Dropdown | 2026-06-06 |
-| 7 | Direktsuche ohne Camelot-/Energy-Filter | Referenz-Song-Auswahl soll nicht durch Generierungs-Filter eingeschränkt werden; Filter-Modus hat eigene gefilterte Liste | 2026-06-06 |
-| 8 | Testklasse als dual-mode JS-Modul (`js/cflu_tests.js`) | Trennung von Test-Logik und HTML-Rendering: `js/cflu_tests.js` ist die kanonische Testklasse (importierbar von Node.js + Browser); `CFLU_Tests.html` ist nur noch ein Rendering-Shell (~90 Zeilen). Ermöglicht `node js/cflu_tests.js` ohne Browser/Server für Claude Code und CI. `package.json` mit `{"type":"module"}` aktiviert ES-Modul-Support in Node.js. | 2026-06-06 |
-| 9 | ETL-Default: Add-only statt Full-Update | Bestehende Tracks im Pool sollen durch ein reguläres Startup-Build nicht überschrieben werden — insbesondere AI-gepflegte (`open_genre=2`) und manuell gepflegte Felder (`open_genre=3`, `mood_tags`) müssen erhalten bleiben. `--rebuild` erzwingt vollständigen Update und schützt dynamische Felder explizit in `merge()`. | 2026-06-08 |
-| 10 | `open_genre`-State-Machine für Genre-Herkunft | Spotify liefert Genres nur auf Artist-Ebene — manche Tracks haben keine Genres (z. B. wenig bekannte Künstler, Remixe mit anderer Artist-ID). Statt diese Tracks zu verwerfen, wird der Herkunftszustand in `open_genre` getrackt und schrittweise verbessert: Vererbung → Last.fm → AI → Manuell. Reherstelungssicherheit durch Preserve-Logik in `merge()`. State 6 (Last.fm) hat höhere Priorität als State 2 (AI) und wird nie durch AI überschrieben. | 2026-06-08 / 2026-06-15 |
-| 11 | ETL: [C] Cleanup vor [G] Genre-Vererbung und [A] AI-Genre | Doubletten-Entfernung läuft zuerst, damit kein Claude-Haiku-API-Call auf Tracks verschwendet wird, die anschließend durch Dedup entfernt werden — spart Kosten und Zeit. | 2026-06-09 |
-| 12 | ~~`genres_raw[0]` als Proxy~~ → durch `decisive_genre`-Feld ersetzt (#122) | `find_decisive_genre_tag()` identifiziert per Einzel-Tag-Test den auslösenden `genres_raw`-Eintrag und speichert ihn als `decisive_genre` im Track-Dict. WOD-UI nutzt `t.decisive_genre \|\| t.genres_raw[0]`. Für AI-Tracks (`open_genre=2`) ist `decisive_genre = canonical` (exakt). Für Parent-Genre-Fallbacks (kein Einzel-Tag trifft) bleibt `genres_raw[0]` als Fallback. | 2026-06-09 / 2026-06-15 |
-| 13 | Three.js vendored in `js/vendor/` statt CDN | CSP (`script-src 'self'`) blockiert externe Skript-Domains; vendored Dateien erhalten die Offline-Fähigkeit (Key Invariant 8) ohne CSP-Änderungen. `OrbitControls.js` einmalig gepatcht: `from 'three'` → `from './three.module.min.js'`. | 2026-06-10 |
-| 14 | log2-Übergangs-Score ersetzt absoluten BPM-Sprung-Filter | Absoluter Maximalsprung (z. B. 10 BPM) ist tempoabhängig: bei 80 BPM ist ±10 BPM = ±12,5 %, bei 160 BPM = ±6,25 %. log2-Distanz `d = |log2(bpmNext/bpmPrev)|` ist tempo-invariant (DJ-Norm ±2 % ↔ d ≤ 0.030; ±10 % ↔ d ≈ 0.137). `BPM_TRANSITION_CONFIG.breakpoints` ist die einzige SSOT für Schwellenwerte. `allowLog2`-Flag behandelt ×2/÷2-Übergänge (gleiches Beatgrid) als d→min(d, |log2(r/2)|, |log2(r×2)|). | 2026-06-12 |
-| 15 | Spotify Authorization Code Flow (server-seitig) statt PKCE im Browser | PKCE-Ansatz speicherte Token im Browser (sessionStorage) und erforderte `streaming`-Scope für das Web Playback SDK — inkompatibel mit Web-Crypto-Einschränkungen auf iOS, EME/DRM-Anforderungen und der Einzelnutzer-Situation. Neu: `cflu_server.py` agiert als confidential client; `client_secret` und `refresh_token` verlassen den Server nie (Key Invariant 2); Browser hält kein Token; alle Spotify-API-Calls laufen durch `POST /api/spotify/call`; Web Playback SDK vollständig entfernt (kein `streaming`-Scope nötig). Device Control via `GET /me/player/devices` + `PUT /me/player/play` (Option A aus SPOTIFY_API_GUIDE.md). | 2026-06-14 |
-| 16 | `xyScore` als orthogonale Ergänzung zu `colorScore` in `calcSortScore()` (#132) | `avg_xy: [x_norm, y_norm]` — gewichteter Centroid der Everynoise-Positionen aller `genres_raw`-Tags (min-max normalisiert auf [0,1]; identische Matching-Logik wie `avg_color`). `xyScore = max(0, 10 × (1 − xyDist / √2))` ohne `Math.round()` — sub-integer Unterschiede sind im aufsummierten Score sichtbar (~80 % der Track-Paare hätten ohne rounding xyDist-Diff < 0.01 → Score-Diff < 0.07). Korrelations-Studie (Stage 0): Pearson r = 0.51 (moderat) — xy und RGB kodieren verschiedene, teilweise unabhängige Audiodimensionen. | 2026-06-15 |
+### Track Object Fields
 
----
+| Field | Type | Source | Description |
+|-------|------|--------|-------------|
+| `id` | string | Spotify CSV | Spotify track ID |
+| `song` | string | Spotify CSV | Track title |
+| `artist` | string | Spotify CSV | Artist name(s) |
+| `bpm` | number | Chosic / Spotify CSV | Tempo in BPM |
+| `camelot` | string | Chosic / Spotify CSV | Camelot key (e.g. `9B`) |
+| `energy` | number 0–100 | Spotify audio feature | Perceptual intensity |
+| `loud` | number dB | Spotify audio feature | Overall loudness |
+| `valence` | number 0–100 | Spotify audio feature | Musical positiveness |
+| `dance` | number 0–100 | Spotify audio feature | Danceability |
+| `acoustic` | number 0–100 | Spotify audio feature | Acousticness confidence |
+| `instrumental` | number 0–100 | Spotify audio feature | Instrumentalness confidence |
+| `speech` | number 0–100 | Spotify audio feature | Speechiness |
+| `live` | number 0–100 | Spotify audio feature | Liveness confidence |
+| `dur` | number (s) | Spotify CSV | Duration in seconds |
+| `genre` | string | ETL classify() | Main genre bucket (one of 12) |
+| `genres_raw` | string[] | Spotify / Last.fm / AI | Raw genre/tag strings |
+| `decisive_genre` | string | ETL | Tag that triggered genre classification |
+| `open_genre` | 0–7 | ETL state machine | Genre provenance (see below) |
+| `mood_tags` | string[] | AI (Claude Haiku) | Mood descriptors |
+| `avg_color` | [R,G,B] | Everynoise CSV | Average Everynoise RGB for genres_raw |
+| `avg_xy` | [x,y] | Everynoise CSV | Average Everynoise 2D position (normalised 0–1) |
+| `album_date` | string | Spotify CSV | Release year (for era scoring) |
+| `bpmg` | string | ETL | BPM group bucket |
+| `explicit` | bool | Spotify CSV | Explicit content flag |
+| `locked` | 0/1 | ETL | Deduplication preference |
 
-## Theorie-Quellen
+### open_genre State Machine
 
-| Dokument | Inhalt | Genutzt in |
-|----------|--------|-----------|
-| [`references/WODability_Playlist-WodMusicTheory.md`](references/WODability_Playlist-WodMusicTheory.md) | BPM-Progressionstheorie, DJ-Norm ±5 BPM, Phasen-Energie-Fenster | #94 maxJump-Default, #80 PHASE_CONFIG |
-| [`references/Genre_MatchingTheory.md`](references/Genre_MatchingTheory.md) | Genre-Kompatibilitätsmatrix, Neighbour-Graph, Bridge-Subgenres | #85–#88 genres.js |
-| [`references/Genre_NetworkResearch.md`](references/Genre_NetworkResearch.md) | Datengetriebene Genre-Netzwerk-Analyse (Track-Counts, Subgenre-Verteilung, Neighbour-Graph mit Gewichtung) | #85–#88 genres.js |
+| State | Name | Transition rule |
+|-------|------|-----------------|
+| `0` | Spotify Find | Base: `genres_raw` from Spotify CSV |
+| `1` | No Find | Base: Spotify found no genre — transient, exhausted after full ETL |
+| `2` | AI Find | From `1` or `4` — Claude Haiku ≥99 % confidence |
+| `3` | User Find | From `5` — manual curation in Admin Panel (#105) |
+| `4` | Auto Find | From `1` — inherited from same-artist track |
+| `5` | No AI Find | From `1` — AI responded but could not classify; `4` stays `4` |
+| `6` | Last.fm Find | From `1`, `4`, `5`, or `2` — Last.fm tags resolved to canonical genre |
+| `7` | No Last.fm Find | From `5` **only** — AI already failed AND Last.fm found nothing; terminal |
 
-## Changelog
+**Preserve rules in `merge()` (rebuild-safe):** States `2`, `3`, `5`, `6`, `7` survive `--rebuild`; `genres_raw` + `genre` + `decisive_genre` preserved for states `2` and `6`. State `4` recalculated on every rebuild. State `7` is terminal: ignored by ETL phases [F] and [A].
 
-Offene Items → GitHub Issues (https://github.com/nickl3ss/CFLU_Playlists/issues)
+### PHASE_CONFIG
 
-### 2026-06-14 — Spotify Integration Redesign: Authorization Code Flow + Device Control
+Each phase entry contains: `bpm [lo, hi]`, `bpmCore [lo, hi]`, `energy {min, max}`, `dance {min, max}`, `valence {min, max}`, `loud {min}`, `instrumental {max}`, `acoustic {max}`, `label`.
 
-Kompletter Ersatz der PKCE-basierten Browser-Auth durch server-seitigen Authorization Code Flow (ADR 15). Web Playback SDK entfernt.
-
-#### `.gitignore`
-- `cflu_client_secret.txt` hinzugefügt (neben `cflu_client_id.txt`); beide jetzt in `keyvault/`
-
-#### `cflu_server.py`
-- Neue Endpunkte: `GET /api/spotify/login`, `GET /api/spotify/callback`, `GET /api/spotify/status`, `GET /api/spotify/logout`, `POST /api/spotify/call`
-- Modul-Level-State: `_sp_tokens` dict (access_token, refresh_token, expires_at, user_id, display_name)
-- CSRF-Schutz: `_sp_pending_state` per `secrets.token_urlsafe(32)` generiert, im Callback validiert
-- Token-Refresh: `_ensure_valid_token()` ruft `_refresh_access_token()` wenn `expires_at` < now+60s; rotiert refresh_token wenn Spotify neuen liefert
-- Spotify-API-Proxy: `_handle_spotify_call()` validiert path (kein `..`), setzt Bearer-Header, leitet an `api.spotify.com/v1` weiter; 512 KB Body-Limit
-- CSP: `connect-src` auf `'self'` vereinfacht (kein direkter Browser-Zugriff zu Spotify-APIs mehr)
-- Startausgabe: `Redirect URI für Spotify Dashboard: http://127.0.0.1:{PORT}/api/spotify/callback`
-
-#### `js/state.js`
-- Entfernt: `spToken`, `spUserId`, `spTokenExpiry`, `spPlayer`, `spDeviceId`, `spPlayingIdx`
-- Hinzugefügt: `spConnected: false`, `spDisplayName: null`, `spDevices: []`, `spSelectedDeviceId: null`
-
-#### `js/spotify.js`
-- Komplett neu geschrieben: kein PKCE, kein SDK
-- `spotifyLogin()` → `window.location.href = '/api/spotify/login'`
-- `spotifyLogout()` → `fetch('/api/spotify/logout')`, cleart State
-- `checkSpotifyStatus()` → `fetch('/api/spotify/status')`, synct State; auf jeder Page-Load aufgerufen
-- `spotifyCall(method, path, body)` → `POST /api/spotify/call`; behandelt 204 korrekt
-- `getDevices()` → `GET /me/player/devices`
-- `playOnDevice(deviceId, uris, startIndex)` → `PUT /me/player/play?device_id=...`
-- `cflu-auth-state` CustomEvent beim Login/Logout → app.js reagiert ohne circular import
-
-#### `js/app.js`
-- Device-Panel: `refreshDevices()`, `onPlayFromTrack(idx)`, `_updateSpPlaybackSection()`, `_updatePlayBtnState()`
-- `cflu-auth-state`-Listener ersetzt `cflu-player-state` + player-button listener
-- `checkSpotifyCallback()` ersetzt direkten PKCE-Code-Austausch
-- Kein `fetch('cflu_client_id.txt')` mehr
-
-#### `CFLU_WOD_Builder.html`
-- Device-Panel mit Dropdown (`#sp-device-sel`), Refresh-Button (`#sp-device-refresh`), Play-Button (`#sp-play-main-btn`)
-- Login-Modal vereinfacht: kein `modal-sp-cid` Input mehr
-- Sidebar: kein `sp-cid` Input, neuer `cflu_client_secret.txt` Hinweis, neue Redirect-URI
-
-#### `css/cflu_style.css`
-- Entfernt: `.sp-player-bar`, `.sp-player-info`, `.sp-player-controls`, `.sp-player-btn`, `.sp-player-progress`, `.sp-player-fill`
-- Hinzugefügt: `.sp-device-row`, `.sp-device-sel`, `.sp-device-refresh-btn`, `.sp-device-hint`
+Phase D (`bpm[0] = 60`) represents the slider minimum; gradients start at yellow, not red.
 
 ---
 
-### 2026-06-12 — log2 BPM-Übergangsscore (#136–#141)
+## ETL Pipeline (Pool Builder)
 
-#### `js/config.js`
-- `BPM_TRANSITION_CONFIG` (neu): SSOT für log2-Score-Schwellenwerte; drei Breakpoints `[d, score]`; d > 0.135 → 0.00 (harter Ausschluss)
-- `JUMP_STOPS` (entfernt): Slider-Farb-Stops nicht mehr benötigt
-- `maxJumpDefault` in allen `PHASE_CONFIG`-Einträgen (entfernt)
-
-#### `js/utils.js`
-- `calcBpmTransitionScore(bpmPrev, bpmNext, allowLog2)` (neu): log2-basierter BPM-Übergangsscore 0.00–1.00; mit `allowLog2`: min-Trick über ×2/÷2-Ratio
-- `effectiveBpm(bpm, phase)` (neu): normalisiert BPM in Phasenband per ×2/÷2 — für Monotonieprüfung in Phasen B/C
-- `calcSortScore`: `bpmPenalty` entfernt, `bpmTransScore = round(calcBpmTransitionScore(...) × 250)` ergänzt (max 250 Punkte, ~40 % des Gesamtscores)
-
-#### `js/state.js`
-- `maxJump: 5` deprecated (stillgelegt; wird vom Algorithmus nicht mehr gelesen)
-- `allowLog2: true` (neu): steuert Half/Double-Time-Kompatibilität
-
-#### `js/algorithm.js`
-- `_pick()`: `baseOk`/`bpmOk` ersetzt absoluten Sprung-Gate + `neighbour()`-Check durch Score-Gate (score=0 → ablehnen) + Monotonieprüfung via `effectiveBpm()`
-- Phase-4-BPM-Eskalation (maxJump-Erweiterungsschleife) vollständig entfernt
-- `buildDown()` / `buildDecreasing()`: `maxJump`-Checks ersetzt durch log2-Score-Gate; `buildDecreasing()`: C→D-Erstauswahl bevorzugt ×2/÷2-Matches mit Sortier-Bonus
-
-#### `CFLU_WOD_Builder.html`
-- Max. BPM-Sprung-Slider (#jump-slider) entfernt
-- Neues Toggle "#log2-toggle" (☑ standardmäßig aktiv, Tooltip: "Wertet Tracks mit halbem/doppeltem Tempo als kompatibel (gleiches Beatgrid).")
-
-#### `js/app.js`
-- `jumpHint()`, `onJumpSlider()`, `JUMP_STOPS`-Import entfernt
-- `onLog2Toggle()` (neu): setzt `state.allowLog2` per Checkbox
-- Generierungs-Log: "Max BPM-Sprung: +N BPM" → "log2-Score: Half/Double aktiv/inaktiv"
-
-#### `js/cflu_tests.js`
-- 4 Tests aktualisiert (Phase-4-Eskalation entfernt, Score-Erwartungen angepasst)
-- 10 neue Tests für `calcBpmTransitionScore` (§7 Akzeptanzkriterien)
-- 7 neue Tests für `effectiveBpm` (Phasen-Normalisierung)
-- 352 Tests gesamt
-
-### 2026-06-10 — Genre Space 3D star map (#133, #134)
-
-#### `CFLU_Pool_Build.py` — `generate_genre_map()` (#133)
-
-- New function writes `cflu_genres.js` (non-module global `const GENRE_MAP`) after every build/reclassify run
-- All 5 453 Everynoise subgenres; `x`/`y` normalised 0–1; `z` = luminance (`0.21R + 0.72G + 0.07B`); raw `r`, `g`, `b` preserved for colour
-- Skips gracefully if `data/everynoise_genre_attrs.csv` is absent
-
-#### `js/genre_space.js` (new) · `js/vendor/` (new) (#134)
-
-- Three.js r165 vendored locally (`js/vendor/three.module.min.js` + `OrbitControls.js`); ADR 13
-- `initGenreSpace(canvas)` — idempotent; builds 5 453-point star field with custom ShaderMaterial (glow, additive blending); star size ∝ pool track count for that subgenre
-- `updatePlaylistMode(wod)` — groups `wod` by `genres_raw[0]`; adds playlist markers (avg_color coloured), sequence line, cubic-ease camera zoom to bbox
-- `clearPlaylistMode()` — removes all playlist objects
-- Hover on a genre star → tooltip listing all playlist songs at that star; bidirectional sync with track table via `highlightFromRow`
-- No tooltip before playlist generation (star map only)
-- Module contract: reads `state`, `GENRE_MAP`, `TRACK_DATA`; writes canvas only; no Spotify, no generation logic
-
-#### `CFLU_WOD_Builder.html`
-
-- `cflu_genres.js` loaded as non-module `<script>` before `cflu_tracks.js`
-- `#gen-log-section` + new `#genre-space-section` wrapped in `#bottom-panel` (side-by-side flex)
-
-#### `css/cflu_style.css`
-
-- `.bottom-panel` flex row layout; `.genre-space-section` fills remaining width; `.gs-tooltip` overlay
-
-#### `js/app.js`
-
-- Imports `initGenreSpace`, `updatePlaylistMode` from `./genre_space.js`
-- `renderResult()`: calls `initGenreSpace` (lazy, first render) then `updatePlaylistMode(wod)` in same rAF; shows `#bottom-panel` instead of `#gen-log-section`
-
-#### `eslint.config.js`
-
-- `js/vendor/**` added to ignores; `GENRE_MAP` and `ResizeObserver` added to globals
+```
+[E] Extract         reads Playlists/**/*.csv recursively
+                    add-only: skips IDs already in pool before [T]
+                    --rebuild: all IDs processed
+[T] Transform       CSV rows → track dicts; genres_raw empty allowed (open_genre=1)
+[L] Load & Merge    add-only (default) or full-update (--rebuild); preserves dynamic fields
+[*] Reset AI        --reclassify-ai only: resets open_genre=2 → 1, clears genres_raw
+[C] Cleanup         deduplication (artist+title key; locked=1 wins) — runs before G+F+A
+[G] Genre inherit   open_genre=1 → 4: borrow genres_raw from same-artist tracks (sources 0,2,4,6)
+[F] Last.fm Genre   open_genre=1/4/5/2 → 6; track.getTopTags + artist.getTopTags fallback
+[A] AI Genre        open_genre=1/4 → 2 or 5; Claude Haiku; skips open_genre=6
+[*] Color Enrich    avg_color + avg_xy per track from Everynoise CSV — runs after [A]
+[M] Mood Tags       Claude Haiku batch tagging; skips already-tagged tracks
+```
 
 ---
 
-### 2026-06-09 — BPM Slider: phasen-aware Farben, Smooth Gradient, Hint-Text (#130, #131)
+## Scoring Algorithm
 
-#### `js/config.js` — `bpmStopsForPhase(phase)` (#130, #131)
+### calcBpmTransitionScore(bpmPrev, bpmNext) → [0.0, 1.0]
 
-- Neue exportierte Funktion `bpmStopsForPhase(phase)`: berechnet Gradient-Stops aus `PHASE_CONFIG[phase].bpm` (gelbe Akzeptanzzone) und `bpmCore` (grüne Idealzone) dynamisch pro Phase
-- **#130:** Hard-cut-Architektur (doppelte `p`-Werte): Farben wechseln abrupt; Grünzone war fest auf ~83–91 BPM hardcodiert (keine Phasenabhängigkeit)
-- **#131:** Smooth-Gradient-Umbau: einzelner Stop pro Zonengrenze → CSS interpoliert linear → `RED → YEL → GRN ▓▓▓ GRN → YEL → RED` Bell-Kurve
-- Phase D (Cool-Down, `bpm[0]=60` = Slider-Minimum): erster Stop startet direkt mit `YEL` — kein unnötiger roter Bereich vor dem Slider-Start
-- Fallback auf `BPM_STOPS` bei ungültiger Phase
+Evaluates BPM transition quality using a **Ratio Lattice** of seven integer relationships:
 
-#### `js/app.js` — `onBpmSlider` + Init (#130)
+```
+{ p:1, q:1, w:1.00 }   — same tempo
+{ p:2, q:1, w:1.00 }   — double time
+{ p:1, q:2, w:1.00 }   — half time
+{ p:3, q:2, w:0.90 }   — 3:2 ratio
+{ p:2, q:3, w:0.90 }   — 2:3 ratio
+{ p:4, q:3, w:0.78 }   — 4:3 ratio
+{ p:3, q:4, w:0.78 }   — 3:4 ratio
+```
 
-- `onBpmSlider`: übergibt jetzt `bpmStopsForPhase(state.currentPhase)` statt statischen `BPM_STOPS`
-- Redundanter statischer BPM-Slider-Init vor `onPhaseSelect('C')` entfernt — `onPhaseSelect` ruft `onBpmSlider` intern auf
+For each ratio, `target = bpmPrev × p/q`, `d = |log₂(bpmNext / target)|`. The best (lowest d) ratio wins. Score = `proximity(d) × lock_weight`.
 
-#### `js/utils.js` — `bpmHint(v, phase)` (#131)
+Proximity bands:
+- `d ≤ 0.030` → 1.00 (≈±2 %, inaudible)
+- `d ≤ 0.070` → 0.85 (linear interpolation from 0.030)
+- `d ≤ 0.135` → 0.40 (linear interpolation from 0.070)
+- `d > 0.135` → 0.00 (hard exclusion)
 
-- Neue exportierte Funktion `bpmHint(v, phase)`: gibt phasen-spezifischen deutschen Hinweistext zurück — 5 Zonen je Phase (unter Akzeptanz / untere Gelb-Zone / Ideal / obere Gelb-Zone / über Akzeptanz)
-- Von `app.js` nach `utils.js` verschoben (pure Funktion, keine DOM-Abhängigkeit → testbar)
+Score 0.00 is a **hard gate**: the track is excluded from the candidate pool regardless of other scores.
 
-| Phase | Unter bpm | Untere Zone | Idealbereich | Obere Zone | Über bpm |
-|-------|-----------|-------------|--------------|-----------|----------|
-| A | Zu langsam für Prep | Untere Grenze | Idealbereich Prep ✓ | Obere Grenze | Zu schnell für Prep |
-| B | Zu langsam für Skill | Ruhiger Einstieg | Idealbereich Skill ✓ | Obere Grenze | Zu schnell für Skill |
-| C | Zu langsam für WOD | Aufbau-Bereich | WOD-Idealbereich ✓ | Finisher-Bereich | Grenzbereich |
-| D | Zu langsam | Sehr ruhig | Idealbereich Cool-Down ✓ | Noch akzeptabel | Zu schnell für Cool-Down |
+### calcSortScore(track, cur, phase, scoreWeights) → integer
 
-- 21 neue Tests (11 für `bpmStopsForPhase`, 10 für `bpmHint`); Gesamtzahl: 334
+Distributes `TRANSITION_BUDGET = 500` across 6 normalised audio-transition components weighted by `scoreWeights`:
 
----
+| Component | Normalisation | Default weight |
+|---|---|---|
+| `bpmNorm` | `calcBpmTransitionScore(cur.bpm, t.bpm)` → [0,1] | 40 |
+| `camNorm` | green=1.0 / yellow=0.5 / red=0.0 | 20 |
+| `energyNorm` | `t.energy / 100` | 15 |
+| `loudNorm` | `max(0, 7 − |Δloud|) / 7` | 10 |
+| `valNorm` | `max(0, 30 − |Δvalence|) / 30` | 8 |
+| `danceNorm` | `max(0, 25 − |Δdance|) / 25` (Phase B/C only) | 7 |
 
-### 2026-06-09 — Dokumentation, Admin-Panel, Explicit-Badge, ETL-Optimierungen
+`transScore = round(500 / totalWeight × Σ(weight_i × norm_i))`
 
-#### `CFLU_WOD_Builder.html` + `css/cflu_style.css` — Admin & Info Panel (#126)
+Added to `transScore`: phase fitness points (`calcPhaseScore × 2`), bridge-subgenre bonus (+50), energy-direction bonus, mood-tag overlap, Everynoise colour score, xy-displacement score, era score.
 
-- Rechtes Panel umbenannt: „Spotify & CSV Upload" → **Admin & Info** (Tab-Button, Modal-Text, aria-label)
-- Panel-Header ergänzt
-- **Quellen-Sektion** hinzugefügt: Spotify, Chosic, Every Noise at Once, Claude Code — je mit Link und Kurzbeschreibung; Card-Style-Links (`.rp-source-link`)
-- **Impressum-Sektion** hinzugefügt: Angaben gemäß § 5 TMG, Datenschutzhinweis (OAuth PKCE sessionStorage-only, kein Server-Speicher), Haftungsausschluss
+Default weights (`SCORE_WEIGHTS_DEFAULT`): `{ bpm:40, camelot:20, energy:15, loudness:10, valence:8, dance:7 }`. User-configurable via the spider-web UI panel; persisted in `localStorage` under `cflu_score_weights`.
 
-#### `js/app.js` + `css/cflu_style.css` — Explicit-Badge (#124, #125)
+### _pick() — Four-Stage Candidate Selection
 
-- Playlist-Zeile: Songs mit `explicit: true` zeigen weißes `E`-Badge (`.explicit-badge`) als Prefix zum Titel
-- Filter-Liste + Direktsuche: Optionstext zeigt `[E]` zwischen Phase-Score und Künstlername
+Stage 1: BPM gate (`calcBpmTransitionScore = 0` → reject) + monotonicity (`effectiveBpm` must not reverse phase direction) + base filters (used IDs, title dedup, Camelot lock, explicit filter).  
+Stage 2: Genre + BPM group constraints (±1 step).  
+Stage 3: Energy filter (within `wodEnergyMin/Max`).  
+Stage 4: BPM escalation fallback — ignores genre/energy, last resort within `_pick()`.
 
-#### `js/app.js` + `css/cflu_style.css` — Everynoise-Genre in Playlist-Zeile (#120, #121, #123)
-
-- Neue Genre-Zeile unterhalb Artist: `<Main-Genre>: <genres_raw-Tags>` — Haupt-Genre in `var(--text2)`, erstes `genres_raw`-Tag fett in `avg_color`, weitere Tags in `var(--text2)`
-- `genres_raw[0]` als farbig+fettes „Pick-Genre" (ADR 12); `t.genre` als Plaintext-Prefix
-- CSS: `.tr-genres`, `.tr-genre-main`, `.tr-genre-tags`; Artist-Schrift leicht größer (`--fz-sm`), Genre-Zeile kleiner (`--fz-xs`)
-
-#### `js/chart.js` — BPM-Tooltip (#4)
-
-- Song-Name im Hover-Tooltip nicht mehr auf 20 Zeichen abgeschnitten — `measureText`-basierte Breite passt sich automatisch an
-
-#### `CFLU_Pool_Build.py` — ETL-Reihenfolge + parent_genres-Strip (#117, #127)
-
-- `[C]` Cleanup (Dedup) läuft jetzt vor `[G]` Genre-Vererbung und `[A]` AI-Genre — kein Claude-Haiku-Call auf Doubletten (ADR 11)
-- `_track_for_js()`: `parent_genres` wird nicht mehr in `cflu_tracks.js` geschrieben (`_JS_EXCLUDE_FIELDS`) — im Browser ungenutzt; intern von `classify()` weiterhin verwendet
-
-#### Architektur & Dokumentation (#128)
-
-- `upload.js` Modul-Contract korrigiert: hat `_initUpload()` mit DOM-Zugriff; als standalone `<script>` in HTML geladen
-- ETL-Phasen-Tabelle um `[*] Color Enrich` ergänzt (CLAUDE.md + PROJECT.md)
-- Key Invariants 5+6: „Phase 4" → „`_pick()` stage 4" (kein UI-Phasenbuchstabe)
-- ADR 11 + 12 ergänzt
-- CI (`tests.yml`): `npm install` + `npm run lint` vor dem Test-Lauf
+Top-5 candidates at each stage are scored and randomly selected (crypto.getRandomValues) to avoid deterministic repetition.
 
 ---
 
-### 2026-06-08 — CSS-Designsystem + Launcher-Vereinfachung (#115)
+## Key Invariants
 
-#### `css/cflu_style.css`
+These must never be broken by any implementation change:
 
-- Vollständiges CSS-Tokensystem: `--ff-ui`, `--ff-mono`, `--fz-2xs`–`--fz-2xl` für Typography; alle Inline-Werte durch Variablen ersetzt
-- Akzentfarbe `--acc` geändert: Spotify-Grün (`#1db954`) → Weiß (`#ffffff`); Spotify-Brand-Farbe in eigenständige Variablen `--spotify` / `--spotify2` ausgelagert (semantische Trennung: accent vs. Spotify-Brand)
-- Sidebar-Breite: 360 px → 480 px
-- Toggle: `checked`-Thumb-Farbe auf `--bg2` (statt weiß) — verbesserte Lesbarkeit auf weißem Hintergrund
-
-#### `CFLU_Start.bat` / `CFLU_Start.sh`
-
-- CSV-Prüf-Guard vor Pool-Build entfernt — Skripte rufen `CFLU_Pool_Build.py` immer auf; kein CSV → `_reclassify_only()` intern
-- Alignt mit Key Invariant 8: „Start-Scripts always run pool build on startup"
-
-#### `eslint.config.js`
-
-- `getComputedStyle` als Browser-Global ergänzt (fehlte nach Nutzung in neuem CSS-Util-Code)
+1. Redirect URI must be exactly `http://127.0.0.1:{PORT}/api/spotify/callback` — must match Spotify Dashboard
+2. `client_secret` and `refresh_token` must never leave `cflu_server.py` — browser never holds a Spotify token
+3. Spotify export: max 100 tracks per batch (API limit) — always hard-cap
+4. BPM must never decrease within Phase B/C (ascending phases)
+5. BPM groups: max ±1 step per move within `_pick()` stages 1–3
+6. `_pick()` stage 4 (BPM escalation) intentionally ignores energy filter and BPM groups — last-resort escape hatch, not a normal path
+7. `cflu_tracks.js` must be loaded BEFORE the ES modules (`<script>` in `<head>`)
+8. `CFLU_Start.bat` / `CFLU_Start.sh` always run pool build on startup — no CSV → `_reclassify_only()` mode
+9. `open_genre=2/3/5/6/7` never overwritten by `--rebuild`; `--reclassify-ai` resets state-2 only; state-7 is terminal
+10. `tag_genres_ai()` only sets `open_genre=5` when the API actually responded (not on network/parse errors)
 
 ---
 
-### 2026-06-08 — Ära-Score, Camelot-Lock-Toggle, Crossfade-Default (#111–#114)
+## Architectural Decision Records (ADR)
 
-#### `js/utils.js` — Ära-Score als Priorisierungsmodul (#111)
-
-- Neue exportierte Funktion `calcEraScore(t, cur)`:
-  - diff ≤ 5 Jahre → 30 Punkte (volles Fenster)
-  - diff 5–15 Jahre → linearer Abfall 30 → 0
-  - diff ≥ 15 Jahre → 0
-  - fehlende `album_date` → 0 (kein Fehler, kein Penalty)
-- Integriert als 12. Komponente in `calcSortScore()`; Kommentar-Block aktualisiert
-- 13 neue Unit-Tests; Gesamtzahl: 313
-
-#### `js/algorithm.js` + `js/state.js` — Camelot-Lock-Toggle (#113)
-
-- Neues State-Feld `state.lockCamFilter: false`
-- Neue Funktion `_camLockOk(t)`: prüft Track gegen `state.camLetter` / `state.camNumbers` wenn `lockCamFilter` aktiv
-- Angewendet in `baseOk()`, `baseOkNoEnergy()`, `buildDown()`, `buildDecreasing()`, `buildPlateau()`
-- UI: Toggle in Schritt 3 (`.toggle-row`-Muster); greyed-out wenn kein Tonart-Filter gesetzt
-- `updateCamLockRow()` in `app.js` aktualisiert live bei Filteränderung; auto-reset bei inaktivem Filter
-
-#### WOD Builder — Crossfade-Standard (#114)
-
-- Spotify-Crossfade-Slider: Standardwert 0 → 20 s, Maximum 25 → 30 s
-- `state.crossfadeSec` initialisiert mit 20
-
----
-
-### 2026-06-08 — AI-Genre: Verbesserte Kontextualisierung + --reclassify-ai Flag (#109)
-
-#### `CFLU_Pool_Build.py`
-
-- **`_AI_SYSTEM_PROMPT` — Rule 3 präzisiert:** Unterscheidung zwischen explizit genre-wechselnden Remix-Labels (Club Mix, Trance Edit, EDM Remix…) und generischen Labels (Extended Mix, Shotgun Mix, Radio Edit, Remaster). Generische Labels behalten das Genre des Originalkünstlers. Behebt Fehlklassifikation von „White Wedding - Shotgun Mix" als EDM/Electronic.
-- **`_AI_SYSTEM_PROMPT` — Rule 7 neu:** Bekannte Genres / Geerbte Genres als starkes Prior — Änderung nur bei explizit genre-wechselndem Remix-Label erlaubt.
-- **`tag_genres_ai()` — Kontext-Anreicherung pro Track:**
-  - Album + Albumjahr im Prompt
-  - Bekannte Genres des Künstlers aus dem Pool (open_genre 0/2/4) — `artist_known_genres`-Dict vor der Loop
-  - Geerbte Genres (open_genre=4) explizit als Prior
-- **`reset_ai_genres()` (neu):** Setzt open_genre=2 → 1, leert genres_raw; open_genre=3/4 unberührt.
-- **`--reclassify-ai` Flag:** Ruft `reset_ai_genres()` nach Merge auf, startet dann G+A-Phasen neu. Funktioniert in `build()` und `_reclassify_only()`.
-- **`clean_song()`:** Trailing `/` aus Scraping-Artefakten wird jetzt entfernt (`.strip(' /')`).
-- **Erstes Ergebnis:** 405 open_genre=2-Tracks zurückgesetzt, 412 neu klassifiziert, 0 Fehler.
-
----
-
-### 2026-06-08 — ETL Extract: Bekannte IDs vor Transform überspringen (#108)
-
-#### `CFLU_Pool_Build.py` — `build()`
-
-- `load_existing()` wird nun zwischen [E] Extract und [T] Transform aufgerufen.
-- Add-only-Modus: bereits im Pool vorhandene Spotify-IDs werden aus `extracted` gefiltert, bevor `transform()` läuft — nur echte neue Tracks werden transformiert.
-- `--rebuild`-Modus: kein Skip; alle IDs aus den CSVs werden weiterhin transformiert (Preserve-Logik in `merge()` bleibt aktiv).
-- [E]-Ausgabe: `Bekannte IDs: N übersprungen — M neu` wenn Tracks übersprungen wurden.
-- Keine doppelte Datei-Ladung: `load_existing()` wird einmal aufgerufen und das Ergebnis für [L] Merge wiederverwendet.
-
----
-
-### 2026-06-08 — Pool Builder: Genre-Management, AI-Klassifikation, ETL-Erweiterungen (#103)
-
-#### ETL-Pipeline (`CFLU_Pool_Build.py`)
-
-- **Add-only als Standard**: `build()` läuft standardmäßig im Ergänzungs-Modus — bestehende Tracks werden nicht verändert. `python CFLU_Pool_Build.py --rebuild` für vollständigen Update-Lauf.
-- **`_reclassify_only()`**: Fallback wenn keine CSVs vorhanden — Genre-Tabellen und dynamische Felder werden auf bestehenden Tracks neu angewendet (z. B. nach Keyword-Korrekturen ohne CSV-Re-Import).
-- **Start-Scripts immer aktiv**: `CFLU_Start.bat` / `CFLU_Start.sh` rufen `CFLU_Pool_Build.py` nun immer auf (vorher nur bei CSVs). Ohne CSVs → `_reclassify_only()`; bei Fehler → bestehendes `cflu_tracks.js` wird verwendet.
-
-#### `open_genre`-Feld — State Machine
-
-Neues Pflichtfeld in jedem Track. Dokumentiert die Herkunft der Genre-Klassifikation:
-
-| State | Name | Bedeutung | Übergang |
-|-------|------|-----------|----------|
-| `0` | Spotify Find | `genres_raw` aus Spotify-CSV importiert | Grundzustand |
-| `1` | No Find | Spotify hat keinen Genre zurückgegeben | Grundzustand, transient — nach vollem ETL erschöpft |
-| `2` | AI Find | Claude Haiku hat Genre mit ≥99% Konfidenz bestimmt | aus `1` oder `4` |
-| `3` | User Find | Manuell im Admin Panel gepflegt | aus `5` (#105) |
-| `4` | Auto Find | Genre von Geschwister-Track desselben Künstlers geerbt | aus `1` |
-| `5` | No AI Find | AI hat geantwortet, konnte aber nicht klassifizieren | aus `1`; `4` bleibt `4` |
-| `6` | Last.fm Find | Last.fm `track.getTopTags` / `artist.getTopTags` hat Genre bestimmt | aus `1`, `4`, `5` oder `2` (#155) |
-| `7` | No Last.fm Find | Last.fm gefragt, kein Fund — aber nur nach vorheriger AI-Prüfung | aus `5` **ausschließlich** (#155) |
-
-**Preserve-Logik in `merge()` (rebuild-safe):** States `2`, `3`, `5`, `6`, `7` bleiben durch `--rebuild` erhalten — `genres_raw`, `genre` und `decisive_genre` werden für states `2` und `6` restauriert. State `4` wird bei jedem Rebuild neu berechnet. State `7` ist terminal: wird von [F] und [A] ignoriert; kein Retry ohne explizites Flag.
-
-#### ETL-Phasen (E-T-L-C-G-F-A-M)
-
-| Phase | Neu | Beschreibung |
-|-------|-----|--------------|
-| `[C]` Cleanup | ✓ | Titeldobbletten entfernen (artist+title-Key; locked=1 gewinnt) — läuft vor G+F+A, kein API-Call für Doubletten |
-| `[G]` Genre-Vererbung | ✓ | `open_genre=1` → `4`: `genres_raw` vom gleichen Künstler erben (sucht in states `0`, `2`, `4`, `6`) |
-| `[F]` Last.fm Genre | ✓ | `open_genre=1/4/5/2` → `6`: Last.fm-Tags via `track.getTopTags` (Fallback: `artist.getTopTags`); kann mehrere Canonical-Genres in `genres_raw` setzen; BYOK via `keyvault/lastfm_api_key.txt` (#155) |
-| `[A]` AI-Genre | ✓ | `open_genre=1/4` → `2` oder `5`: Claude Haiku, 99%-Confidence-Gate, Songtitel vor Künstler priorisiert, BYOK via `keyvault/anthropic_api_key.txt`; state-4 bleibt `4` bei kein Fund; überspringt `open_genre=6` |
-
-#### Bugfixes Pool Builder
-
-- **`genres_raw` kein Pflichtfeld mehr**: Tracks ohne Spotify-Genre werden nicht mehr verworfen (Spotify liefert Genres nur auf Artist-Ebene; viele Remixe / weniger bekannte Künstler haben keine Genres).
-- **Free Bird (MOONLGHT)**: War wegen leerem `genres_raw` nicht im Pool. Jetzt enthalten mit `open_genre=1` bzw. nach ETL `open_genre=2/5`.
-
-#### Genre-Korrekturen (`classify()`)
-
-- `dubstep`-Guard in Reggae-Check: `and 'dubstep' not in genres`
-- `blues`-Substring-Guard: eigene Bedingung statt Keyword in `_BLUES_KEYWORDS` (verhindert "blues rock" → Blues & Soul)
-- `new wave` aus `_ROCK_KEYWORDS` entfernt (gehört zu Pop)
-- `electro swing` von `_DANCE_POP_KEYS` nach `_POP_KEYWORDS` verschoben
-- Erweitert: `_PUNK_KEYWORDS`, `_EDM_KEYWORDS`, `_SYNTH_KEYWORDS`, `_METAL_KEYWORDS`, `_HIP_HOP_KEYWORDS`
-
-#### Scoring (`js/utils.js` — `calcSortScore`)
-
-Penalties durch bounded Rewards ersetzt; neuer `moodScore`:
-
-| Komponente | Alt | Neu | Bereich |
-|------------|-----|-----|---------|
-| loudScore | Penalty (unbegrenzt) | Reward: 7 bei ΔdB=0, 0 bei ΔdB≥7 | [0, 7] |
-| valScore | Penalty | Reward: 6 bei Δvalence=0, 0 bei Δ≥30 | [0, 6] |
-| danceScore | Penalty | Reward: 5 bei Δdance=0, 0 bei Δ≥25 (nur Phase B/C) | [0, 5] |
-| moodScore | — | Anteil gemeinsamer `mood_tags` × 8 | [0, 8] |
-
----
-
-### 2026-06-08 — Everynoise Integration: datengetriebene Nachbarn + Farbmatching (#107)
-
-#### `scripts/build_genre_config.py` (neu)
-
-Einmaliges Build-Script, das `js/genres.js` aus Everynoise-Koordinatendaten generiert.
-
-- Lädt `data/everynoise_genre_attrs.csv` (5 453 Genres; gecacht, kein Auto-Refresh)
-- Normalisiert `x`, `y` per Min-Max über alle Genres (y-Achse sonst 10× dominanter als x)
-- Berechnet 5D-Centroids pro Haupt-Genre (x_n, y_n, R_n, G_n, B_n) aus gematchten `genres_raw` aller Tracks
-- 5D-Distanz: `√(Δx² + Δy² + 0.5·ΔR² + 0.5·ΔG² + 0.5·ΔB²)` — Farbe mit Gewicht 0.5
-- Nachbar-Gewichtung rank-basiert: 1→1.0, 2→0.7, 3+→0.5; min. 3, max. 5 Nachbarn
-- **Deutsche Musik override**: kulturelle/sprachliche Nähe ≠ sonische in Everynoise; Nachbarn bleiben manuell kuratiert
-- Coverage-Report: 79% aller `genres_raw`-Tags in Everynoise gefunden
-- Rebuild: `python scripts/build_genre_config.py` (--refresh erzwingt Re-Download)
-
-**Everynoise-Datenquelle:** `data/everynoise_genre_attrs.csv` — gecacht, im Repo getrackt für reproduzierbare Offline-Builds. Schema: `genre, x, y, hex_colour`.
-
-#### `CFLU_Pool_Build.py` — `enrich_colors()`
-
-Neuer ETL-Schritt nach [C] Cleanup (beide Pfade: `build()` + `_reclassify_only()`):
-
-- Berechnet `avg_color` pro Track = Mittelwert-RGB aller gematchten `genres_raw`-Farben aus Everynoise
-- 3-Phasen-Matching: exakt → Bindestrich-Normalisierung → Wort-Split (z. B. "schwedischer pop" → "pop")
-- 90% der Tracks erhielten `avg_color`; Rest: `null` (kein Match → kein Fehler, kein colorScore)
-
-#### `js/utils.js` — `colorScore` in `calcSortScore`
-
-Neue Scoring-Komponente:
-
-| Komponente | Bereich | Formel |
-|------------|---------|--------|
-| colorScore | [0, 10] | `10 × (1 − RGB-Distanz / √3)` — belohnt ähnliche Everynoise-Farbe |
-
-Gibt 0 wenn `avg_color` auf Kandidat oder `cur` fehlt — kein Fehler, kein Einfluss.
-
-#### Taxonomie-Cleanup (#106-Folgearbeit)
-
-- `js/config.js`: `GERMAN_GENRES` auf `['Deutsche Musik']` aktualisiert (war noch alte Namen)
-- `pyproject.toml`: `CFLU_Pool_Build.py` zu B904-Ausnahmen hinzugefügt (gleicher intentionaler Re-raise-Pattern wie cflu_server.py)
-
----
-
-### 2026-06-07 — Security-Review, Qualitäts-Hardening, neue Features
-
-#### Sicherheit (`cflu_server.py`, `js/spotify.js`)
-- **S-01** Spotify OAuth-Scope auf `playlist-modify-private` eingeschränkt (war zu breit)
-- **S-02** Token-Expiry in `state.spTokenExpiry` getrackt (55 min); `isTokenValid()` + `spotifyLogout()` ergänzt; Export prüft Gültigkeit vor API-Aufruf
-- **S-03** Spotify-API-Fehler werden nicht mehr roh per `JSON.stringify` in die UI gegeben — `console.error` + generische Fehlermeldung
-- **S-04** Upload-Size-Limit 10 MB in `cflu_server.py` (vor Body-Read geprüft)
-- **S-05** BOM-Entfernung beim CSV-Upload per `removeprefix('﻿')` statt `lstrip` (entfernt exakt eine BOM)
-- **S-06** Security-Headers auf allen Responses: `Content-Security-Policy`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`; CSP erlaubt `frame-src https://open.spotify.com` für den Track-Preview-Embed
-
-#### Linux / Deployment (`CFLU_Start.sh`, `cflu.service`)
-- **L-01** Port-Check in `CFLU_Start.sh` via `ss -tlnp` mit `lsof` als Fallback (ersetzt macOS-spezifisches `lsof`)
-- **L-02** `cflu.service` — systemd User-Service für automatischen Start nach Login
-- **L-03** CWD-Unabhängigkeit: `cflu_server.py` und `CFLU_Pool_Build.py` wechseln per `os.chdir(pathlib.Path(__file__).parent)` ins Skript-Verzeichnis
-
-#### Algorithmus (`js/algorithm.js`, `js/utils.js`)
-- `pickNext` / `pickPrev` zu einer gemeinsamen `_pick(…, asc)` zusammengeführt (DRY; formaler Unterschied: BPM-Delta-Richtung)
-- `Math.random()` → `crypto.getRandomValues()` (kryptographisch sicher; gleiche Web-Crypto-API wie PKCE)
-- Leerer `scores`-Array in `calcSortScore` gibt jetzt `50` statt `NaN`
-
-#### Qualitäts-Tooling (neu)
-- `eslint.config.js` — ESLint 9 flat config mit allen Browser-Globals; `npm run lint` → `npx eslint js/`
-- `pyproject.toml` — Ruff-Config (target py311, E/W/F/I/B/UP); `cflu_server.py` B904 ausgenommen
-- `.github/workflows/tests.yml` — GitHub Actions CI: `node js/cflu_tests.js` bei Push/PR
-
-#### Pool-Builder (`CFLU_Pool_Build.py`)
-- Alle Keyword-Listen als Modul-Level-Konstanten (`_SKA_TRIGGER`, `_EDM_KEYWORDS`, …)
-- BPM-Gruppen als `_BPM_GROUPS`-Liste statt Inline-Kette
-- `pathlib` importiert; CWD-Fix im `__main__`-Block
-
-#### Neue Features
-- **CSV-Export** (`js/app.js`, `CFLU_WOD_Builder.html`): Playlist als `CFLU_WOD_YYYY-MM-DD.csv` herunterladen (WOD + Cool-Down; UTF-8 BOM für Excel)
-- **Datenschutzhinweise** (`README.md`): D-01 Chosic (Playlist temporär öffentlich), D-02 Spotify (private Playlist, Workout-Pattern)
-- **Track-Metadaten-Spalten** (`css/cflu_style.css`, `js/app.js`, `CFLU_WOD_Builder.html`): 8 neue Spalten im Track-Grid — POP, VAL, DNC, ACU, INS, SPE, LVE, LOU — mit WOD-relevantem Farb-Coding; Hover über Spaltenkopf zeigt Erklärung
-- **Playlist-Log Genre** (`js/app.js`): Jede Log-Zeile zeigt das zugeordnete Genre; Fallback-Tracks als `(Fallback)` markiert
-
-#### Archivierung
-- `docs/CHANGELOG.md` → `archive/` (gitignored, lokal als Referenz); Verweise in CLAUDE.md und README bereinigt
-
----
-
-## Offene Punkte / Risiken
-
-Offene Items → GitHub Issues (BACKLOG.md ist archiviert).
-
-Bekannte Einschränkungen: `GET /audio-features` Spotify API im Development Mode nicht verfügbar — BPM/Camelot kommen ausschließlich aus lokaler Datenbasis.
+| # | Decision | Rationale | Date |
+|---|----------|-----------|------|
+| 1 | Vanilla ES modules, no build system | No Node.js needed; direct browser import via Python http.server; maximum transparency | 2024 |
+| 2 | `cflu_tracks.js` as non-module global `<script>` | Lazy access from ES modules without top-level import; importable in tests without real data | 2025 |
+| 3 | ~~Spotify PKCE~~ → superseded by ADR 15 | Originally PKCE in browser. Replaced by server-side Authorization Code Flow. | 2024 |
+| 4 | `cflu_server.py` as local server | Custom handler with `POST /api/upload-csv`; Spotify OAuth requires `http://` redirect (not `file://`) | 2024/2026 |
+| 5 | `cflu_tracks.js` tracked in repo | Full usability after clone without pool rebuild; update after CSV change | 2025 |
+| 6 | `state.poolGenre` as single source of truth for generation genre | `genre-sel` dropdown controls filter UI only; direct search and Spotify link set `poolGenre` from track | 2026-06-06 |
+| 7 | Direct search bypasses Camelot/energy filters | Reference song selection must not be constrained by generation filters | 2026-06-06 |
+| 8 | Test class as dual-mode ES module | Separation of test logic and HTML rendering; `node js/cflu_tests.js` works without browser/server for CI | 2026-06-06 |
+| 9 | ETL default: add-only, not full-update | AI-curated (`open_genre=2`) and manual (`open_genre=3`) fields must survive a startup build | 2026-06-08 |
+| 10 | `open_genre` state machine | Spotify provides genre only at artist level; `open_genre` tracks provenance and enables step-wise improvement without data loss | 2026-06-08 |
+| 11 | ETL [C] Cleanup before [G] and [A] | Deduplicate before any API call — no Claude Haiku cost wasted on tracks that will be removed | 2026-06-09 |
+| 12 | `decisive_genre` field | `find_decisive_genre_tag()` identifies the specific `genres_raw` tag that triggered classification; used in UI display | 2026-06-09 |
+| 13 | Three.js vendored in `js/vendor/` | CSP (`script-src 'self'`) blocks external script domains; vendored files maintain offline capability | 2026-06-10 |
+| 14 | log₂ distance for BPM transition scoring | Absolute BPM delta is tempo-dependent; log₂ distance is tempo-invariant and matches DJ perception model | 2026-06-12 |
+| 15 | Spotify Authorization Code Flow (server-side) | PKCE stored token in browser; incompatible with iOS Web Crypto restrictions; `client_secret` must never leave the server (Key Invariant 2) | 2026-06-14 |
+| 16 | `xyScore` as orthogonal complement to `colorScore` | Everynoise xy and RGB encode partially independent audio dimensions (Pearson r = 0.51); combined signal is richer | 2026-06-15 |
+| 17 | Ratio-Lattice BPM scoring; full lattice always active | ADR 14 log₂ model extended to 7 integer-ratio lock positions (1:1, 2:1, 1:2, 3:2, 2:3, 4:3, 3:4) with per-ratio weights; `allowLog2` toggle removed — full lattice runs unconditionally. `TRANSITION_BUDGET = 500` distributed across 6 normalised components via `scoreWeights`; default weights configurable via spider-web UI. | 2026-06-19 |

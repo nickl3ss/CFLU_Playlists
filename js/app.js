@@ -187,7 +187,7 @@ function checkRefBpmAndWarn() {
   if (ref.bpm >= lo && ref.bpm <= hi) { warn.style.display = 'none'; return; }
   const effBpm = effectiveBpm(ref.bpm, state.currentPhase);
   if (effBpm >= lo && effBpm <= hi) {
-    warn.textContent = `ℹ Referenz-Song (${ref.bpm} BPM) liegt außerhalb Phase ${state.currentPhase} [${lo}–${hi} BPM], wird als ${effBpm} BPM gewertet (log2).`;
+    warn.textContent = `ℹ Referenz-Song (${ref.bpm} BPM) liegt außerhalb Phase ${state.currentPhase} [${lo}–${hi} BPM], wird als ${effBpm} BPM gewertet (×2-Normalisierung).`;
   } else {
     warn.textContent = `⚠ Referenz-Song (${ref.bpm} BPM) liegt außerhalb Phase ${state.currentPhase} [${lo}–${hi} BPM]. Playlist-Qualität eingeschränkt.`;
   }
@@ -712,9 +712,6 @@ function onXfadeSlider(el) {
   state.crossfadeSec = +el.value;
   document.getElementById('xfade-badge').textContent = el.value + ' s';
 }
-function onLog2Toggle() {
-  state.allowLog2 = document.getElementById('log2-toggle').checked;
-}
 function onCdToggle() {
   state.cdActive = document.getElementById('cd-toggle').checked;
   document.getElementById('cd-dur-wrap').classList.toggle('section-hidden', !state.cdActive);
@@ -726,6 +723,64 @@ function onCdDurSlider(el) {
 }
 function updateGenBtn() {
   document.getElementById('gen-btn').disabled = !(state.selectedTrack && state.selectedTrack.bpm > 0);
+}
+
+// ===== SCORING RADAR =====
+const _SW_KEYS = ['bpm', 'camelot', 'energy', 'loudness', 'valence', 'dance'];
+const _SW_LABELS = ['BPM', 'Cam', 'E', 'Loud', 'Val', 'Dance'];
+
+function drawScoringRadar() {
+  const svg = document.getElementById('scoring-radar');
+  if (!svg) return;
+  const cx = 100, cy = 100, r = 72;
+  const n = _SW_KEYS.length;
+  const angle = i => (i * 2 * Math.PI / n) - Math.PI / 2; // BPM at top
+
+  const pt = (i, frac) => {
+    const a = angle(i);
+    return [cx + frac * r * Math.cos(a), cy + frac * r * Math.sin(a)];
+  };
+
+  let html = '';
+
+  // Concentric rings at 25/50/75/100
+  for (const pct of [0.25, 0.5, 0.75, 1.0]) {
+    const pts = Array.from({length: n}, (_, i) => pt(i, pct).join(',')).join(' ');
+    html += `<polygon points="${pts}" fill="none" stroke="#333" stroke-width="1"/>`;
+  }
+
+  // Axis lines
+  for (let i = 0; i < n; i++) {
+    const [x, y] = pt(i, 1.0);
+    html += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#333" stroke-width="1"/>`;
+  }
+
+  // Labels
+  for (let i = 0; i < n; i++) {
+    const [x, y] = pt(i, 1.18);
+    const anchor = Math.abs(Math.cos(angle(i))) < 0.1 ? 'middle'
+      : Math.cos(angle(i)) < 0 ? 'end' : 'start';
+    html += `<text x="${x}" y="${y}" text-anchor="${anchor}" dominant-baseline="middle" fill="#888" font-size="9" font-family="monospace">${_SW_LABELS[i]}</text>`;
+  }
+
+  // Data polygon
+  const vals = _SW_KEYS.map(k => Math.max(0, Math.min(100, state.scoreWeights[k] || 0)) / 100);
+  const polyPts = vals.map((v, i) => pt(i, v).join(',')).join(' ');
+  html += `<polygon points="${polyPts}" fill="#1db954" fill-opacity="0.35" stroke="#1db954" stroke-width="1.5"/>`;
+
+  svg.innerHTML = html;
+}
+
+function onScoreWeightChange(key, raw) {
+  const val = Math.max(0, Math.min(100, parseInt(raw, 10) || 0));
+  state.scoreWeights[key] = val;
+  // Sync sibling input (slider ↔ number)
+  const slider = document.getElementById('sw-' + key);
+  const num    = document.getElementById('sn-' + key);
+  if (slider) slider.value = val;
+  if (num)    num.value    = val;
+  drawScoringRadar();
+  try { localStorage.setItem('cflu_score_weights', JSON.stringify(state.scoreWeights)); } catch (e) { void e; /* storage unavailable */ }
 }
 
 // ===== SEARCH UTILS =====
@@ -772,8 +827,9 @@ function buildGenLog(genre, wod, cd, warnMsgs) {
   if (state.crossfadeSec > 0) add(`  Crossfade:       ${state.crossfadeSec}s (Spotify Mixing)`);
   const bpmTarget = +document.getElementById('bpm-slider').value;
   add(`  Ziel-BPM:        ${bpmTarget} BPM  ±${state.bpmTol}`);
-  add(`  log2-Score:      Half/Double ${state.allowLog2 ? 'aktiv' : 'inaktiv'}`);
   add(`  Energy-Bereich:  ${state.wodEnergyMin}–${state.wodEnergyMax}`);
+  const sw = state.scoreWeights;
+  add(`  Score-Gewichte:  BPM:${sw.bpm} Cam:${sw.camelot} E:${sw.energy} Loud:${sw.loudness} Val:${sw.valence} Dance:${sw.dance}`);
   if (state.cdActive) add(`  Cool-Down:       aktiv · ${state.cdMinutes} min`);
   if (state.camLetter !== 'both' || state.camNumbers.length > 0) {
     const parts = [];
@@ -973,7 +1029,7 @@ function onReplaceTrack(idx) {
   const prev = idx > 0 ? wod[idx - 1] : null;
   const next = idx < wod.length - 1 ? wod[idx + 1] : null;
   const maxArtist = Math.max(1, Math.floor(wod.length * 0.1));
-  const replacement = pickReplacement(pool, prev, next, usedIds, usedTitleKeys, usedArtists, maxArtist, ctxPhase, state.allowLog2);
+  const replacement = pickReplacement(pool, prev, next, usedIds, usedTitleKeys, usedArtists, maxArtist, ctxPhase);
   if (!replacement) {
     const wm = document.getElementById('warn-msg');
     wm.textContent = `↺ Kein Ersatz für Slot ${idx + 1} gefunden (BPM-Übergang oder Camelot-Filter zu eng).`;
@@ -1384,9 +1440,13 @@ function init() {
   document.getElementById('dur-slider').addEventListener('input', e => onDurSlider(e.target));
   document.getElementById('q-dur-slider').addEventListener('input', e => onDurSlider(e.target));
   document.getElementById('xfade-slider').addEventListener('input', e => onXfadeSlider(e.target));
-  document.getElementById('log2-toggle').addEventListener('change', onLog2Toggle);
   document.getElementById('cd-toggle').addEventListener('change', onCdToggle);
   document.getElementById('cam-lock-toggle').addEventListener('change', e => { state.lockCamFilter = e.target.checked; });
+  // Score weight sliders and number inputs
+  _SW_KEYS.forEach(key => {
+    document.getElementById('sw-' + key)?.addEventListener('input', e => onScoreWeightChange(key, e.target.value));
+    document.getElementById('sn-' + key)?.addEventListener('input', e => onScoreWeightChange(key, e.target.value));
+  });
   document.getElementById('cd-dur-slider').addEventListener('input', e => onCdDurSlider(e.target));
   // Generate & Spotify
   document.getElementById('gen-btn').addEventListener('click', generatePlaylist);
@@ -1454,8 +1514,22 @@ function init() {
     if (e.key === 'Escape') closeLoginModal();
   });
 
-  // Init log2 toggle from state default
-  document.getElementById('log2-toggle').checked = state.allowLog2;
+  // Restore persisted score weights and sync to UI
+  try {
+    const saved = JSON.parse(localStorage.getItem('cflu_score_weights') || 'null');
+    if (saved && typeof saved === 'object') {
+      _SW_KEYS.forEach(k => { if (typeof saved[k] === 'number') state.scoreWeights[k] = saved[k]; });
+    }
+  } catch (e) { void e; /* storage unavailable or invalid JSON */ }
+  _SW_KEYS.forEach(key => {
+    const v = state.scoreWeights[key] ?? 0;
+    document.getElementById('sw-' + key)?.setAttribute('value', v);
+    const sl = document.getElementById('sw-' + key);
+    const nm = document.getElementById('sn-' + key);
+    if (sl) sl.value = v;
+    if (nm) nm.value = v;
+  });
+  drawScoringRadar();
 
   // Derive BPM slider bounds from config constants so HTML doesn't need to be updated manually
   const bpmSliderEl = document.getElementById('bpm-slider');

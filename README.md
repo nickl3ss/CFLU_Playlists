@@ -2,7 +2,7 @@
 
 > CrossFit Ludwigshafen — Local class-phase playlist generator with Spotify export
 
-Builds rule-based playlists for all four phases of a CrossFit class from the track pool across 10 genre groups. Select a class phase, pick a reference song, configure duration — and get a scored, Camelot-compatible playlist with direct Spotify export.
+Builds rule-based playlists for all four phases of a CrossFit class from a pool spanning 12 genre groups. Select a class phase, pick a reference song, configure duration — and get a scored, Camelot-compatible playlist with direct Spotify export.
 
 Architecture, algorithm details and ADR decisions → [`docs/PROJECT.md`](docs/PROJECT.md)
 
@@ -50,13 +50,17 @@ python cflu_server.py
 2. **Create App** → select **Web API**
 3. **Settings → Redirect URIs** → add exactly:
    ```
-   http://127.0.0.1:8888/CFLU_WOD_Builder.html
+   http://127.0.0.1:8888/api/spotify/callback
    ```
-4. Copy your **Client ID**
+4. Copy your **Client ID** and **Client Secret**
 
-**Recommended:** save the Client ID in a file named `keyvault/cflu_client_id.txt`. It will be loaded automatically on startup. The file is gitignored — it never leaves your machine.
+Save credentials in two gitignored files — loaded automatically on startup:
+```
+keyvault/cflu_client_id.txt      ← Client ID
+keyvault/cflu_client_secret.txt  ← Client Secret
+```
 
-Uses PKCE OAuth — no backend, Client ID never written to localStorage.
+Uses server-side Authorization Code Flow (`cflu_server.py`). The browser never holds a Spotify token — all OAuth and API calls are proxied through the local server.
 
 ---
 
@@ -69,13 +73,13 @@ Uses PKCE OAuth — no backend, Client ID never written to localStorage.
 | **C** | WOD — Intensive | 125–195 | Maximum performance, BPM build |
 | **D** | Cool-Down | 60–100 | Descending, recovery |
 
-1. **Pick a phase** — pre-fills BPM, tolerance, max-jump and energy range
+1. **Pick a phase** — pre-fills BPM range and energy range
 2. **Pick a reference song** — three independent modes:
    - **Genre & BPM** — filter by genre, BPM and Camelot key; selected track defines the generation pool
    - **Direct search** — full-text search across the entire pool (all genres, no filter restrictions); selected track's genre defines the pool
    - **Spotify-Link** — paste a track URL; if found in pool the genre is auto-detected; if external (not in pool), enter BPM/Camelot/Energy and choose pool genre manually
 3. **Set position** (B/C only): Start · End · Midpoint · Mid Plateau
-4. **Adjust settings** — WOD duration, max BPM jump, Cool-Down toggle
+4. **Adjust settings** — WOD duration, Cool-Down toggle, score weights (spider-web panel)
 5. **Generate** — BPM step chart + track list with Camelot dots, phase scores, preview and Spotify links
 
 ---
@@ -135,7 +139,8 @@ CLAUDE.md               ← Workflow rules for Claude Code sessions
 css/cflu_style.css
 js/
   cflu_tests.js         ← [TST] Canonical test class (dual-mode: Node.js + browser export)
-  config · state · utils · algorithm · chart · spotify · app  ← [WOD] ES modules
+  config · state · utils · genres · algorithm · optimizer · chart · spotify
+  genre_space · upload · resolve · register · app  ← [WOD] ES modules
 docs/PROJECT.md         ← Architecture & ADR decisions
 docs/references/        ← Background research: WOD music theory, genre network analysis
 

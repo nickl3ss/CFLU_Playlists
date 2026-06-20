@@ -57,7 +57,7 @@
 | N6-2 | REF track and Cool-Down tracks | No ↺ button visible |
 | N6-3 | Click ↺ on a non-REF WOD track | Track is replaced in-place; BPM chart redraws; stats bar updates |
 | N6-4 | Click ↺ on a track with very constrained neighbors | Yellow warning "Kein Ersatz für Slot N gefunden (BPM-Übergang oder Camelot-Filter zu eng)." appears for 4 s, then disappears |
-| N6-5 | After replacement | New track satisfies BPM transition to both neighbors (no hard log2-score=0 jump) |
+| N6-5 | After replacement | New track satisfies BPM transition to both neighbors (no Ratio-Lattice score=0 jump) |
 | N6-6 | Click ↺ multiple times on the same slot | Each swap brings a *different* track — previously swapped-out songs do not re-appear; blacklist resets when "▶ Playlist generieren" is clicked again |
 
 ### N7 · Spotify Device Control (Web API)
@@ -91,8 +91,8 @@
 | N14-2 | Observe Schritt 1: Genre dropdown | **Genre** selector appears directly below mode tabs and above Tonart-Filter — always visible, not hidden inside Genre&BPM panel |
 | N14-3 | Default genre value on first load | Dropdown pre-selected to **EDM / Electronic** (if present in pool) |
 | N14-4 | Look below Tonart-Filter slider | **"Tonart-Filter auf Playlist anwenden"** toggle appears; no sub-label; enabled/disabled based on whether a Camelot filter is active |
-| N14-5 | Switch to Genre&BPM mode; look below BPM-Toleranz | **"log2-Raum zulassen"** toggle appears inside the filter panel, after BPM-Toleranz |
-| N14-6 | Open Schritt 3 | Explicit-Songs chips, log2 toggle, and old "Tonart-Filter sperren" row are **gone** from Step 3 |
+| N14-5 | Open Schritt 3 | Explicit-Songs chips and old "Tonart-Filter sperren" row are **gone** from Step 3; no log2 toggle anywhere |
+| N14-6 | *(removed — log2 toggle no longer exists)* | — |
 | N14-7 | Set Explicit-Songs to **Kein E** in Step 1, use Genre&BPM mode | Filter list shows only tracks without `[E]` flag |
 | N14-8 | Set Explicit-Songs to **Kein E**, switch to Direktsuche mode, search 2+ chars | Direct search results also exclude explicit tracks |
 | N14-9 | Set Explicit-Songs to **Nur E**, switch to Direktsuche mode, search 2+ chars | Direct search results show only explicit-flagged tracks |
@@ -150,16 +150,17 @@
 | N11-3 | Generate two playlists: one with tracks from the same genre, one from very different genres | The same-genre playlist should generally have higher total scores (Generierungs-Log visible) — no crash |
 | N11-4 | Run `python CFLU_Pool_Build.py --check-xy-correlation` | Prints Pearson r between xy-distance and RGB-distance; prints interpretation line |
 
-### N5 · log2 BPM-Übergangsscore — Neues Scoring-System
+### N5 · Ratio-Lattice BPM Scoring — Score-Gewichte Spider-Web
 
 | # | Step | Expected |
 |---|------|----------|
-| N5-1 | Open sidebar | No "Max. BPM-Sprung" slider visible; replaced by "log2-Raum zulassen" toggle (unchecked by default) |
-| N5-2 | Hover over "Half/Double-Time ×2/÷2" subtitle | Tooltip appears: "Wertet Tracks mit halbem/doppeltem Tempo als kompatibel (gleiches Beatgrid)." |
-| N5-3 | Generate a playlist (log2 aktiv) | Generierungs-Log shows "log2-Score:      Half/Double aktiv" |
-| N5-4 | Uncheck the log2 toggle, generate again | Generierungs-Log shows "log2-Score:      Half/Double inaktiv" |
-| N5-5 | Re-check the toggle, generate again | BPM transitions stay within ±10 % on the log2 scale (d ≤ 0.135); no hard jumps visible in BPM chart |
-| N5-6 | With log2 active, check BPM chart | Adjacent tracks may show ×2/÷2 BPM jumps (e.g. 80→160) which are scored as compatible transitions |
+| N5-1 | Open app — look between Step 2 and Step 3 in the sidebar | Collapsed `<details>` section "Score-Gewichte" visible |
+| N5-2 | Expand "Score-Gewichte" | Spider-web radar (SVG, 6 axes: BPM, Cam, E, Loud, Val, Dance) visible; 6 sliders with numeric inputs below it |
+| N5-3 | Move the BPM slider to 80 | Radar polygon updates live; BPM axis extends further; numeric input shows 80 |
+| N5-4 | Type 0 into the BPM numeric input | BPM slider moves to 0; radar polygon shrinks on that axis |
+| N5-5 | Generate a playlist | Generation log shows "Score-Gewichte: BPM:80 Cam:20 E:15 Loud:10 Val:8 Dance:7" (or current values) |
+| N5-6 | Reload the page | Score-weight slider values persist (localStorage) |
+| N5-7 | Generate a playlist; check BPM chart | Adjacent tracks may show ×2/÷2 BPM jumps (e.g. 80→160) — these are Ratio-Lattice compatible transitions (d ≤ 0.135 against 2:1 ratio) |
 
 ---
 

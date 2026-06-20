@@ -1,5 +1,5 @@
 // utils.js — pure helper functions; no DOM, no state writes, no TRACK_DATA; safe to import in Node.js tests
-import { BPM_GROUPS, BPM_RANGES, SUFFIX_RE, PHASE_CONFIG, BPM_TRANSITION_CONFIG } from './config.js';
+import { BPM_GROUPS, BPM_RANGES, SUFFIX_RE, PHASE_CONFIG, BPM_TRANSITION_CONFIG, TRANSITION_BUDGET, SCORE_WEIGHTS_DEFAULT } from './config.js';
 import { bridgeTagsForMain } from './genres.js';
 
 export function bpmGroup(bpm) {
@@ -126,23 +126,25 @@ export function isHalfDouble(bpm1, bpm2, tol = 3) {
   return Math.abs(bpm1 * 2 - bpm2) <= tol || Math.abs(bpm1 - bpm2 * 2) <= tol;
 }
 
-// log2-based BPM transition score [0.00–1.00].
-// allowLog2: also considers ×2/÷2 ratio (same beatgrid → first-class compatibility).
+// Ratio-Lattice BPM transition score [0.00–1.00].
+// Finds the closest integer-ratio lock point; SCORE = proximity × lock_weight.
 // Missing or zero BPM → neutral 0.5 (incomplete data, not a hard reject).
-export function calcBpmTransitionScore(bpmPrev, bpmNext, allowLog2) {
+export function calcBpmTransitionScore(bpmPrev, bpmNext) {
   if (!bpmPrev || !bpmNext || bpmPrev <= 0 || bpmNext <= 0) return 0.5;
-  const ratio = bpmNext / bpmPrev;
-  let d = Math.abs(Math.log2(ratio));
-  if (allowLog2) {
-    d = Math.min(d, Math.abs(Math.log2(ratio / 2)), Math.abs(Math.log2(ratio * 2)));
+  const { breakpoints, RATIO_LATTICE } = BPM_TRANSITION_CONFIG;
+  let bestD = Infinity, bestW = 0;
+  for (const { p, q, w } of RATIO_LATTICE) {
+    const target = bpmPrev * p / q;
+    const d = Math.abs(Math.log2(bpmNext / target));
+    if (d < bestD) { bestD = d; bestW = w; }
   }
-  const bp = BPM_TRANSITION_CONFIG.breakpoints;
-  if (d <= bp[0][0]) return bp[0][1];
-  if (d > bp[bp.length - 1][0]) return 0.00;
+  const bp = breakpoints;
+  if (bestD <= bp[0][0]) return bp[0][1] * bestW;
+  if (bestD > bp[bp.length - 1][0]) return 0.00;
   for (let i = 0; i < bp.length - 1; i++) {
-    if (d <= bp[i + 1][0]) {
-      const f = (d - bp[i][0]) / (bp[i + 1][0] - bp[i][0]);
-      return bp[i][1] + f * (bp[i + 1][1] - bp[i][1]);
+    if (bestD <= bp[i + 1][0]) {
+      const f = (bestD - bp[i][0]) / (bp[i + 1][0] - bp[i][0]);
+      return (bp[i][1] + f * (bp[i + 1][1] - bp[i][1])) * bestW;
     }
   }
   return 0.00;
@@ -170,23 +172,21 @@ export function calcEraScore(t, cur) {
   return Math.round(30 * (1 - (diff - 5) / 10));
 }
 
-// calcSortScore — linear combination of calibrated-by-use components:
-//   camPoints      [0,100,200]  Camelot compatibility; green outweighs all other differences.
-//   phasePoints    [0–200]      calcPhaseScore (0–100) × 2, equal weight to Camelot.
-//   energyPoints   [0–100]      direct energy value; secondary tie-breaker.
-//   bridge         [0,50]       bonus for bridge-subgenre tracks.
-//   dEnergy        (≤0)         penalty: Δenergy ×-2 outside ±15.
-//   loudScore      [0,7]        reward: 7 at same loudness, 0 at diff ≥7 dB.
-//   valenceScore   [0,6]        reward: 6 at same valence, 0 at diff ≥30.
-//   danceScore     [0,5]        reward: 5 at same danceability (B/C only), 0 at diff ≥25.
-//   moodScore      [0,8]        reward: proportional tag overlap from mood_tags field.
-//   colorScore     [0,10]       reward: similar Everynoise avg_color (sonic texture proximity).
-//   genreDistScore [0,25]       reward: cosine similarity of Last.fm genre_conf vectors;
-//                               falls back to xyScore [0,10] when genre_conf absent on either track.
-//   eraScore       [0,30]       reward: ≤5yr gap = 30, linear decay to 0 at ≥15yr gap.
+// calcSortScore — TRANSITION_BUDGET distributed across 6 normalized audio-transition components,
+// plus fixed-magnitude contextual bonuses (phasePoints, bridge, dEnergy, mood, color, genre, era).
+//
+// Transition components (each normalized to [0,1], weighted by scoreWeights):
+//   bpmNorm        Ratio-Lattice score from calcBpmTransitionScore
+//   camNorm        green=1.0 / yellow=0.5 / other=0.0
+//   energyNorm     t.energy / 100
+//   loudNorm       max(0, 7 − |Δloud|) / 7
+//   valNorm        max(0, 30 − |Δvalence|) / 30
+//   danceNorm      max(0, 25 − |Δdance|) / 25  (B/C only)
+//
+// Contextual (fixed magnitudes, not weighted):
+//   phasePoints [0–200], bridge [0,50], dEnergy (≤0), moodScore [0–8],
+//   colorScore [0–10], genreDistScore [0–25], eraScore [0–30]
 function _cosineSim(a, b) {
-  // Cosine similarity between two genre_conf objects {mainId: float}.
-  // Returns 0 if either is falsy/empty.
   if (!a || !b) return 0;
   let dot = 0, na = 0, nb = 0;
   for (const [id, va] of Object.entries(a)) {
@@ -205,13 +205,30 @@ function _colorDist(h1, h2) {
   return Math.sqrt((r1-r2)**2 + (g1-g2)**2 + (b1-b2)**2);
 }
 
-// allowLog2: passed from state.allowLog2; used for bpmTransScore calculation.
-export function calcSortScore(t, cur, phase, allowLog2 = false) {
-  const cs = {green: 200, yellow: 100, red: 0, unknown: 0};
-  const camPoints    = cs[camCompat(cur.camelot, t.camelot)] || 0;
-  const phasePoints  = calcPhaseScore(t, phase) * 2;
-  const energyPoints = t.energy;
-  const bpmTransScore = Math.round(calcBpmTransitionScore(cur.bpm, t.bpm, allowLog2) * 250);
+export function calcSortScore(t, cur, phase, scoreWeights = SCORE_WEIGHTS_DEFAULT) {
+  const totalW = Object.values(scoreWeights).reduce((s, v) => s + v, 0) || 100;
+
+  const bpmNorm    = calcBpmTransitionScore(cur.bpm, t.bpm);
+  const camRaw     = camCompat(cur.camelot, t.camelot);
+  const camNorm    = camRaw === 'green' ? 1.0 : camRaw === 'yellow' ? 0.5 : 0.0;
+  const energyNorm = (t.energy || 0) / 100;
+  const loudNorm   = (t.loud != null && cur.loud != null)
+    ? Math.max(0, 7 - Math.abs(t.loud - cur.loud)) / 7 : 0;
+  const valNorm    = (t.valence != null && cur.valence != null)
+    ? Math.max(0, 30 - Math.abs(t.valence - cur.valence)) / 30 : 0;
+  const danceNorm  = (phase === 'B' || phase === 'C') && t.dance != null && cur.dance != null
+    ? Math.max(0, 25 - Math.abs(t.dance - cur.dance)) / 25 : 0;
+
+  const transScore = Math.round(TRANSITION_BUDGET / totalW * (
+    scoreWeights.bpm      * bpmNorm  +
+    scoreWeights.camelot  * camNorm  +
+    scoreWeights.energy   * energyNorm +
+    scoreWeights.loudness * loudNorm +
+    scoreWeights.valence  * valNorm  +
+    scoreWeights.dance    * danceNorm
+  ));
+
+  const phasePoints = calcPhaseScore(t, phase) * 2;
 
   let bridge = 0;
   if (cur.genre && Array.isArray(t.genres_raw)) {
@@ -220,24 +237,18 @@ export function calcSortScore(t, cur, phase, allowLog2 = false) {
   }
 
   const dEnergy    = (t.energy  != null && cur.energy  != null) ? Math.max(0, Math.abs(t.energy  - cur.energy)  - 15) * -2 : 0;
-  const loudScore  = (t.loud    != null && cur.loud    != null) ? Math.max(0, 7 - Math.abs(t.loud    - cur.loud))                                    : 0;
-  const valScore   = (t.valence != null && cur.valence != null) ? Math.max(0, Math.round(6 * (30 - Math.abs(t.valence - cur.valence)) / 30))         : 0;
-  const danceScore = (phase === 'B' || phase === 'C') && t.dance != null && cur.dance != null
-    ? Math.max(0, Math.round(5 * (25 - Math.abs(t.dance - cur.dance)) / 25)) : 0;
   const moodScore  = Array.isArray(t.mood_tags) && Array.isArray(cur.mood_tags) && cur.mood_tags.length && t.mood_tags.length
     ? Math.round(8 * t.mood_tags.filter(tag => cur.mood_tags.includes(tag)).length / Math.min(t.mood_tags.length, cur.mood_tags.length)) : 0;
   const colorScore = (t.avg_color && cur.avg_color)
     ? Math.max(0, Math.round(10 * (1 - _colorDist(t.avg_color, cur.avg_color) / 1.732))) : 0;
-  // genreDistScore: cosine similarity of Last.fm genre_conf vectors (max 25).
-  // Falls back to Everynoise avg_xy distance (max 10) when genre_conf absent.
   const genreDistScore = (t.genre_conf && cur.genre_conf && Object.keys(t.genre_conf).length && Object.keys(cur.genre_conf).length)
     ? Math.max(0, Math.round(25 * _cosineSim(t.genre_conf, cur.genre_conf)))
     : (t.avg_xy && cur.avg_xy)
       ? Math.max(0, 10 * (1 - Math.sqrt((t.avg_xy[0] - cur.avg_xy[0]) ** 2 + (t.avg_xy[1] - cur.avg_xy[1]) ** 2) / Math.SQRT2))
       : 0;
-  const eraScore   = calcEraScore(t, cur);
+  const eraScore = calcEraScore(t, cur);
 
-  return camPoints + phasePoints + energyPoints + bpmTransScore + bridge + dEnergy + loudScore + valScore + danceScore + moodScore + colorScore + genreDistScore + eraScore;
+  return transScore + phasePoints + bridge + dEnergy + moodScore + colorScore + genreDistScore + eraScore;
 }
 
 const _BPM_HINTS = {

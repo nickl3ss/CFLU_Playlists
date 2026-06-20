@@ -366,3 +366,17 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
 .reg-src-toggle:hover{color:var(--text)}
 .reg-src-body{padding:8px 10px;background:var(--bg2)}
 .reg-src-empty{font-size:var(--fz-xs);color:var(--text3);font-family:var(--ff-mono)}
+
+/* Scoring weight spider web */
+.scoring-collapse{border:1px solid var(--border);border-radius:6px;padding:0;margin-bottom:6px}
+.scoring-collapse[open]{padding-bottom:10px}
+.scoring-summary{list-style:none;padding:8px 12px;cursor:pointer;font-size:var(--fz-xs);font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;user-select:none}
+.scoring-summary::marker,.scoring-summary::-webkit-details-marker{display:none}
+.scoring-summary::before{content:'▶ ';font-size:.6em;opacity:.7}
+details[open] .scoring-summary::before{content:'▼ '}
+.scoring-web-wrap{padding:6px 12px 2px;display:flex;justify-content:center}
+.scoring-inputs{padding:0 12px}
+.sw-row{display:grid;grid-template-columns:60px 1fr 44px;align-items:center;gap:6px;margin-bottom:4px}
+.sw-lbl{font-size:var(--fz-xs);color:var(--text2);font-family:var(--ff-mono)}
+.sw-slider{width:100%;accent-color:var(--green);cursor:pointer}
+.sw-num{width:44px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--ff-mono);font-size:var(--fz-xs);padding:2px 4px;text-align:right}
