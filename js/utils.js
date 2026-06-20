@@ -172,7 +172,7 @@ export function calcEraScore(t, cur) {
   return Math.round(30 * (1 - (diff - 5) / 10));
 }
 
-// calcSortScore — TRANSITION_BUDGET distributed across 6 normalized audio-transition components,
+// calcSortScore — TRANSITION_BUDGET distributed across 7 normalized audio-transition components,
 // plus fixed-magnitude contextual bonuses (phasePoints, bridge, dEnergy, mood, color, genre, era).
 //
 // Transition components (each normalized to [0,1], weighted by scoreWeights):
@@ -182,6 +182,7 @@ export function calcEraScore(t, cur) {
 //   loudNorm       max(0, 7 − |Δloud|) / 7
 //   valNorm        max(0, 30 − |Δvalence|) / 30
 //   danceNorm      max(0, 25 − |Δdance|) / 25  (B/C only)
+//   popNorm        min(1, t.popularity / 65)  — 65+ = standard, full score
 //
 // Contextual (fixed magnitudes, not weighted):
 //   phasePoints [0–200], bridge [0,50], dEnergy (≤0), moodScore [0–8],
@@ -218,14 +219,16 @@ export function calcSortScore(t, cur, phase, scoreWeights = SCORE_WEIGHTS_DEFAUL
     ? Math.max(0, 30 - Math.abs(t.valence - cur.valence)) / 30 : 0;
   const danceNorm  = (phase === 'B' || phase === 'C') && t.dance != null && cur.dance != null
     ? Math.max(0, 25 - Math.abs(t.dance - cur.dance)) / 25 : 0;
+  const popNorm    = Math.min(1, (t.popularity || 0) / 65);
 
   const transScore = Math.round(TRANSITION_BUDGET / totalW * (
-    scoreWeights.bpm      * bpmNorm  +
-    scoreWeights.camelot  * camNorm  +
-    scoreWeights.energy   * energyNorm +
-    scoreWeights.loudness * loudNorm +
-    scoreWeights.valence  * valNorm  +
-    scoreWeights.dance    * danceNorm
+    scoreWeights.bpm        * bpmNorm  +
+    scoreWeights.camelot    * camNorm  +
+    scoreWeights.energy     * energyNorm +
+    scoreWeights.loudness   * loudNorm +
+    scoreWeights.valence    * valNorm  +
+    scoreWeights.dance      * danceNorm +
+    (scoreWeights.popularity || 0) * popNorm
   ));
 
   const phasePoints = calcPhaseScore(t, phase) * 2;

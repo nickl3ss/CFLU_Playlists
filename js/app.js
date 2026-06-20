@@ -727,8 +727,8 @@ function updateGenBtn() {
 }
 
 // ===== SCORING RADAR =====
-const _SW_KEYS = ['bpm', 'camelot', 'energy', 'loudness', 'valence', 'dance'];
-const _SW_LABELS = ['BPM', 'Cam', 'E', 'Loud', 'Val', 'Dance'];
+const _SW_KEYS = ['bpm', 'camelot', 'energy', 'loudness', 'valence', 'dance', 'popularity'];
+const _SW_LABELS = ['BPM', 'Cam', 'E', 'Loud', 'Val', 'Dance', 'Pop'];
 
 function drawScoringRadar() {
   const svg = document.getElementById('scoring-radar');
@@ -828,7 +828,7 @@ function buildGenLog(genre, wod, cd, warnMsgs) {
   if (state.crossfadeSec > 0) add(`  Crossfade:       ${state.crossfadeSec}s (Spotify Mixing)`);
   add(`  Energy-Bereich:  ${state.wodEnergyMin}–${state.wodEnergyMax}`);
   const sw = state.scoreWeights;
-  add(`  Score-Gewichte:  BPM:${sw.bpm} Cam:${sw.camelot} E:${sw.energy} Loud:${sw.loudness} Val:${sw.valence} Dance:${sw.dance}`);
+  add(`  Score-Gewichte:  BPM:${sw.bpm} Cam:${sw.camelot} E:${sw.energy} Loud:${sw.loudness} Val:${sw.valence} Dance:${sw.dance} Pop:${sw.popularity}`);
   if (state.cdActive) add(`  Cool-Down:       aktiv · ${state.cdMinutes} min`);
   if (state.camLetter !== 'both' || state.camNumbers.length > 0) {
     const parts = [];

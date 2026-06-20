@@ -10,6 +10,15 @@
 
 ## New Since Last Push
 
+### N13 · Popularity als Scoring-Kriterium
+
+| # | Step | Erwartet |
+|---|------|----------|
+| N13-1 | Score-Gewichtung öffnen | 7. Achse "Pop" im Spider-Web sichtbar; Pop-Slider mit Wert 5 |
+| N13-2 | Pop-Slider auf 80 schieben | Radar-Polygon erweitert sich auf der Pop-Achse; Score-Gewichte-Log zeigt Pop:80 |
+| N13-3 | Pop auf 0 setzen, Playlist generieren | Popularity hat keinen Einfluss auf Selektion; andere Gewichte unverändert |
+| N13-4 | ↺ Reset klicken | Pop-Slider springt auf 5 zurück |
+
 ### N12 · BPM-Übergänge — Spotify-sicherer Gate & relaxierte Monotonie
 
 | # | Step | Erwartet |

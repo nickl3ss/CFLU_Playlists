@@ -92,7 +92,7 @@ export const BPM_TRANSITION_CONFIG = {
 };
 
 export const TRANSITION_BUDGET = 500;
-export const SCORE_WEIGHTS_DEFAULT = { bpm: 40, camelot: 20, energy: 15, loudness: 10, valence: 8, dance: 7 };
+export const SCORE_WEIGHTS_DEFAULT = { bpm: 40, camelot: 20, energy: 15, loudness: 10, valence: 8, dance: 7, popularity: 5 };
 
 // Hard BPM gate: Ratio-Lattice score must meet this threshold for a candidate to be eligible.
 // 0.60 rejects loose 4:3 / 3:2 approximations (e.g. 140→174 scores 0.495) while passing

@@ -164,7 +164,7 @@ Score 0.00 is a **hard gate**: the track is excluded from the candidate pool reg
 
 ### calcSortScore(track, cur, phase, scoreWeights) → integer
 
-Distributes `TRANSITION_BUDGET = 500` across 6 normalised audio-transition components weighted by `scoreWeights`:
+Distributes `TRANSITION_BUDGET = 500` across 7 normalised audio-transition components weighted by `scoreWeights`:
 
 | Component | Normalisation | Default weight |
 |---|---|---|
@@ -174,12 +174,13 @@ Distributes `TRANSITION_BUDGET = 500` across 6 normalised audio-transition compo
 | `loudNorm` | `max(0, 7 − |Δloud|) / 7` | 10 |
 | `valNorm` | `max(0, 30 − |Δvalence|) / 30` | 8 |
 | `danceNorm` | `max(0, 25 − |Δdance|) / 25` (Phase B/C only) | 7 |
+| `popNorm` | `min(1, t.popularity / 65)` — 65+ = full score | 5 |
 
 `transScore = round(500 / totalWeight × Σ(weight_i × norm_i))`
 
 Added to `transScore`: phase fitness points (`calcPhaseScore × 2`), bridge-subgenre bonus (+50), energy-direction bonus, mood-tag overlap, Everynoise colour score, xy-displacement score, era score.
 
-Default weights (`SCORE_WEIGHTS_DEFAULT`): `{ bpm:40, camelot:20, energy:15, loudness:10, valence:8, dance:7 }`. User-configurable via the spider-web UI panel; persisted in `localStorage` under `cflu_score_weights`.
+Default weights (`SCORE_WEIGHTS_DEFAULT`): `{ bpm:40, camelot:20, energy:15, loudness:10, valence:8, dance:7, popularity:5 }`. User-configurable via the 7-axis spider-web UI panel; persisted in `localStorage` under `cflu_score_weights`.
 
 ### _pick() — Four-Stage Candidate Selection
 
@@ -229,4 +230,4 @@ These must never be broken by any implementation change:
 | 14 | log₂ distance for BPM transition scoring | Absolute BPM delta is tempo-dependent; log₂ distance is tempo-invariant and matches DJ perception model | 2026-06-12 |
 | 15 | Spotify Authorization Code Flow (server-side) | PKCE stored token in browser; incompatible with iOS Web Crypto restrictions; `client_secret` must never leave the server (Key Invariant 2) | 2026-06-14 |
 | 16 | `xyScore` as orthogonal complement to `colorScore` | Everynoise xy and RGB encode partially independent audio dimensions (Pearson r = 0.51); combined signal is richer | 2026-06-15 |
-| 17 | Ratio-Lattice BPM scoring; full lattice always active | ADR 14 log₂ model extended to 7 integer-ratio lock positions (1:1, 2:1, 1:2, 3:2, 2:3, 4:3, 3:4) with per-ratio weights; `allowLog2` toggle removed — full lattice runs unconditionally. `TRANSITION_BUDGET = 500` distributed across 6 normalised components via `scoreWeights`; default weights configurable via spider-web UI. | 2026-06-19 |
+| 17 | Ratio-Lattice BPM scoring; full lattice always active | ADR 14 log₂ model extended to 7 integer-ratio lock positions (1:1, 2:1, 1:2, 3:2, 2:3, 4:3, 3:4) with per-ratio weights; `allowLog2` toggle removed — full lattice runs unconditionally. `TRANSITION_BUDGET = 500` distributed across 7 normalised components via `scoreWeights`; default weights configurable via spider-web UI. | 2026-06-19 |
