@@ -1318,7 +1318,7 @@ function _gen() {
 
   } else if (state.currentPhase === 'D') {
     registerTrack(ref, usedIds, usedTitleKeys, usedArtists);
-    wod = [ref, ...buildDecreasing(pool, ref.bpm, usedIds, usedTitleKeys, usedArtists, rawTargetSec - ref.dur)];
+    wod = [ref, ...buildDecreasing(pool, ref, usedIds, usedTitleKeys, usedArtists, rawTargetSec - ref.dur)];
 
   } else {
     if (state.position === 'start') {

@@ -348,9 +348,12 @@ export function pickReplacement(pool, prev, next, excludeIds, usedTitleKeys, use
   return cands[0];
 }
 
-export function buildDecreasing(pool, startBpm, usedIds, usedTitleKeys, usedArtists, targetSec) {
+// startRef: full track object (preferred) or plain BPM number (backward-compat with tests)
+export function buildDecreasing(pool, startRef, usedIds, usedTitleKeys, usedArtists, targetSec) {
   const result = [];
-  let cur = { bpm: startBpm, camelot: '', energy: 100 };
+  let cur = (typeof startRef === 'object' && startRef !== null)
+    ? startRef
+    : { bpm: startRef, camelot: '', energy: 100 };
   let totalDur = 0;
 
   const baseFilter = t => {
@@ -362,31 +365,22 @@ export function buildDecreasing(pool, startBpm, usedIds, usedTitleKeys, usedArti
     return true;
   };
 
+  const byScore = (a, b) => calcSortScore(b, cur, 'D', state.scoreWeights) - calcSortScore(a, cur, 'D', state.scoreWeights);
+
   while (totalDur < targetSec) {
-    const isFirst = result.length === 0;
-    let cands;
+    let cands = pool.filter(t => {
+      if (!baseFilter(t)) return false;
+      if (t.bpm > cur.bpm) return false;
+      return calcBpmTransitionScore(cur.bpm, t.bpm) >= BPM_GATE_MIN_SCORE;
+    }).sort(byScore);
 
-    if (isFirst) {
-      // C→D first track: find lowest BPM with a valid Ratio-Lattice match to startBpm
+    // Fallback: Ratio-Lattice in narrow descending BPM range exhausts quickly —
+    // allow any track with bpm ≤ cur.bpm so long playlists don't terminate early
+    if (!cands.length) {
       cands = pool.filter(t => {
         if (!baseFilter(t)) return false;
-        if (t.bpm > cur.bpm) return false;
-        return calcBpmTransitionScore(cur.bpm, t.bpm) >= BPM_GATE_MIN_SCORE;
-      }).sort((a, b) => a.bpm - b.bpm);
-
-      if (!cands.length) {
-        // Fallback: any track with bpm ≤ startBpm
-        cands = pool.filter(t => {
-          if (!baseFilter(t)) return false;
-          return t.bpm <= cur.bpm;
-        }).sort((a, b) => a.bpm - b.bpm);
-      }
-    } else {
-      cands = pool.filter(t => {
-        if (!baseFilter(t)) return false;
-        if (t.bpm > cur.bpm) return false;
-        return calcBpmTransitionScore(cur.bpm, t.bpm) >= BPM_GATE_MIN_SCORE;
-      }).sort((a, b) => calcPhaseScore(b, 'D') - calcPhaseScore(a, 'D'));
+        return t.bpm <= cur.bpm;
+      }).sort(byScore);
     }
 
     if (!cands.length) break;

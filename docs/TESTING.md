@@ -10,6 +10,15 @@
 
 ## New Since Last Push
 
+### N21 · buildDecreasing Phase-D-WOD Fix (#200)
+
+| # | Step | Erwartet |
+|---|------|----------|
+| N21-1 | Phase D, Rock, Ref ~76 BPM, 85 min Playlist generieren | Playlist hat ~20–25 Tracks (ca. 85 min) — kein frühes Abbrechen bei 4 Tracks |
+| N21-2 | Phase D Playlist — Camelot-Spalte prüfen | Mindestens einige grüne (+) Übergänge; nicht mehr 0× grün / alle rot |
+| N21-3 | Phase D, leerer Pool | Leere Playlist (kein Absturz) |
+| N21-4 | Phase D mit Camelot-Filter aktiv | Nur Tracks mit erlaubten Camelot-Nummern erscheinen |
+
 ### N20 · Wave 1 — Algorithm Bug Fixes
 
 | # | Step | Erwartet |
