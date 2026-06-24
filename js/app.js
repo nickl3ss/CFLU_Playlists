@@ -3,12 +3,13 @@ import { PHASE_CONFIG, MIN_POOL_SIZE,
          POS_BPM, CAM_COLOR, CAM_ZONE1, CAM_ZONE2, DUR_STEPS,
          bpmStopsForPhase,
          BPM_SLIDER_MIN, BPM_SLIDER_MAX,
+         BPM_GATE_MIN_SCORE,
          GOING_WILD_GENRE,
          LASTFM_STALE_WARN_DAYS, LASTFM_STALE_DANGER_DAYS,
          SCORE_WEIGHTS_DEFAULT, POOL_FILTER_DEFAULT } from './config.js';
 import { getNeighbours } from './genres.js';
 import { state } from './state.js';
-import { titleKey, fmtDur, fmtMin, lerpColor, toHex, camCompat, calcPhaseScore, bpmHint, effectiveBpm, isHalfDouble } from './utils.js';
+import { titleKey, fmtDur, fmtMin, lerpColor, toHex, camCompat, calcPhaseScore, calcBpmTransitionScore, bpmHint, effectiveBpm, isHalfDouble } from './utils.js';
 import { getAllTracks, getPool, getPhasePool, getPhasePoolWithNeighbours, getGenreStats,
          registerTrack, addTrack, pickNext, buildUp, buildDown,
          buildPlateau, buildDecreasing, buildAlternating, pickReplacement } from './algorithm.js';
@@ -1326,14 +1327,14 @@ function _gen() {
     } else if (state.position === 'end') {
       const half = Math.round((rawTargetSec / 2) / (ref.dur || 210));
       registerTrack(ref, usedIds, usedTitleKeys, usedArtists);
-      const before = buildDown(pool, ref, usedIds, usedTitleKeys, usedArtists, half + 5);
+      const before = buildDown(pool, ref, usedIds, usedTitleKeys, usedArtists, Math.ceil(half * 1.4));
       const beforePool = pool.filter(t => !usedIds.has(t.id || t.song) && t.bpm <= ref.bpm && t.energy >= state.wodEnergyMin && t.energy <= state.wodEnergyMax);
       const totalBefore = rawTargetSec - ref.dur;
       let durSoFar = before.reduce((s, t) => s + t.dur, 0);
       let cur = before.length ? before[before.length - 1] : null;
       if (cur) {
         while (durSoFar < totalBefore - 60) {
-          const next = pickNext(beforePool, cur, usedIds, usedTitleKeys, usedArtists, 30);
+          const next = pickNext(beforePool, cur, usedIds, usedTitleKeys, usedArtists, estTracks);
           if (!next) break;
           addTrack(next, before, usedIds, usedTitleKeys, usedArtists);
           durSoFar += next.dur; cur = next;
@@ -1371,7 +1372,7 @@ function _gen() {
   if (state.cdActive) {
     const maxWodBpm = wod.length ? Math.max(...wod.map(t => t.bpm)) : 100;
     const cdBpmMax = state.currentPhase === 'D' ? Math.floor(maxWodBpm * 0.85) : Math.floor(maxWodBpm * 0.7);
-    const cdEnergyMax = state.currentPhase === 'D' ? 40 : ((getGenreStats()[genre] || {avg_energy: 70}).avg_energy);
+    const cdEnergyMax = PHASE_CONFIG['D'].energy[1];
     let cdPool = getPhasePoolWithNeighbours(genre, 'D').filter(t => !usedIds.has(t.id || t.song) && t.bpm <= cdBpmMax && t.energy <= cdEnergyMax);
     if (cdPool.length < 3) {
       for (const nb of getNeighbours(genre)) {
@@ -1380,6 +1381,12 @@ function _gen() {
       }
     }
     cdPool.sort((a, b) => calcPhaseScore(b, 'D') - calcPhaseScore(a, 'D') || a.bpm - b.bpm);
+    // Ensure first CD track has a valid Ratio-Lattice transition from the last WOD track
+    const lastWodBpm = wod.length ? wod[wod.length - 1].bpm : 0;
+    if (lastWodBpm && cdPool.length > 1) {
+      const firstIdx = cdPool.findIndex(t => calcBpmTransitionScore(lastWodBpm, t.bpm) >= BPM_GATE_MIN_SCORE);
+      if (firstIdx > 0) cdPool.unshift(cdPool.splice(firstIdx, 1)[0]);
+    }
     let cdSec = 0;
     for (const t of cdPool) {
       if (cdSec >= state.cdMinutes * 60) break;
@@ -1769,9 +1776,6 @@ function init() {
     if (nm) nm.value = v;
   });
   drawScoringRadar();
-
-  // Init playlist filter from current phase defaults
-  applyPhaseFilter(state.currentPhase);
 
   // Derive BPM slider bounds from config constants so HTML doesn't need to be updated manually
   const bpmSliderEl = document.getElementById('bpm-slider');

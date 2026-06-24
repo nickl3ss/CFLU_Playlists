@@ -10,6 +10,16 @@
 
 ## New Since Last Push
 
+### N20 · Wave 1 — Algorithm Bug Fixes
+
+| # | Step | Erwartet |
+|---|------|----------|
+| N20-1 | Phase C WOD mit Cool-Down generieren — Log prüfen | Erster CD-Track hat BPM, der Ratio-Lattice-kompatibel zum letzten WOD-Track ist (kein harter BPM-Sprung) |
+| N20-2 | Phase A → Phase D → Phase A wechseln — Pool-Filter prüfen | Filter-Sliders springen einmal auf Phase-Defaults (nicht zweimal); kein doppeltes Flackern beim Init |
+| N20-3 | Position=End Playlist generieren | Funktioniert fehlerfrei; Overfetch-Count skaliert mit Zieldauer |
+| N20-4 | Position=End mit langer Playlist (z.B. 50 min) | Artist-Limit korrekt relativ zur Playlist-Länge (nicht mehr fest 30-Track-Basis) |
+| N20-5 | Cool-Down nach lautem WOD (Phase C) | Erster CD-Track ≤ 40 Energy (nicht mehr bis genre avg_energy) |
+
 ### N16 · Camelot-Wheel, Playlist-Filter, UI-Restructure
 
 | # | Step | Erwartet |
