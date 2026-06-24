@@ -374,12 +374,22 @@ export function buildDecreasing(pool, startRef, usedIds, usedTitleKeys, usedArti
       return calcBpmTransitionScore(cur.bpm, t.bpm) >= BPM_GATE_MIN_SCORE;
     }).sort(byScore);
 
-    // Fallback: Ratio-Lattice in narrow descending BPM range exhausts quickly —
+    // Fallback 1: Ratio-Lattice in narrow descending BPM range exhausts quickly —
     // allow any track with bpm ≤ cur.bpm so long playlists don't terminate early
     if (!cands.length) {
       cands = pool.filter(t => {
         if (!baseFilter(t)) return false;
         return t.bpm <= cur.bpm;
+      }).sort(byScore);
+    }
+
+    // Fallback 2: descent floor reached — plateau at current BPM level (±5 BPM)
+    // Rationale: once BPM can't go lower (e.g. Phase D floor at 60), holding the
+    // current tempo is musically correct for a long Cool-Down/Recovery session.
+    if (!cands.length) {
+      cands = pool.filter(t => {
+        if (!baseFilter(t)) return false;
+        return t.bpm >= cur.bpm - 5 && t.bpm <= cur.bpm + 5;
       }).sort(byScore);
     }
 

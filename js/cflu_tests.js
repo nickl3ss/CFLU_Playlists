@@ -485,6 +485,17 @@ describe('buildDecreasing — Phase D Absteigend-Algorithmus', () => {
     const res = buildDecreasing(decPool, startBpm, used, new Set(), new Map(), 1000);
     expect(res.find(t => t.id === 'da' || t.id === 'db')).toBeFalsy();
   });
+  it('Plateau-Fallback: hält BPM wenn kein Abstieg mehr möglich', () => {
+    // Pool: nur Tracks bei gleichem BPM → kein Abstieg möglich → Plateau
+    const pp1 = mkT({id:'pp1', song:'Plateau 1', artist:'Pa', bpm:70, camelot:'9B', energy:30, dur:200, genre:'Rock'});
+    const pp2 = mkT({id:'pp2', song:'Plateau 2', artist:'Pb', bpm:70, camelot:'9B', energy:28, dur:200, genre:'Rock'});
+    state.wodEnergyMin = 0; state.wodEnergyMax = 100;
+    const res = buildDecreasing([pp1, pp2], 70, new Set(), new Set(), new Map(), 450);
+    state.wodEnergyMin = 50; state.wodEnergyMax = 85;
+    expect(res.length).toBe(2);
+    // Plateau: BPM bleibt konstant
+    res.forEach(t => expect(t.bpm).toBe(70));
+  });
 });
 
 describe('calcSortScore — Unified Sort Score', () => {

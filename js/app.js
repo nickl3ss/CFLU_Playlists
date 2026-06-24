@@ -1400,6 +1400,13 @@ function _gen() {
       warnMsgs.push(`"${ak}" mehrfach in Playlist (${cnt}×)`);
   });
 
+  // Warn when pool exhausted before target duration
+  const wodSec = wod.reduce((s, t) => s + (t.dur || 0), 0);
+  if (wodSec < rawTargetSec * 0.85) {
+    const got = Math.round(wodSec / 60), need = Math.round(rawTargetSec / 60);
+    warnMsgs.push(`⚠ Pool erschöpft: ${got} min generiert von ${need} min Ziel — Genre wechseln oder Zieldauer reduzieren`);
+  }
+
   state.generatedWod = wod;
   state.generatedCd  = cd;
   const logText = buildGenLog(genre, wod, cd, warnMsgs);

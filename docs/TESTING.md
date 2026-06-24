@@ -10,6 +10,14 @@
 
 ## New Since Last Push
 
+### N22 · buildDecreasing Plateau-Fallback + Pool-Warning (#201)
+
+| # | Step | Erwartet |
+|---|------|----------|
+| N22-1 | Phase D, Rock, Ref ~85 BPM, 150 min generieren | Playlist >41 min; nach BPM-Abstieg auf ~60 hält das BPM-Level (Plateau ±5 BPM) |
+| N22-2 | Playlist kürzer als 85 % der Zieldauer (z.B. Rock Phase D 150 min) | Log zeigt "⚠ Pool erschöpft: X min generiert von Y min Ziel" mit Handlungsempfehlung |
+| N22-3 | Phase D, größeres Genre (EDM/Pop), 150 min | Genug Tracks → kein Pool-Warning, Playlist deutlich länger |
+
 ### N21 · buildDecreasing Phase-D-WOD Fix (#200)
 
 | # | Step | Erwartet |
