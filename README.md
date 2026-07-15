@@ -68,8 +68,8 @@ Uses server-side Authorization Code Flow (`cflu_server.py`). The browser never h
 
 | Phase | Name | BPM | Character |
 |---|---|---|---|
-| **A** | Whiteboard & Prep | 90–110 | Calm, instrumental background |
-| **B** | Skill & Strength | 80–130 | Focused, gently ascending |
+| **A** | Whiteboard & Prep | 85–110 | Calm, instrumental background |
+| **B** | Skill & Strength | 80–120 | Focused, gently ascending |
 | **C** | WOD — Intensive | 125–195 | Maximum performance, BPM build |
 | **D** | Cool-Down | 60–100 | Descending, recovery |
 
@@ -121,7 +121,7 @@ python CFLU_Pool_Build.py
 | **PLB** | Pool Builder | `CFLU_Pool_Build.py` | Python ETL pipeline: reads `Playlists/*.csv`, generates `cflu_tracks.js` |
 | **WOD** | WOD Generator | `CFLU_WOD_Builder.html` + `js/` | Main app: playlist logic, scoring, UI, Spotify export |
 | **TRK** | Track Store | `cflu_tracks.js` | Auto-generated track pool — tracked in repo; do not edit manually |
-| **TST** | Test Suite | `js/cflu_tests.js` · `CFLU_Tests.html` | Dual-mode: `node js/cflu_tests.js` (CLI) · Browser renderer |
+| **TST** | Test Suite | `js/cflu_tests.js` · `CFLU_Tests.html` · `test_cflu_pool_build.py` | JS: dual-mode (`node js/cflu_tests.js` CLI · browser renderer). Python: `python -m unittest discover` |
 
 ## File Overview
 
@@ -134,7 +134,9 @@ CFLU_Start.sh           ← macOS/Linux launcher
 cflu_server.py          ← [PLB] Custom HTTP server (port 8888, POST /api/upload-csv)
 cflu.service            ← Linux systemd user-service (auto-start on login)
 CFLU_Pool_Build.py      ← [PLB] Pool builder (Playlists/*.csv → cflu_tracks.js)
+test_cflu_pool_build.py ← [TST] Python unit tests for the ETL's pure functions
 package.json            ← {"type":"module"} — enables node js/cflu_tests.js
+pyproject.toml          ← Ruff linter config (Python)
 CLAUDE.md               ← Workflow rules for Claude Code sessions
 css/cflu_style.css
 js/
@@ -172,16 +174,23 @@ The browser still needs to be opened manually to `http://127.0.0.1:8888/CFLU_WOD
 
 ### Running the tests
 
-**CLI (Node.js):**
+**JS — CLI (Node.js):**
 ```bash
 node js/cflu_tests.js
 ```
 Exit code `0` = all pass · `1` = failures. Node.js installation: `winget install OpenJS.NodeJS.LTS`
 
-**Browser:**
+**JS — Browser:**
 ```
 http://127.0.0.1:8888/CFLU_Tests.html
 ```
+
+**Python — Pool Builder ETL:**
+```bash
+python -m unittest discover -p "test_*.py"
+ruff check .
+```
+CI (`.github/workflows/tests.yml`) runs all of the above — JS tests, ESLint, ruff, and the Python unit tests — on every push and pull request.
 
 ---
 

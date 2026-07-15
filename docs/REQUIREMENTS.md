@@ -66,7 +66,7 @@ Compatible relationships — same code, ±1 on the same ring, same-number A/B sw
 
 When the trainer activates a Camelot lock, ONLY same-code (green) transitions SHOULD be permitted.
 
-Detailed implementation of this as a hard filter (not a score component) is tracked in GitHub Issue #187.
+Implemented as a hard filter (not merely a score component) across every generation and replacement path — see `PROJECT.md §_pick() — Genre-Cascade Candidate Selection` and ADR 18 (Issue #187).
 
 ### 3.3 Genre Continuity
 

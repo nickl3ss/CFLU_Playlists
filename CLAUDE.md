@@ -10,9 +10,10 @@
 ## Stack
 
 - **Runtime:** Python 3
-- **Test:** `node js/cflu_tests.js` (Node.js, no browser needed) · `CFLU_Tests.html` (browser visualisation)
+- **Test:** `node js/cflu_tests.js` (Node.js, no browser needed) · `CFLU_Tests.html` (browser visualisation) · `python -m unittest discover -p "test_*.py"` (Python ETL)
 - **Lint:** `npm run lint` (ESLint 9) · `ruff check .` (Python)
 - **Build:** `python CFLU_Pool_Build.py` (generates `cflu_tracks.js`)
+- **CI:** `.github/workflows/tests.yml` runs all of the above on every push/PR
 
 ---
 
@@ -207,15 +208,15 @@ Every new file must open with a **module contract comment** — one line: what t
 
 **D3 · Quality Gate — run in order, all must pass:**
 ```
-a. node js/cflu_tests.js      → must exit 0
-b. npm run lint               → errors block; warnings are informational
-c. ruff check .               → only if Python files changed
+a. node js/cflu_tests.js                          → must exit 0
+b. npm run lint                                   → errors block; warnings are informational
+c. ruff check . && python -m unittest discover -p "test_*.py"   → only if Python files changed
 ```
 If `a` fails: iterate until green (max 2 rounds). After 2 failures: stop, report error, wait for decision.
 Do **not** skip with `--no-verify`.
 
 **D4 · Tests:**
-Update or create test cases in `js/cflu_tests.js` for any new or changed behaviour.
+Update or create test cases in `js/cflu_tests.js` (JS) or `test_cflu_pool_build.py` (Python) for any new or changed behaviour.
 If the change affects user-visible behaviour, update `docs/TESTING.md`:
 - Add steps to **New Since Last Push** if a feature was added or changed
 - Revise **Regression Suite** if an existing step no longer applies

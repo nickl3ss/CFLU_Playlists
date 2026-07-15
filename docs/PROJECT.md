@@ -16,7 +16,7 @@
 | C1 | Pool Builder | `CFLU_Pool_Build.py` | ETL pipeline: reads `Playlists/**/*.csv`, deduplicates by Spotify track ID, writes `cflu_tracks.js`. Standard mode: add-only; `--rebuild` for full update. |
 | C2 | WOD Builder UI | `CFLU_WOD_Builder.html` + `js/` + `css/` | Main UI: song selection, playlist generation, BPM chart, Spotify export |
 | C3 | Track Data | `cflu_tracks.js` | Auto-generated track pool (non-module global `TRACK_DATA`) |
-| C4 | Tests | `js/cflu_tests.js` + `CFLU_Tests.html` | Canonical test class (dual-mode): `node js/cflu_tests.js` → stdout + exit code; browser: `CFLU_Tests.html` renders. 420 tests. |
+| C4 | Tests | `js/cflu_tests.js` + `CFLU_Tests.html` + `test_cflu_pool_build.py` | JS: canonical dual-mode test class (`node js/cflu_tests.js` → stdout + exit code; browser: `CFLU_Tests.html`). 440 tests. Python: `python -m unittest discover`, 27 tests, covers the ETL's pure functions. |
 | C5 | Server | `cflu_server.py` | Local HTTP server (port 8888): serves static files, handles CSV upload, proxies all Spotify API calls |
 
 ### JS Modules (C2 internal)
@@ -27,12 +27,12 @@
 | `js/state.js` | Single mutable app state — never import `app.js` (cycle prevention) |
 | `js/utils.js` | Pure helpers: `bpmGroup`, `camCompat`, `calcBpmTransitionScore`, `calcSortScore`, `calcPhaseScore`, `calcEraScore`, `effectiveBpm`, `bpmHint`, `titleDuplicate`, `camelotZoneDistance` |
 | `js/genres.js` | `GENRE_CONFIG`: 12 main genres, Everynoise-derived neighbour weights, bridge subgenres, role affinity |
-| `js/algorithm.js` | Core generation: `_pick()` (4-stage), `buildUp/Down/Plateau/Decreasing/Alternating`, `pickReplacement` |
-| `js/optimizer.js` | Playlist import, flow analysis (`analyseFlow`), greedy reorder, gap fill — no DOM, no Spotify token handling |
+| `js/algorithm.js` | Core generation: `_pick()` (genre-cascade), `buildUp/Down/Plateau/Decreasing/Alternating/End/PlateauSplit/Cooldown`, `pickReplacement` |
+| `js/optimizer.js` | Playlist import, flow analysis (`analyseFlow`, `SCORE_GREEN`/`SCORE_YELLOW`), greedy reorder, gap fill — no DOM, no Spotify token handling |
 | `js/chart.js` | BPM step chart + bidirectional hover synchronisation |
 | `js/spotify.js` | Spotify auth proxy, playlist export, device control — browser never holds a token (Key Invariant 2) |
 | `js/genre_space.js` | 3D Everynoise star map (Three.js) — reads state + `GENRE_MAP` + `TRACK_DATA`; writes canvas only |
-| `js/upload.js` | CSV upload helpers (`sanitizeFilename`, `extractPlaylistName`, `formatUploadSuccess`) — standalone `<script>` in HTML |
+| `js/upload.js` | CSV upload UI + polling (`_pollUploadStatus` against `/api/upload-status` — the ETL runs in a background thread server-side); pure helpers (`sanitizeFilename`, `extractPlaylistName`, `formatUploadSuccess`) — standalone `<script>` in HTML |
 | `js/resolve.js` | `SOURCE_PRECEDENCE` + pure resolve functions — no DOM, no state, no Spotify calls |
 | `js/register.js` | Pool Register tab — lazy-loads `data/*.json`, writes DOM only |
 | `js/app.js` | UI wiring: imports all modules, event handlers, `_gen()`, `renderResult()`, init |
