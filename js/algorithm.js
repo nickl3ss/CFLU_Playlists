@@ -134,14 +134,14 @@ function _pick(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carr
     return true;
   };
 
+  // REQUIREMENTS.md §3.2: red Camelot transitions are a hard gate, never a fallback —
+  // if nothing survives (even the "any non-red" tier), return empty, not the unfiltered subset.
   function applyInnerCamelot(subset) {
     let c = subset.filter(t => camStrictOk(cur.camelot, t.camelot) && (CAM_ZONE1.has(t.camelot) || CAM_ZONE2.has(t.camelot)));
     if (c.length) return c;
     c = subset.filter(t => camStrictOk(cur.camelot, t.camelot));
     if (c.length) return c;
-    c = subset.filter(t => camCompat(cur.camelot, t.camelot) !== 'red');
-    if (c.length) return c;
-    return subset;
+    return subset.filter(t => camCompat(cur.camelot, t.camelot) !== 'red');
   }
 
   const curSubgenres = getSubgenres(cur);
@@ -282,6 +282,8 @@ export function buildDown(pool, endT, usedIds, usedTitleKeys, usedArtists, count
       if (usedIds.has(t.id || t.song)) return false;
       if (t.bpm > cur.bpm) return false;
       if (calcBpmTransitionScore(cur.bpm, t.bpm) < BPM_GATE_MIN_SCORE) return false;
+      // REQUIREMENTS.md §3.2: red Camelot transitions are a hard gate, not a score component.
+      if (camCompat(cur.camelot, t.camelot) === 'red') return false;
       if (titleDuplicate(t.song, usedTitleKeys)) return false;
       if (artistKeys(t.artist).some(ak => (usedArtists.get(ak) || 0) >= maxArtist)) return false;
       if (!_energyOk(t, wodEnergyMin, wodEnergyMax)) return false;
@@ -334,6 +336,9 @@ export function pickReplacement(pool, prev, next, excludeIds, usedTitleKeys, use
     if (state.explicitFilter === 'only' && !t.explicit) return false;
     if (prev && calcBpmTransitionScore(prev.bpm, t.bpm) === 0) return false;
     if (next && calcBpmTransitionScore(t.bpm, next.bpm) === 0) return false;
+    // REQUIREMENTS.md §3.2: red Camelot transitions are a hard gate, not a score component.
+    if (prev && camCompat(prev.camelot, t.camelot) === 'red') return false;
+    if (next && camCompat(t.camelot, next.camelot) === 'red') return false;
     if (!_pfOk(t)) return false;
     return true;
   });
@@ -355,6 +360,8 @@ export function buildDecreasing(pool, startRef, usedIds, usedTitleKeys, usedArti
     if (usedIds.has(t.id || t.song)) return false;
     if (titleDuplicate(t.song, usedTitleKeys)) return false;
     if (!_camLockOk(t)) return false;
+    // REQUIREMENTS.md §3.2: red Camelot transitions are a hard gate, not a score component.
+    if (camCompat(cur.camelot, t.camelot) === 'red') return false;
     if (state.explicitFilter === 'exclude' && t.explicit) return false;
     if (state.explicitFilter === 'only' && !t.explicit) return false;
     return true;

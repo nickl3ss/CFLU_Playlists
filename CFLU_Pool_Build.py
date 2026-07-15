@@ -1644,7 +1644,7 @@ def resolve_spotify_ids(tracks: list) -> dict:
     with open(_ID_MAP_FILE, 'w', encoding='utf-8') as f:
         json.dump(out, f, ensure_ascii=False, separators=(',', ':'))
     print(f'  Neu aufgelöst      : {new_count}  Gesamt: {len(id_map)}')
-    print(f'  data/id_map.json geschrieben')
+    print('  data/id_map.json geschrieben')
     return id_map
 
 
@@ -1895,7 +1895,7 @@ def export_json(tracks: list) -> None:
             'album_count':    len(album_objs),
             'id_map_present': _ID_MAP_FILE.exists(),
         }, f, ensure_ascii=False, indent=2)
-    print(f'  data/schema.version.json geschrieben')
+    print('  data/schema.version.json geschrieben')
 
 
 # ===== R — REKLASSIFIZIERUNG (kein CSV-Import) =====

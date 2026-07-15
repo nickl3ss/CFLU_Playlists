@@ -1929,6 +1929,44 @@ describe('optimizer.js — scoreWeights honoured (#186)', () => {
 });
 
 // ============================================================
+//  #187 — Camelot als Pflicht-Gate (hard gate, nicht Score-Komponente)
+// ============================================================
+describe('Camelot hard gate — red transitions excluded everywhere (#187)', () => {
+  // cur camelot '9B'; 'red' candidate per existing camCompat fixture (diff numbers+letters)
+  const curRef  = mkT({id:'cg-cur',  song:'Gate Cur',  artist:'Gate Band Cur',  bpm:130, camelot:'9B', energy:75, dur:200, genre:'Rock', bpmg:'D'});
+  const redCand = mkT({id:'cg-red',  song:'Gate Red',  artist:'Gate Band Red',  bpm:132, camelot:'5A', energy:75, dur:200, genre:'Rock', bpmg:'D'});
+  const okCand  = mkT({id:'cg-ok',   song:'Gate Ok',   artist:'Gate Band Ok',   bpm:132, camelot:'9B', energy:75, dur:200, genre:'Rock', bpmg:'D'});
+
+  it('pickReplacement never returns a red-Camelot candidate relative to prev', () => {
+    const pool = [redCand, okCand];
+    const picked = pickReplacement(pool, curRef, null, new Set(), new Set(), new Map(), 99, 'C');
+    expect(picked.id).toBe('cg-ok');
+  });
+  it('pickReplacement never returns a red-Camelot candidate relative to next', () => {
+    const pool = [redCand, okCand];
+    const picked = pickReplacement(pool, null, curRef, new Set(), new Set(), new Map(), 99, 'C');
+    expect(picked.id).toBe('cg-ok');
+  });
+  it('pickReplacement returns null rather than a red transition when nothing else is available', () => {
+    const picked = pickReplacement([redCand], curRef, null, new Set(), new Set(), new Map(), 99, 'C');
+    expect(picked).toBeNull();
+  });
+  it('buildDown never descends into a red-Camelot track', () => {
+    const usedIds = new Set(), usedTitleKeys = new Set(), usedArtists = new Map();
+    const lowerRed = mkT({id:'cg-red3', song:'Gate Red 3', artist:'Gate Band Red3', bpm:128, camelot:'5A', energy:75, dur:200, genre:'Rock', bpmg:'D'});
+    const lowerOk  = mkT({id:'cg-ok3',  song:'Gate Ok 3',  artist:'Gate Band Ok3',  bpm:128, camelot:'9B', energy:75, dur:200, genre:'Rock', bpmg:'D'});
+    const result = buildDown([lowerRed, lowerOk], curRef, usedIds, usedTitleKeys, usedArtists, 1);
+    expect(result[0].id).toBe('cg-ok3');
+  });
+  it('buildDecreasing never descends into a red-Camelot track', () => {
+    const lowerRed = mkT({id:'cg-red2', song:'Gate Red 2', artist:'Gate Band Red2', bpm:100, camelot:'5A', energy:40, dur:200, genre:'Rock', bpmg:'B'});
+    const lowerOk  = mkT({id:'cg-ok2',  song:'Gate Ok 2',  artist:'Gate Band Ok2',  bpm:100, camelot:'9B', energy:40, dur:200, genre:'Rock', bpmg:'B'});
+    const result = buildDecreasing([lowerRed, lowerOk], curRef, new Set(), new Set(), new Map(), 180);
+    expect(result.every(t => t.id !== 'cg-red2')).toBeTruthy();
+  });
+});
+
+// ============================================================
 //  TOTALS + EXPORT
 // ============================================================
 let totalPass = 0, totalFail = 0;
