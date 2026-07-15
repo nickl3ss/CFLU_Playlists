@@ -29,6 +29,38 @@ export function classifyUploadResult(data) {
   return { type: 'success', msg: formatUploadSuccess(data) };
 }
 
+// Polls /api/upload-status until the background ETL run finishes, then renders the result
+// via classifyUploadResult (same success/warning/error shape the old synchronous path used).
+async function _pollUploadStatus(statusEl, uploadBtn, reloadBtn) {
+  const POLL_MS = 700;
+  const MAX_POLLS = 900; // ~10.5 min hard stop — a stuck build shouldn't poll forever
+  for (let i = 0; i < MAX_POLLS; i++) {
+    await new Promise(r => setTimeout(r, POLL_MS));
+    let state;
+    try {
+      state = await (await fetch('/api/upload-status')).json();
+    } catch {
+      continue; // transient network hiccup — keep polling
+    }
+    if (state.running) continue;
+    const result = classifyUploadResult({
+      ok: !state.error, error: state.error,
+      added: state.added, updated: state.updated, total: state.total,
+    });
+    statusEl.textContent = result.msg;
+    statusEl.className = 'upload-status ' + result.type;
+    if (result.type === 'success') {
+      reloadBtn.style.display = 'block';
+    } else {
+      uploadBtn.disabled = false;
+    }
+    return;
+  }
+  statusEl.textContent = '⚠ Pool-Build dauert ungewöhnlich lange — Server-Log prüfen.';
+  statusEl.className = 'upload-status warning';
+  uploadBtn.disabled = false;
+}
+
 function _initUpload() {
   const fileInput  = document.getElementById('upload-file');
   const fileLabel  = document.getElementById('upload-label');
@@ -67,14 +99,16 @@ function _initUpload() {
           body: JSON.stringify({ filename: file.name, content: e.target.result }),
         });
         const data = await resp.json();
-        const result = classifyUploadResult(data);
-        statusEl.textContent = result.msg;
-        statusEl.className = 'upload-status ' + result.type;
-        if (result.type === 'success') {
-          reloadBtn.style.display = 'block';
-        } else {
+        if (!resp.ok || !data.ok) {
+          const result = classifyUploadResult({ ok: false, error: data.error });
+          statusEl.textContent = result.msg;
+          statusEl.className = 'upload-status ' + result.type;
           uploadBtn.disabled = false;
+          return;
         }
+        statusEl.textContent = '⏳ Pool wird aktualisiert…';
+        statusEl.className = 'upload-status info';
+        await _pollUploadStatus(statusEl, uploadBtn, reloadBtn);
       } catch {
         statusEl.textContent = '✗ Server nicht erreichbar';
         statusEl.className = 'upload-status error';

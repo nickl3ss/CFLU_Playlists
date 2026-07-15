@@ -51,6 +51,37 @@ _lastfm_sync_state: dict = {
     'error':         None,
 }
 
+# S-08 (#203): CSV upload triggers a full ETL run (optionally Last.fm/AI API calls per new
+# track) in a background thread, mirroring the Last.fm full-sync pattern above — the server
+# is single-threaded (plain TCPServer), so without this the whole server (including the
+# Spotify playback proxy) would freeze for the duration of every upload.
+_upload_build_state: dict = {
+    'running':     False,
+    'filename':    '',
+    'added':       0,
+    'updated':     0,
+    'total':       0,
+    'started_at':  None,
+    'finished_at': None,
+    'error':       None,
+}
+
+
+def _upload_build_runner() -> None:
+    """Background thread: runs the pool-builder ETL after a CSV upload."""
+    global _upload_build_state
+    try:
+        from CFLU_Pool_Build import build
+        count_new, count_updated, total = build()
+        _upload_build_state['added'] = count_new
+        _upload_build_state['updated'] = count_updated
+        _upload_build_state['total'] = total
+    except Exception as exc:
+        _upload_build_state['error'] = str(exc)
+    finally:
+        _upload_build_state['running'] = False
+        _upload_build_state['finished_at'] = datetime.now().isoformat(timespec='seconds')
+
 
 def _lastfm_sync_reader(proc) -> None:
     """Background thread: forward subprocess output to PowerShell and parse progress markers."""
@@ -268,6 +299,8 @@ class CFLUHandler(SimpleHTTPRequestHandler):
             self._handle_lastfm_status()
         elif path == '/api/lastfm/progress':
             self._handle_lastfm_progress()
+        elif path == '/api/upload-status':
+            self._handle_upload_status()
         else:
             super().do_GET()
 
@@ -486,7 +519,11 @@ class CFLUHandler(SimpleHTTPRequestHandler):
     # ===== CSV upload =====
 
     def _handle_upload(self):
+        global _upload_build_state
         try:
+            if _upload_build_state.get('running'):
+                return self._respond(409, {'ok': False, 'error': 'Ein Pool-Build läuft bereits — bitte warten.'})
+
             length = int(self.headers.get('Content-Length', 0))
             if length > MAX_UPLOAD_BYTES:
                 return self._respond(413, {'error': 'Payload too large'})
@@ -513,19 +550,21 @@ class CFLUHandler(SimpleHTTPRequestHandler):
             with open(out_path, 'w', encoding='utf-8', newline='') as f:
                 f.write(content.removeprefix('﻿'))
 
-            from CFLU_Pool_Build import build
-            count_new, count_updated, total = build()
+            _upload_build_state = {
+                'running': True, 'filename': out_filename,
+                'added': 0, 'updated': 0, 'total': 0,
+                'started_at': datetime.now().isoformat(timespec='seconds'),
+                'finished_at': None, 'error': None,
+            }
+            threading.Thread(target=_upload_build_runner, daemon=True).start()
 
-            self._respond(200, {
-                'ok': True,
-                'added': count_new,
-                'updated': count_updated,
-                'total': total,
-                'filename': out_filename,
-            })
+            self._respond(200, {'ok': True, 'started': True, 'filename': out_filename})
 
         except Exception:
             self._respond(500, {'ok': False, 'error': 'Internal server error'})
+
+    def _handle_upload_status(self):
+        self._respond(200, dict(_upload_build_state))
 
     # ===== Helpers =====
 
