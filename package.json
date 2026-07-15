@@ -1,4 +1,6 @@
 {
+  "name": "cflu-wod-playlist-builder",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "test": "node js/cflu_tests.js",
