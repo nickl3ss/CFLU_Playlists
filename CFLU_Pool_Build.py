@@ -50,6 +50,8 @@ def _track_for_js(t: dict) -> dict:
     return {k: v for k, v in t.items() if k not in _JS_EXCLUDE_FIELDS}
 
 # ===== SUFFIX-BEREINIGUNG =====
+# Keep in sync with SUFFIX_RE in js/config.js — verified against shared fixtures in
+# js/cflu_tests.js ("SUFFIX_RE — cross-language fixture parity"); update both on any change.
 SUFFIX_RE = re.compile(
     r'[\s\-–(]*(radio\s*edit|single\s*edit|album\s*version|original\s*mix|'
     r'club\s*mix|extended\s*(mix|version)?|long\s*version|remaster(ed)?.*|'

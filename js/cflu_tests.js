@@ -172,6 +172,12 @@ describe('titleKey — Titel-Normalisierung für Dedup', () => {
   it('Gleicher Key für Original und Radio Edit', () => {
     expect(titleKey('Dup Song')).toBe(titleKey('Dup Song (Radio Edit)'));
   });
+  it('Jahr-vor-Remaster wird entfernt (z.B. Spotify-Reissue-Format)', () => {
+    // Cross-language regression: Python's SUFFIX_RE had \d{4}\s*remaster.* that JS's lacked —
+    // caused Optimizer import to fuzzy-miss pool tracks against raw (uncleaned) Spotify titles.
+    expect(titleKey('Song Title - 2009 Remaster')).toBe(titleKey('Song Title'));
+    expect(titleKey('Song Title (2009 Remaster)')).toBe(titleKey('Song Title'));
+  });
 });
 
 describe('camCompat — Camelot-Kompatibilität', () => {
