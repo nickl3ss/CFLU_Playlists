@@ -16,7 +16,7 @@
 | C1 | Pool Builder | `CFLU_Pool_Build.py` | ETL pipeline: reads `Playlists/**/*.csv`, deduplicates by Spotify track ID, writes `cflu_tracks.js`. Standard mode: add-only; `--rebuild` for full update. |
 | C2 | WOD Builder UI | `CFLU_WOD_Builder.html` + `js/` + `css/` | Main UI: song selection, playlist generation, BPM chart, Spotify export |
 | C3 | Track Data | `cflu_tracks.js` | Auto-generated track pool (non-module global `TRACK_DATA`) |
-| C4 | Tests | `js/cflu_tests.js` + `CFLU_Tests.html` | Canonical test class (dual-mode): `node js/cflu_tests.js` → stdout + exit code; browser: `CFLU_Tests.html` renders. 403 tests. |
+| C4 | Tests | `js/cflu_tests.js` + `CFLU_Tests.html` | Canonical test class (dual-mode): `node js/cflu_tests.js` → stdout + exit code; browser: `CFLU_Tests.html` renders. 420 tests. |
 | C5 | Server | `cflu_server.py` | Local HTTP server (port 8888): serves static files, handles CSV upload, proxies all Spotify API calls |
 
 ### JS Modules (C2 internal)
@@ -182,14 +182,20 @@ Added to `transScore`: phase fitness points (`calcPhaseScore × 2`), bridge-subg
 
 Default weights (`SCORE_WEIGHTS_DEFAULT`): `{ bpm:40, camelot:20, energy:15, loudness:10, valence:8, dance:7, popularity:5 }`. User-configurable via the 7-axis spider-web UI panel; persisted in `localStorage` under `cflu_score_weights`.
 
-### _pick() — Four-Stage Candidate Selection
+### _pick() — Genre-Cascade Candidate Selection
 
-Stage 1: BPM gate (`calcBpmTransitionScore = 0` → reject) + monotonicity (`effectiveBpm` must not reverse phase direction) + base filters (used IDs, title dedup, Camelot lock, explicit filter).  
-Stage 2: Genre + BPM group constraints (±1 step).  
-Stage 3: Energy filter (within `wodEnergyMin/Max`).  
-Stage 4: BPM escalation fallback — ignores genre/energy, last resort within `_pick()`.
+Every candidate must pass `baseOk()` (or `baseOkNoEnergy()` in stufe 4): BPM gate (`calcBpmTransitionScore < BPM_GATE_MIN_SCORE` → reject), monotonicity (`effectiveBpm`; ascending phases may step back by at most `MONO_STEP_BACK_BPM`, descending phases never step forward), title dedup, per-artist cap, Camelot lock, explicit filter, and — except where noted below — the energy filter (`wodEnergyMin/Max`).
 
-Top-5 candidates at each stage are scored and randomly selected (crypto.getRandomValues) to avoid deterministic repetition.
+The candidate pool is built by cascading through genre-relatedness stages until one yields results:
+1. Same subgenre (`genres_raw` overlap with the current track)
+2. Same main genre, different subgenre
+3. Bridge-pivot track connecting the current genre to a neighbour genre
+4. Neighbour main genre (by weight) — energy filter is relaxed only for half/double-time BPM matches (`isHalfDouble`)
+5. Camelot-only fallback (genre ignored) — used when genre context is missing or stufen 1–4 are exhausted; still enforces the full BPM gate, monotonicity, and energy filter via `baseOk()`
+
+Within whichever stage succeeds, Camelot compatibility is progressively relaxed by `applyInnerCamelot()` (Zone1/2 green → any green → non-red → unfiltered) until candidates remain.
+
+Once the final candidate set is resolved, all candidates are scored by `calcSortScore()` and the top 5 are shuffled via `crypto.getRandomValues()` — one random pick at the end, not per-stage — to avoid deterministic repetition across generations.
 
 ---
 
@@ -201,8 +207,8 @@ These must never be broken by any implementation change:
 2. `client_secret` and `refresh_token` must never leave `cflu_server.py` — browser never holds a Spotify token
 3. Spotify export: max 100 tracks per batch (API limit) — always hard-cap
 4. BPM in ascending phases (B/C) may step back by at most `MONO_STEP_BACK_BPM` (10 effective BPM) per pick; the overall trend must rise — enforced by `getPhasePool` BPM-band filter (tracks outside the phase band are excluded at pool level)
-5. BPM groups: max ±1 step per move within `_pick()` stages 1–3
-6. `_pick()` stage 4 (BPM escalation) intentionally ignores energy filter and BPM groups — last-resort escape hatch, not a normal path
+5. BPM groups: max ±1 step per move — enforced uniformly across every `_pick()` genre-cascade stage via `baseOk()`/`bpmOk()`; no stage bypasses this
+6. `_pick()`'s final fallback stage (Camelot-only, genre ignored) still enforces the full BPM gate and energy filter via `baseOk()` — only stufe 4 (neighbour main genre) conditionally relaxes the energy filter, and only for half/double-time BPM matches (`isHalfDouble`)
 7. `cflu_tracks.js` must be loaded BEFORE the ES modules (`<script>` in `<head>`)
 8. `CFLU_Start.bat` / `CFLU_Start.sh` always run pool build on startup — no CSV → `_reclassify_only()` mode
 9. `open_genre=2/3/5/6/7` never overwritten by `--rebuild`; `--reclassify-ai` resets state-2 only; state-7 is terminal

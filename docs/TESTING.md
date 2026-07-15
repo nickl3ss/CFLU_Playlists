@@ -10,6 +10,14 @@
 
 ## New Since Last Push
 
+### N23 · CSP style-src Duplicate-Directive Fix (Code Review finding)
+
+| # | Step | Erwartet |
+|---|------|----------|
+| N23-1 | Open app, DevTools → Network → reload → click document request → Response Headers | Single `style-src` directive containing `'self' 'unsafe-inline' https://fonts.googleapis.com` (previously two separate `style-src` entries, browser only honoured the first) |
+| N23-2 | DevTools → Console on load | No CSP violation for `fonts.googleapis.com` |
+| N23-3 | Inspect rendered text (headings, mono labels) | IBM Plex Mono / Barlow Condensed render (not a system-font fallback) |
+
 ### N22 · buildDecreasing Plateau-Fallback + Pool-Warning (#201)
 
 | # | Step | Erwartet |

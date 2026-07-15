@@ -358,8 +358,8 @@ After user confirms testing is done, clear the **New Since Last Push** section a
 2. `client_secret` and `refresh_token` must **never** leave the server (cflu_server.py). The browser never holds a Spotify token — all API calls proxied through `POST /api/spotify/call`.
 3. Spotify export: max. 100 tracks per batch (API limit) — always hard-cap
 4. BPM in ascending phases (B/C) may step back by at most `MONO_STEP_BACK_BPM` (10 BPM effective) per pick; large backward steps are forbidden. Overall trend must rise — enforced by `getPhasePool` BPM-band filter preventing out-of-band drift.
-5. BPM groups: max. ±1 step per move (except _pick() stage 4 BPM escalation)
-6. _pick() stage 4 (BPM escalation) intentionally ignores energy filter and BPM groups — last resort within _pick(), not a UI phase
+5. BPM groups: max. ±1 step per move — enforced uniformly across every `_pick()` genre-cascade stage via `baseOk()`/`bpmOk()`; no stage bypasses this
+6. `_pick()`'s final fallback stage (Camelot-only, genre ignored) still enforces the full BPM gate and energy filter via `baseOk()` — only stufe 4 (neighbour main genre) conditionally relaxes the energy filter, and only for half/double-time BPM matches (`isHalfDouble`)
 7. `cflu_tracks.js` must be loaded BEFORE the ES modules (`<script>` in `<head>`)
 8. `CFLU_Start.bat` / `CFLU_Start.sh` always run pool build on startup — no CSV means reclassify-only mode
 9. `open_genre=2/3/5/6/7` never overwritten by `--rebuild` — preserve logic in `merge()` is mandatory; `--reclassify-ai` resets state-2 only (not 6 or 7); state-7 is terminal: ignored by both [F] and [A]; only set from state-5 (never from 1, 4, or 2)

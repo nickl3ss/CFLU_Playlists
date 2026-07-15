@@ -100,8 +100,10 @@ export function flowSummary(transitions) {
 // ===== REORDER OPTIMIZATION =====
 
 /**
- * Greedy reorder: keep _external tracks in their original relative order, slot in
- * pool-matched tracks using calcSortScore to find the best append at each step.
+ * Greedy reorder: pool-matched tracks are reordered using calcSortScore to find the
+ * best append at each step; _external tracks (no scoring data) keep their relative
+ * order among themselves but are appended after all pool tracks, not interleaved
+ * back into their original positions.
  * Returns a new ordered array.
  */
 export function reorderGreedy(tracks, phase) {
