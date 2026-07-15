@@ -35,6 +35,12 @@ import urllib.request
 from datetime import datetime
 from http.server import SimpleHTTPRequestHandler
 
+# Windows consoles default to cp1252, which can't encode e.g. '⚠' — crashes any print()
+# using such a character (found live while testing #161's startup warning). The Last.fm
+# sync subprocess already sets PYTHONIOENCODING=utf-8 for the same reason; this covers the
+# main process's own stdout for any current or future non-ASCII print().
+sys.stdout.reconfigure(encoding='utf-8')
+
 _KEYVAULT = 'keyvault'
 _LASTFM_CACHE_FILE = 'cflu_lastfm.json'
 _REFRESH_TOKEN_FILE = f'{_KEYVAULT}/cflu_refresh_token.txt'
@@ -165,6 +171,7 @@ _sp_tokens: dict = {
     'expires_at': 0.0,
     'user_id': None,
     'display_name': None,
+    'scope': '',  # #161: granted scope, tracked to detect a saved session with a stale scope
 }
 
 
@@ -187,14 +194,27 @@ def _basic_auth(cid: str, secret: str) -> str:
     return base64.b64encode(f'{cid}:{secret}'.encode()).decode()
 
 
-def _save_refresh_token(token: str) -> None:
-    """Persist refresh token so the server can auto-connect on next start."""
+def _save_refresh_token(token: str, scope: str = '') -> None:
+    """Persist refresh token + granted scope (#161) so the server can auto-connect on next
+    start and detect a saved session that predates a scope requirement added later."""
     try:
-        with open(_REFRESH_TOKEN_FILE, 'w') as f:
-            f.write(token)
+        with open(_REFRESH_TOKEN_FILE, 'w', encoding='utf-8') as f:
+            json.dump({'token': token, 'scope': scope}, f)
     except Exception as exc:
         import sys
         print(f'  Spotify: Refresh-Token konnte nicht gespeichert werden: {exc}', file=sys.stderr)
+
+
+def _load_refresh_token_file() -> tuple[str, str]:
+    """Returns (token, scope). Handles both the current JSON format and the legacy
+    plain-text format (pre-#161), where the file held only the raw token string."""
+    with open(_REFRESH_TOKEN_FILE, encoding='utf-8') as f:
+        raw = f.read().strip()
+    try:
+        data = json.loads(raw)
+        return data.get('token', ''), data.get('scope', '')
+    except json.JSONDecodeError:
+        return raw, ''  # legacy format — scope unknown
 
 
 def _clear_refresh_token() -> None:
@@ -210,14 +230,20 @@ def _load_saved_session() -> None:
     if not cid or not secret:
         return
     try:
-        with open(_REFRESH_TOKEN_FILE) as f:
-            saved = f.read().strip()
+        saved, saved_scope = _load_refresh_token_file()
     except FileNotFoundError:
         print('  Spotify: Keine gespeicherte Session — bitte einmalig über Admin-Panel verbinden.')
         return
     if not saved:
         return
+    # #161: proactively warn when a saved session predates a scope added later — the 403
+    # a user would otherwise hit on e.g. a collaborative-playlist import gives no hint why.
+    missing = [s for s in _SCOPE.split() if s not in saved_scope.split()]
+    if missing:
+        print(f'  Spotify: ⚠ Gespeicherte Session hat veralteten Scope (fehlt: {", ".join(missing)}).')
+        print('  Spotify: Bitte im Admin-Panel abmelden und neu verbinden, um den vollen Funktionsumfang zu erhalten.')
     _sp_tokens['refresh_token'] = saved
+    _sp_tokens['scope'] = saved_scope
     _refresh_access_token()
     if not _sp_tokens.get('access_token'):
         print('  Spotify: Gespeicherter Token abgelaufen oder widerrufen — bitte neu verbinden.')
@@ -257,9 +283,11 @@ def _refresh_access_token() -> None:
             tokens = json.loads(resp.read())
         _sp_tokens['access_token'] = tokens['access_token']
         _sp_tokens['expires_at'] = time.time() + tokens.get('expires_in', 3600) - 60
+        if tokens.get('scope'):
+            _sp_tokens['scope'] = tokens['scope']
         if 'refresh_token' in tokens:
             _sp_tokens['refresh_token'] = tokens['refresh_token']
-            _save_refresh_token(tokens['refresh_token'])  # persist rotation
+            _save_refresh_token(tokens['refresh_token'], _sp_tokens['scope'])  # persist rotation
     except Exception:
         _sp_tokens['access_token'] = None  # force re-auth on next call
 
@@ -377,8 +405,9 @@ class CFLUHandler(SimpleHTTPRequestHandler):
         _sp_tokens['access_token'] = tokens['access_token']
         _sp_tokens['refresh_token'] = tokens.get('refresh_token')
         _sp_tokens['expires_at'] = time.time() + tokens.get('expires_in', 3600) - 60
+        _sp_tokens['scope'] = tokens.get('scope', _SCOPE)
         if tokens.get('refresh_token'):
-            _save_refresh_token(tokens['refresh_token'])
+            _save_refresh_token(tokens['refresh_token'], _sp_tokens['scope'])
 
         # Fetch user profile
         try:
@@ -402,6 +431,10 @@ class CFLUHandler(SimpleHTTPRequestHandler):
             'connected': connected,
             'display_name': _sp_tokens.get('display_name') or '',
             'user_id': _sp_tokens.get('user_id') or '',
+            # #164: actual port/redirect URI, so the Admin Panel doesn't show a hardcoded
+            # value that goes wrong on a non-default port (python cflu_server.py 9999).
+            'port': PORT,
+            'redirect_uri': _REDIRECT_URI,
         })
 
     def _handle_spotify_logout(self):

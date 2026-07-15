@@ -48,6 +48,16 @@ export async function checkSpotifyStatus() {
   try {
     const r = await fetch('/api/spotify/status');
     const data = await r.json();
+    // #164: Admin Panel showed a hardcoded port/redirect URI — inject the real one so it's
+    // still correct when the server runs on a non-default port.
+    if (data.redirect_uri) {
+      const redirectEl = document.getElementById('admin-redirect-uri');
+      if (redirectEl) redirectEl.textContent = data.redirect_uri;
+    }
+    if (data.port) {
+      const browserEl = document.getElementById('admin-browser-url');
+      if (browserEl) browserEl.textContent = `http://127.0.0.1:${data.port}/CFLU_WOD_Builder.html`;
+    }
     if (data.connected) {
       state.spConnected = true;
       state.spDisplayName = data.display_name;

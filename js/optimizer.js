@@ -63,8 +63,11 @@ export async function importPlaylist(playlistId) {
 
 // ===== FLOW ANALYSIS =====
 
-const SCORE_GREEN  = 320; // same thresholds used visually
-const SCORE_YELLOW = 200;
+// #160: recalibrated against the real pool (10,990 tracks, 45% with genre_conf) after
+// genreDistScore expanded [0,10]->[0,25]. See docs/PROJECT.md "Optimizer Score Thresholds"
+// for the full methodology and measured distributions.
+const SCORE_GREEN  = 330;
+const SCORE_YELLOW = 210;
 
 /**
  * Analyse an ordered track list for a given phase.

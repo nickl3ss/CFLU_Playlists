@@ -18,6 +18,7 @@ export const LASTFM_STALE_DANGER_DAYS = 45;  // show sync button (warn badge)
 export const PHASE_CONFIG = {
   A: {
     label: 'Whiteboard & Prep', color: '#5b8fd6',
+    desc: 'Ruhige Hintergrundmusik, Coach muss zu hören sein',
     bpm: [85,110], bpmCore: [90,105], energy: [20,45], valence: [50,80], dance: [30,60],
     instrumental: {min:40}, speech: {max:20}, acoustic: {min:30}, loud: {max:-10},
     bpmDefault: 100, tolDefault: 5,
@@ -25,6 +26,7 @@ export const PHASE_CONFIG = {
   },
   B: {
     label: 'Skill & Strength', color: '#f7c948',
+    desc: 'Fokussiert, moderate Intensität, technische Arbeit',
     bpm: [80,120], bpmCore: [90,110], energy: [40,65], valence: [35,65], dance: [35,65],
     instrumental: {min:25}, speech: {max:25}, acoustic: {min:5,max:40}, live: {max:40}, loud: {min:-10,max:-5},
     bpmDefault: 105, tolDefault: 5,
@@ -32,6 +34,7 @@ export const PHASE_CONFIG = {
   },
   C: {
     label: 'WOD — Intensiv', color: '#1db954',
+    desc: 'Maximale Performance, BPM-Aufbau gegen die Ermüdung',
     bpm: [125,195], bpmCore: [140,175], energy: [75,100], valence: [60,90], dance: [60,80],
     instrumental: {max:25}, acoustic: {max:10}, loud: {min:-8},
     bpmDefault: 145, tolDefault: 5,
@@ -39,11 +42,20 @@ export const PHASE_CONFIG = {
   },
   D: {
     label: 'Cool-Down', color: '#a855f7',
+    desc: 'Parasympathisch, langsam, Erholung',
     bpm: [60,100], bpmCore: [65,85], energy: [15,40], valence: [40,70], dance: [0,45],
     instrumental: {min:50}, acoustic: {min:40}, loud: {max:-10},
     bpmDefault: 80, tolDefault: 5,
     progression: 'decreasing', positionVisible: false,
   },
+};
+
+// Human-readable label for PHASE_CONFIG[phase].progression, used on the phase tiles.
+export const PROGRESSION_LABEL = {
+  plateau: 'Plateau',
+  gentle: 'sanft aufbauend',
+  ascending: 'aufsteigend',
+  decreasing: 'absteigend',
 };
 
 // Slider color primitives

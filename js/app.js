@@ -1,5 +1,5 @@
 // app.js — UI wiring only; no business logic here — delegate to algorithm.js, spotify.js, chart.js etc.
-import { PHASE_CONFIG, MIN_POOL_SIZE,
+import { PHASE_CONFIG, PROGRESSION_LABEL, MIN_POOL_SIZE,
          POS_BPM, CAM_COLOR, CAM_ZONE1, CAM_ZONE2, DUR_STEPS,
          bpmStopsForPhase,
          BPM_SLIDER_MIN, BPM_SLIDER_MAX,
@@ -14,7 +14,7 @@ import { getAllTracks, getPool, getPhasePool, getPhasePoolWithNeighbours, getGen
          buildPlateau, buildDecreasing, buildAlternating, pickReplacement } from './algorithm.js';
 import { drawChart, highlightFromRow, clearHighlight } from './chart.js';
 import { spotifyLogin, spotifyLogout, checkSpotifyCallback,
-         exportPlaylist, getDevices, playOnDevice } from './spotify.js';
+         exportPlaylist, getDevices, playOnDevice, spotifyCall } from './spotify.js';
 import { initGenreSpace, updatePlaylistMode, resizeGenreSpace } from './genre_space.js';
 import { parsePlaylistId, importPlaylist, analyseFlow, flowSummary, reorderGreedy, suggestGapFills, exportOptimized } from './optimizer.js';
 import { initRegister, openRegister } from './register.js';
@@ -120,18 +120,73 @@ function onCamLetterSlider(el) {
   if (state.selMode === 'direct') onDirectSearch();
 }
 
+let _camNumbersDebounce = null;
 function onCamNumbers() {
   const el = document.getElementById('cam-numbers');
   state.camNumbers = parseCamNumbers(el.value);
   document.getElementById('clear-cam-numbers').style.display = el.value ? '' : 'none';
+
+  // #182: distinguish "rejected" from "empty" — silent [] gave no feedback on invalid input.
+  const errEl = document.getElementById('cam-numbers-error');
+  if (el.value.trim() && state.camNumbers.length === 0) {
+    errEl.textContent = 'Ungültig — gültige Zahlen: 1–12';
+    errEl.style.display = '';
+  } else {
+    errEl.style.display = 'none';
+  }
+
+  // #196: debounce the expensive tail (full SVG wheel rebuild + list re-filter) so fast
+  // typing doesn't trigger a rebuild on every keystroke.
+  clearTimeout(_camNumbersDebounce);
+  _camNumbersDebounce = setTimeout(() => {
+    updateCamHint();
+    updateCamLockRow();
+    updateFilterList();
+    if (state.selMode === 'direct') onDirectSearch();
+  }, 80);
+}
+
+// #198: quick "Alle" reset — clears the Camelot number filter entirely (letter slider unaffected).
+function onCamWheelReset() {
+  state.camNumbers = [];
+  const el = document.getElementById('cam-numbers');
+  el.value = '';
+  document.getElementById('clear-cam-numbers').style.display = 'none';
+  document.getElementById('cam-numbers-error').style.display = 'none';
   updateCamHint();
   updateCamLockRow();
   updateFilterList();
   if (state.selMode === 'direct') onDirectSearch();
 }
 
+// #195: brief toast when a phase switch silently overwrites manually-set swap-filter values.
+function _showPhaseFilterResetToast(phase) {
+  const wm = document.getElementById('warn-msg');
+  const label = PHASE_CONFIG[phase]?.label || phase;
+  wm.textContent = `Filter auf Phase-${phase}-Defaults zurückgesetzt (${label})`;
+  wm.classList.add('warn-toast');
+  wm.style.display = 'block';
+  setTimeout(() => { wm.style.display = 'none'; wm.classList.remove('warn-toast'); }, 3000);
+}
+
+// #162: render phase-tile text from PHASE_CONFIG — no freetext in HTML, so a config change
+// (e.g. adjusting PHASE_CONFIG.B.bpm) automatically updates the tile without a markup edit.
+function _renderPhaseTiles() {
+  for (const phase of ['A', 'B', 'C', 'D']) {
+    const cfg = PHASE_CONFIG[phase];
+    const tile = document.getElementById('phase-' + phase);
+    if (!cfg || !tile) continue;
+    tile.querySelector('.pt-letter').textContent = phase;
+    tile.querySelector('.pt-name').textContent = cfg.label;
+    tile.querySelector('.pt-desc').textContent = cfg.desc || '';
+    const progLabel = PROGRESSION_LABEL[cfg.progression] || cfg.progression;
+    tile.querySelector('.pt-bpm').textContent = `${cfg.bpm[0]}–${cfg.bpm[1]} BPM · ${progLabel}`;
+  }
+}
+
 // ===== PHASE SELECT =====
 function onPhaseSelect(phase) {
+  const prevPhase = state.currentPhase;
   state.currentPhase = phase;
   ['A','B','C','D'].forEach(p => document.getElementById('phase-' + p).classList.toggle('active', p === phase));
   const cfg = PHASE_CONFIG[phase];
@@ -149,8 +204,10 @@ function onPhaseSelect(phase) {
     step2.style.display = '';
   } else {
     step2.style.display = 'none';
-    if (phase === 'A') setPosition('plateau');
-    if (phase === 'D') setPosition('start');
+    // #162: dispatch on progression, not the phase letter — stays correct if a phase's
+    // letter-to-behaviour mapping ever changes in PHASE_CONFIG.
+    if (cfg.progression === 'plateau') setPosition('plateau');
+    if (cfg.progression === 'decreasing') setPosition('start');
   }
   if (phase === 'D') {
     state.wodMinutes = 15;
@@ -163,7 +220,12 @@ function onPhaseSelect(phase) {
   updateAmpel();
   checkPoolAndWarn();
   checkRefBpmAndWarn();
+  // #195: detect manual swap-filter changes (relative to the outgoing phase's defaults)
+  // before they get silently overwritten below.
+  const prevDefaults = phaseFilterDefaults(prevPhase);
+  const filterWasModified = prevPhase !== phase && _PF_KEYS.some(k => state.poolFilter[k] !== prevDefaults[k]);
   applyPhaseFilter(phase);
+  if (filterWasModified) _showPhaseFilterResetToast(phase);
 }
 
 function checkPoolAndWarn() {
@@ -262,8 +324,12 @@ async function _checkLastfmSync() {
   const info  = document.getElementById('lastfm-sync-info');
   const badge = document.getElementById('rp-sync-badge');
   const btn   = document.getElementById('lastfm-sync-btn');
+  // Both requests fire together (independent, unrelated endpoints) — each still awaited/caught
+  // separately below so one endpoint failing doesn't affect the other's handling.
+  const statusPromise   = fetch('/api/lastfm/status');
+  const progressPromise = fetch('/api/lastfm/progress');
   try {
-    const r = await fetch('/api/lastfm/status');
+    const r = await statusPromise;
     const d = await r.json();
     if (!d.last_full_sync) {
       info.textContent  = 'Letzter Last.fm Sync: Nie';
@@ -290,7 +356,7 @@ async function _checkLastfmSync() {
   }
   // Auto-resume progress display if a sync was running before page reload
   try {
-    const rp = await fetch('/api/lastfm/progress');
+    const rp = await progressPromise;
     const dp = await rp.json();
     if (dp.running) {
       const btn2 = document.getElementById('lastfm-sync-btn');
@@ -411,7 +477,11 @@ async function onOptImport() {
 
   try {
     _optTracks = await importPlaylist(pid);
-    _optTitle  = pid;  // fallback; we could fetch playlist name separately
+    _optTitle = pid; // fallback if the name lookup below fails
+    try {
+      const meta = await spotifyCall('GET', `/playlists/${pid}?fields=name`);
+      if (meta?.name) _optTitle = meta.name;
+    } catch { /* keep UUID fallback — non-fatal */ }
     const matched  = _optTracks.filter(t => !t._external).length;
     const external = _optTracks.filter(t => t._external).length;
     _optSetStatus(`✓ ${_optTracks.length} Tracks · ${matched} im Pool · ${external} extern`);
@@ -775,6 +845,15 @@ function drawScoringRadar() {
   svg.innerHTML = html;
 }
 
+// #191: the reset button doubles as the "you're off default" indicator — hidden unless at
+// least one score weight deviates from SCORE_WEIGHTS_DEFAULT.
+function _updateSwResetVisibility() {
+  const btn = document.getElementById('sw-reset-btn');
+  if (!btn) return;
+  const isDefault = _SW_KEYS.every(k => state.scoreWeights[k] === SCORE_WEIGHTS_DEFAULT[k]);
+  btn.style.display = isDefault ? 'none' : '';
+}
+
 function onScoreWeightChange(key, raw) {
   const val = Math.max(0, Math.min(100, parseInt(raw, 10) || 0));
   state.scoreWeights[key] = val;
@@ -784,6 +863,7 @@ function onScoreWeightChange(key, raw) {
   if (slider) slider.value = val;
   if (num)    num.value    = val;
   drawScoringRadar();
+  _updateSwResetVisibility();
   try { localStorage.setItem('cflu_score_weights', JSON.stringify(state.scoreWeights)); } catch (e) { void e; /* storage unavailable */ }
 }
 
@@ -804,11 +884,44 @@ const _CAM_COLORS = [
   '#e82070',  // 12
 ];
 
+// #197: darken via HSL lightness rather than raw RGB scaling. RGB×0.55 dims perceptually
+// unevenly (the eye reads green as brighter than blue at equal RGB) — HSL lightness scaling
+// is uniform across all 12 wheel colours.
 function _camDarken(hex) {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgb(${Math.round(r * 0.55)},${Math.round(g * 0.55)},${Math.round(b * 0.55)})`;
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  let h = 0, s = 0;
+  const d = max - min;
+  if (d !== 0) {
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h /= 6;
+  }
+  const l2 = l * 0.55;
+  const hue2rgb = (p, q, t) => {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  let r2, g2, b2;
+  if (s === 0) {
+    r2 = g2 = b2 = l2;
+  } else {
+    const q = l2 < 0.5 ? l2 * (1 + s) : l2 + s - l2 * s;
+    const p = 2 * l2 - q;
+    r2 = hue2rgb(p, q, h + 1 / 3);
+    g2 = hue2rgb(p, q, h);
+    b2 = hue2rgb(p, q, h - 1 / 3);
+  }
+  return `rgb(${Math.round(r2 * 255)},${Math.round(g2 * 255)},${Math.round(b2 * 255)})`;
 }
 
 function _camArcPath(cx, cy, r1, r2, startDeg, endDeg) {
@@ -1249,9 +1362,10 @@ function onReplaceTrack(idx) {
   if (!replacement) {
     const wm = document.getElementById('warn-msg');
     wm.textContent = `↺ Kein Ersatz für Slot ${idx + 1} gefunden (BPM-Übergang oder Camelot-Filter zu eng).`;
+    wm.classList.add('warn-toast');
     wm.style.display = 'block';
-    wm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    setTimeout(() => { wm.style.display = 'none'; }, 6000);
+    // Fixed-position toast (#180) — no scrollIntoView; doesn't disrupt the user's scroll position.
+    setTimeout(() => { wm.style.display = 'none'; wm.classList.remove('warn-toast'); }, 6000);
     return;
   }
   state.generatedWod.splice(idx, 1, replacement);
@@ -1310,11 +1424,13 @@ function _gen() {
     }
   }
 
-  if (state.currentPhase === 'A') {
+  // #162: dispatch on progression, not the phase letter (see onPhaseSelect for the same pattern).
+  const progression = PHASE_CONFIG[state.currentPhase]?.progression;
+  if (progression === 'plateau') {
     wod = buildPlateau(pool, ref.bpm, usedIds, usedTitleKeys, usedArtists, rawTargetSec);
     if (!usedIds.has(ref.id || ref.song)) { wod.unshift(ref); registerTrack(ref, usedIds, usedTitleKeys, usedArtists); }
 
-  } else if (state.currentPhase === 'D') {
+  } else if (progression === 'decreasing') {
     registerTrack(ref, usedIds, usedTitleKeys, usedArtists);
     wod = [ref, ...buildDecreasing(pool, ref, usedIds, usedTitleKeys, usedArtists, rawTargetSec - ref.dur)];
 
@@ -1462,22 +1578,43 @@ function exportCsv() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `CFLU_WOD_${new Date().toISOString().slice(0, 10)}.csv`;
+  const safeName = (state.poolGenre || 'Mix').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 20);
+  a.download = `CFLU_WOD_${safeName}_Phase${state.currentPhase}_${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }
 
+// #163: derives a 3-tier (green/yellow/red) indicator from a PHASE_CONFIG range spec
+// ({min}, {max}, or {min,max}) instead of fixed magic numbers. green = well within the
+// phase's acceptable band; yellow = within the band but near an edge; red = outside the
+// band (would be filtered out by getPhasePool for this phase). null spec (field not
+// defined for this phase) → caller falls back to a neutral colour.
+function _rangeColor(v, spec) {
+  if (!spec) return null;
+  const { min, max } = spec;
+  if (min !== undefined && v < min) return '#ef4444';
+  if (max !== undefined && v > max) return '#ef4444';
+  const span = (max ?? min * 2) - (min ?? 0);
+  const margin = Math.max(span * 0.25, 5);
+  if (min !== undefined && v < min + margin) return '#f7c948';
+  if (max !== undefined && v > max - margin) return '#f7c948';
+  return '#1db954';
+}
+
 function _metaColor(field, v) {
   if (v == null || isNaN(v)) return 'var(--text3)';
+  const cfg = PHASE_CONFIG[state.currentPhase] || {};
   switch (field) {
+    // popularity is a general prominence metric, not a PHASE_CONFIG filter dimension —
+    // stays a fixed, named threshold rather than a magic number scattered inline.
     case 'popularity':   return v >= 70 ? '#1db954' : v >= 40 ? '#f7c948' : 'var(--text3)';
-    case 'valence':      return v >= 65 ? '#1db954' : v >= 40 ? '#f7c948' : '#a855f7';
-    case 'dance':        return v >= 70 ? '#1db954' : v >= 45 ? '#f7c948' : 'var(--text3)';
-    case 'acoustic':     return v < 20  ? '#1db954' : v < 50  ? '#f7c948' : '#ef4444';
-    case 'instrumental': return v < 30  ? '#1db954' : v < 65  ? '#f7c948' : '#ef4444';
-    case 'speech':       return v < 15  ? '#1db954' : v < 35  ? '#f7c948' : '#ef4444';
-    case 'live':         return v < 20  ? '#1db954' : v < 50  ? '#f7c948' : '#ef4444';
-    case 'loud':         return v >= -6 ? '#1db954' : v >= -12 ? '#f7c948' : 'var(--text3)';
+    case 'valence':      return _rangeColor(v, cfg.valence && { min: cfg.valence[0], max: cfg.valence[1] }) || '#a855f7';
+    case 'dance':        return _rangeColor(v, cfg.dance && { min: cfg.dance[0], max: cfg.dance[1] }) || 'var(--text3)';
+    case 'acoustic':     return _rangeColor(v, cfg.acoustic) || 'var(--text3)';
+    case 'instrumental': return _rangeColor(v, cfg.instrumental) || 'var(--text3)';
+    case 'speech':       return _rangeColor(v, cfg.speech) || 'var(--text3)';
+    case 'live':         return _rangeColor(v, cfg.live) || 'var(--text3)';
+    case 'loud':         return _rangeColor(v, cfg.loud) || 'var(--text3)';
     default: return 'var(--text3)';
   }
 }
@@ -1545,6 +1682,7 @@ function _initGenreDropdowns() {
 
 // ===== INIT =====
 function init() {
+  _renderPhaseTiles();
   // UI mode tabs (Quick / Optimizer / Advanced / Register)
   ['quick','optimizer','advanced','register'].forEach(m =>
     document.getElementById('mode-tab-' + m).addEventListener('click', () => setUiMode(m))
@@ -1622,6 +1760,7 @@ function init() {
   document.getElementById('xfade-slider').addEventListener('input', e => onXfadeSlider(e.target));
   document.getElementById('cd-toggle').addEventListener('change', onCdToggle);
   document.getElementById('cam-lock-toggle').addEventListener('change', e => { state.lockCamFilter = e.target.checked; });
+  document.getElementById('cam-wheel-reset').addEventListener('click', onCamWheelReset);
   // Score weight sliders and number inputs
   _SW_KEYS.forEach(key => {
     document.getElementById('sw-' + key)?.addEventListener('input', e => onScoreWeightChange(key, e.target.value));
@@ -1637,6 +1776,7 @@ function init() {
       if (nm) nm.value = v;
     });
     drawScoringRadar();
+    _updateSwResetVisibility();
     try { localStorage.setItem('cflu_score_weights', JSON.stringify(state.scoreWeights)); } catch (e) { void e; }
   });
   // Pool filter sliders and number inputs
@@ -1730,6 +1870,7 @@ function init() {
     if (nm) nm.value = v;
   });
   drawScoringRadar();
+  _updateSwResetVisibility();
 
   // Derive BPM slider bounds from config constants so HTML doesn't need to be updated manually
   const bpmSliderEl = document.getElementById('bpm-slider');

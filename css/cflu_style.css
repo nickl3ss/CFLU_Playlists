@@ -42,8 +42,11 @@ body{font-family:var(--ff-ui);background:var(--bg);color:var(--text);min-height:
 .cam-filter-inner{display:flex;gap:10px;align-items:flex-start}
 .cam-controls{flex:1;min-width:0}
 .cam-wheel-wrap{display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0}
-.cam-wheel-legend{display:flex;gap:8px;font-size:.6rem;font-family:var(--ff-mono);color:var(--text3)}
+.cam-wheel-legend{display:flex;gap:8px;align-items:center;font-size:.6rem;font-family:var(--ff-mono);color:var(--text3)}
 .cwl-a::before{content:'■ ';color:#555}
+.cam-wheel-reset-link{margin-left:auto;background:none;border:none;color:var(--acc);font-size:.6rem;font-family:var(--ff-mono);cursor:pointer;padding:0;text-decoration:underline}
+.cam-wheel-reset-link:hover{color:var(--text)}
+.cam-numbers-error{font-size:var(--fz-2xs);color:var(--red);min-height:12px;margin-top:2px}
 .cwl-b::before{content:'■ ';color:#999}
 #cam-wheel path{transition:filter .1s}
 #cam-wheel path:hover{filter:brightness(1.3);cursor:pointer}
@@ -252,6 +255,8 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;cur
 .sp-instructions code{background:var(--bg3);padding:1px 5px;border-radius:3px;font-family:var(--ff-mono);font-size:var(--fz-2xs);color:var(--spotify)}
 .limit-warn{background:rgba(247,201,72,.08);border:1px solid rgba(247,201,72,.3);border-radius:8px;padding:8px 12px;font-family:var(--ff-mono);font-size:var(--fz-xs);color:var(--yellow);margin-bottom:10px;display:none}
 .warn-msg{background:rgba(247,201,72,.08);border:1px solid rgba(247,201,72,.3);border-radius:6px;padding:7px 12px;font-size:var(--fz-sm);color:var(--yellow);margin-bottom:10px;display:none}
+/* #180: fixed-position toast variant — avoids scrollIntoView jumping the page mid-interaction */
+.warn-msg.warn-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:1000;box-shadow:0 4px 16px rgba(0,0,0,.35);max-width:min(90vw,480px);margin-bottom:0}
 
 /* ===== GENERATION LOG ===== */
 .gen-log-area{width:100%;height:14vh;min-height:80px;max-height:200px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-family:var(--ff-mono);font-size:var(--fz-xs);line-height:1.6;padding:12px 14px;resize:vertical;outline:none;tab-size:2}

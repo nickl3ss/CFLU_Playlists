@@ -45,7 +45,11 @@ export function getPhasePoolWithNeighbours(genre, phase) {
     const roleBonus = getRoleBonus(nb.mainId, phase);
     const effectiveWeight = Math.min(1.0, Math.max(0, nb.weight + roleBonus));
     const quota = Math.ceil(nbPool.length * effectiveWeight * NEIGHBOUR_BLEND_FACTOR);
-    neighbourCandidates.push(...nbPool.slice(0, quota));
+    // Sort by phase fit before taking the quota slice — nbPool is otherwise in raw
+    // TRACK_DATA insertion order, so an unsorted slice would favour CSV import order
+    // over actual phase-score quality.
+    const sorted = nbPool.slice().sort((a, b) => calcPhaseScore(b, phase) - calcPhaseScore(a, phase));
+    neighbourCandidates.push(...sorted.slice(0, quota));
   }
   return [...directPool, ...neighbourCandidates];
 }

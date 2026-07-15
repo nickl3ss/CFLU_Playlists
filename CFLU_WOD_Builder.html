@@ -111,30 +111,20 @@
     <!-- CLASS PHASE SELECTOR -->
     <div class="sb-section">
       <div class="sb-label">Klassen-Phase</div>
-      <div class="phase-grid">
+      <!-- #162: tile text (letter/name/desc/bpm) is rendered from PHASE_CONFIG at init — no
+           freetext here, only the per-phase colour custom properties and active-state markup. -->
+      <div class="phase-grid" id="phase-grid">
         <div class="phase-tile" id="phase-A" style="--pt-color:#5b8fd6;--pt-rgb:91,143,214">
-          <div class="pt-letter">A</div>
-          <div class="pt-name">Whiteboard &amp; Prep</div>
-          <div class="pt-desc">Ruhige Hintergrundmusik, Coach muss zu hören sein</div>
-          <div class="pt-bpm">90–110 BPM · Plateau</div>
+          <div class="pt-letter"></div><div class="pt-name"></div><div class="pt-desc"></div><div class="pt-bpm"></div>
         </div>
         <div class="phase-tile" id="phase-B" style="--pt-color:#f7c948;--pt-rgb:247,201,72">
-          <div class="pt-letter">B</div>
-          <div class="pt-name">Skill &amp; Strength</div>
-          <div class="pt-desc">Fokussiert, moderate Intensität, technische Arbeit</div>
-          <div class="pt-bpm">80–130 BPM · sanft aufbauend</div>
+          <div class="pt-letter"></div><div class="pt-name"></div><div class="pt-desc"></div><div class="pt-bpm"></div>
         </div>
         <div class="phase-tile active" id="phase-C" style="--pt-color:#1db954;--pt-rgb:29,185,84">
-          <div class="pt-letter">C</div>
-          <div class="pt-name">WOD — Intensiv</div>
-          <div class="pt-desc">Maximale Performance, BPM-Aufbau gegen die Ermüdung</div>
-          <div class="pt-bpm">125–195 BPM · aufsteigend</div>
+          <div class="pt-letter"></div><div class="pt-name"></div><div class="pt-desc"></div><div class="pt-bpm"></div>
         </div>
         <div class="phase-tile" id="phase-D" style="--pt-color:#a855f7;--pt-rgb:168,85,247">
-          <div class="pt-letter">D</div>
-          <div class="pt-name">Cool-Down</div>
-          <div class="pt-desc">Parasympathisch, langsam, Erholung</div>
-          <div class="pt-bpm">60–100 BPM · absteigend</div>
+          <div class="pt-letter"></div><div class="pt-name"></div><div class="pt-desc"></div><div class="pt-bpm"></div>
         </div>
       </div>
       <div class="pool-warn" id="pool-warn"></div>
@@ -184,6 +174,7 @@
                 <button class="search-clear" id="clear-cam-numbers" style="display:none">×</button>
               </div>
               <div class="track-count" id="cam-hint" style="min-height:14px"></div>
+              <div class="cam-numbers-error" id="cam-numbers-error" style="display:none"></div>
               <div class="toggle-row" id="cam-lock-row" style="margin-top:8px;opacity:.4;pointer-events:none">
                 <span class="toggle-label" style="font-size:var(--fz-xs)">Auf Playlist anwenden</span>
                 <label class="toggle"><input type="checkbox" id="cam-lock-toggle"><span class="toggle-slider"></span></label>
@@ -191,7 +182,7 @@
             </div>
             <div class="cam-wheel-wrap">
               <svg id="cam-wheel" viewBox="0 0 180 180" width="148" height="148"></svg>
-              <div class="cam-wheel-legend"><span class="cwl-a">A min</span><span class="cwl-b">B maj</span></div>
+              <div class="cam-wheel-legend"><span class="cwl-a">A min</span><span class="cwl-b">B maj</span><button type="button" id="cam-wheel-reset" class="cam-wheel-reset-link" title="Alle Segmente auswählen (Filter zurücksetzen)">Alle</button></div>
             </div>
           </div>
         </div>
@@ -451,7 +442,7 @@
       <!-- Reset buttons aligned under each column -->
       <div class="scoring-reset-paired">
         <div class="sw-reset-half">
-          <button id="sw-reset-btn" class="sw-reset-btn">↺ Reset</button>
+          <button id="sw-reset-btn" class="sw-reset-btn" style="display:none">↺ Reset</button>
         </div>
         <div class="sw-reset-half">
           <button id="pf-reset-btn" class="sw-reset-btn">↺ Reset</button>
@@ -577,12 +568,12 @@
       1. <a href="https://developer.spotify.com/dashboard" target="_blank" style="color:var(--spotify)">developer.spotify.com/dashboard</a> öffnen<br>
       2. App erstellen &rarr; <em>Web API</em> als API-Typ wählen<br>
       3. Settings &rarr; Redirect URI eintragen:<br>
-      <code>http://127.0.0.1:8888/api/spotify/callback</code><br>
+      <code id="admin-redirect-uri">http://127.0.0.1:8888/api/spotify/callback</code><br>
       4. Client ID + Client Secret in lokale Dateien speichern:<br>
       <code>keyvault/cflu_client_id.txt</code> &nbsp;·&nbsp; <code>keyvault/cflu_client_secret.txt</code><br><br>
       <strong>Pro Session:</strong><br>
-      Server starten: <code>python cflu_server.py</code><br>
-      Browser: <code>http://127.0.0.1:8888/CFLU_WOD_Builder.html</code>
+      Server starten: <code>CFLU_Start.bat</code> (Windows) / <code>CFLU_Start.sh</code> (macOS/Linux) — oder direkt <code>python cflu_server.py</code><br>
+      Browser: <code id="admin-browser-url">http://127.0.0.1:8888/CFLU_WOD_Builder.html</code>
     </div>
     <div style="margin-top:10px">
       <button class="sp-btn" id="sp-connect-btn" style="width:100%">Mit Spotify verbinden</button>
