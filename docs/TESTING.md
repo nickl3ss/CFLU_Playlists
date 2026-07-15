@@ -10,6 +10,15 @@
 
 ## New Since Last Push
 
+### N28 · CSV-Upload läuft im Hintergrund-Thread (#203)
+
+| # | Step | Erwartet |
+|---|------|----------|
+| N28-1 | CSV hochladen | Status zeigt sofort "⏳ Pool wird aktualisiert…", nicht erst nach Abschluss des vollen ETL-Laufs |
+| N28-2 | Während des Uploads: Spotify-Gerätesteuerung oder andere Aktionen im UI ausprobieren | App bleibt bedienbar — kein Einfrieren während der ETL-Verarbeitung |
+| N28-3 | Nach Abschluss | Erfolgs-/Warn-/Fehlermeldung erscheint wie zuvor (gleicher Text wie vor dem Fix) |
+| N28-4 | Zweiten Upload starten während der erste noch läuft | HTTP 409 "Ein Pool-Build läuft bereits" — kein Doppel-Build |
+
 ### N27 · Camelot als echtes Pflicht-Gate (#187)
 
 | # | Step | Erwartet |
