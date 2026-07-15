@@ -2,6 +2,11 @@
 import { BPM_GROUPS, BPM_RANGES, SUFFIX_RE, PHASE_CONFIG, BPM_TRANSITION_CONFIG, TRANSITION_BUDGET, SCORE_WEIGHTS_DEFAULT } from './config.js';
 import { bridgeTagsForMain } from './genres.js';
 
+// Splits a comma-separated artist field into normalized keys (primary + all featuring artists).
+export function artistKeys(artistField) {
+  return artistField.split(',').map(a => a.trim().toLowerCase());
+}
+
 export function bpmGroup(bpm) {
   for (const [g,[lo,hi]] of Object.entries(BPM_RANGES)) if (bpm >= lo && bpm < hi) return g;
   return 'I';

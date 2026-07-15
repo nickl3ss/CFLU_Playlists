@@ -6,15 +6,16 @@ import { resolveTrack, resolveArtist, resolveArtistAggregates, resolveAlbumAggre
 import { bpmGroup, groupIdx, neighbour, fmtDur, fmtMin, titleKey, titleDuplicate,
          camCompat, camStrictOk, lerpColor, toHex,
          attrScore, calcPhaseScore, calcSortScore, calcEraScore, trapezScore, isHalfDouble,
-         camelotZoneDistance, bpmHint, calcBpmTransitionScore, effectiveBpm } from './utils.js';
+         camelotZoneDistance, bpmHint, calcBpmTransitionScore, effectiveBpm, artistKeys } from './utils.js';
 import { GENRE_CONFIG, getNeighboursWeighted, getNeighbours, bridgeTags,
          bridgeTagsForMain, getSubgenres, getRoleBonus } from './genres.js';
 import { getPhasePool, getPhasePoolWithNeighbours } from './algorithm.js';
-import { addTrack, pickNext, pickPrev,
+import { addTrack, registerTrack, pickNext, pickPrev,
          buildUp, buildDown, buildPlateau, buildDecreasing, buildAlternating, pickReplacement } from './algorithm.js';
 import { state } from './state.js';
 import { sanitizeFilename, extractPlaylistName, formatUploadSuccess, classifyUploadResult } from './upload.js';
 import { bpmStopsForPhase, PHASE_CONFIG, RED, YEL, GRN, MONO_STEP_BACK_BPM } from './config.js';
+import { analyseFlow, reorderGreedy, suggestGapFills } from './optimizer.js';
 
 // ============================================================
 //  MINI TEST FRAMEWORK
@@ -851,8 +852,10 @@ describe('GENRE_CONFIG — Struktur', () => {
   it('Jedes Main hat neighbours[]', () => {
     GENRE_CONFIG.mainGenres.forEach(m => expect(Array.isArray(m.neighbours)).toBeTruthy());
   });
-  it('Alle Neighbour-Gewichte in {0.5, 0.7, 1.0}', () => {
-    const valid = new Set([0.5, 0.7, 1.0]);
+  it('Alle Neighbour-Gewichte in {0.3, 0.5, 0.7, 1.0}', () => {
+    // 0.3 is reserved for manual demoted-fallback overrides (Issue #166) — everything
+    // else stays on the auto-computed rank tiers {0.5, 0.7, 1.0}.
+    const valid = new Set([0.3, 0.5, 0.7, 1.0]);
     GENRE_CONFIG.mainGenres.forEach(m => m.neighbours.forEach(n => expect(valid.has(n.weight)).toBeTruthy()));
   });
   it('Genau 20 Bridge-Subgenres', () => expect(Object.keys(GENRE_CONFIG.bridgeSubgenres).length).toBe(20));
@@ -889,6 +892,15 @@ describe('getNeighboursWeighted / getNeighbours', () => {
     for (let i = 1; i < nb.length; i++) expect(nb[i].weight).toBeLessThanOrEqual(nb[i-1].weight);
   });
   it('Funk, Soul & R&B hat 5 Neighbours', () => expect(getNeighbours('Funk, Soul & R&B').length).toBe(5));
+  it('#166: EDM hat Deutsche Musik nicht an erster Position (Daten-Artefakt-Fix)', () => {
+    const nb = getNeighboursWeighted('EDM / Electronic');
+    expect(nb[0].mainId).not.toBe('Deutsche Musik');
+  });
+  it('#166: EDM → Deutsche Musik bleibt Fallback (weight 0.3, nicht 0)', () => {
+    const nb = getNeighboursWeighted('EDM / Electronic');
+    const dm = nb.find(n => n.mainId === 'Deutsche Musik');
+    expect(dm.weight).toBe(0.3);
+  });
   it('Unbekanntes Genre → []', () => expect(getNeighboursWeighted('Unbekannt')).toHaveLength(0));
   it('getNeighbours gibt string[] zurück', () => {
     const nb = getNeighbours('Rock');
@@ -1858,6 +1870,55 @@ describe('resolve.js — resolveAlbumAggregates', () => {
     const album = { id: 'alb0', track_ids: [], sources: {} };
     const agg = resolveAlbumAggregates(album, {});
     assert(agg.track_count === 0, 'zero');
+  });
+});
+
+// ============================================================
+//  #165 — Featuring-Künstler-Kollision (artistKeys)
+// ============================================================
+describe('artistKeys / registerTrack — Featuring-Artist collision (#165)', () => {
+  it('artistKeys splits and normalizes a comma-separated field', () => {
+    expect(artistKeys('Blümchen, 2 Engel & Charlie')).toEqual(['blümchen', '2 engel & charlie']);
+  });
+  it('registerTrack registers every artist, not just the first', () => {
+    const usedIds = new Set(), usedTitleKeys = new Set(), usedArtists = new Map();
+    registerTrack(mkT({id:'f1', song:'Feature Song', artist:'Tream, Blümchen', bpm:120, camelot:'9B', energy:70, dur:200, genre:'Rock', bpmg:'D'}), usedIds, usedTitleKeys, usedArtists);
+    expect(usedArtists.get('tream')).toBe(1);
+    expect(usedArtists.get('blümchen')).toBe(1);
+  });
+  it('pickReplacement rejects a candidate whose featuring artist already appears in the playlist', () => {
+    const pool = [
+      mkT({id:'r1', song:'Replacement A', artist:'Someone Else, Band A', bpm:126, camelot:'9B', energy:72, dur:200, genre:'Rock', bpmg:'D'}),
+      mkT({id:'r2', song:'Replacement B', artist:'Nobody Known', bpm:126, camelot:'9B', energy:72, dur:200, genre:'Rock', bpmg:'D'}),
+    ];
+    // 'Band A' already used once via T.a1's primary artist — cap at 1 blocks r1 (features Band A), leaves r2
+    const usedArtists = new Map([['band a', 1]]);
+    const picked = pickReplacement(pool, T.a1, null, new Set(), new Set(), usedArtists, 1, 'C');
+    expect(picked.id).toBe('r2');
+  });
+});
+
+// ============================================================
+//  #186 — optimizer.js respects state.scoreWeights
+// ============================================================
+describe('optimizer.js — scoreWeights honoured (#186)', () => {
+  it('analyseFlow score changes when state.scoreWeights changes', () => {
+    const prevWeights = state.scoreWeights;
+    state.scoreWeights = { bpm: 40, camelot: 20, energy: 15, loudness: 10, valence: 8, dance: 7, popularity: 5 };
+    const defaultTx = analyseFlow([T.a1, T.far], 'C')[0].score;
+    state.scoreWeights = { bpm: 0, camelot: 0, energy: 100, loudness: 0, valence: 0, dance: 0, popularity: 0 };
+    const energyOnlyTx = analyseFlow([T.a1, T.far], 'C')[0].score;
+    state.scoreWeights = prevWeights;
+    expect(defaultTx).not.toBe(energyOnlyTx);
+  });
+  it('reorderGreedy runs without throwing and preserves external-track count', () => {
+    const ext = { id: 'ext1', song: 'External', artist: 'Unknown', dur: 200, bpm: 0, camelot: '', energy: 0, genre: '', _external: true };
+    const result = reorderGreedy([T.a1, T.a2, ext, T.b1], 'C');
+    expect(result.filter(t => t._external).length).toBe(1);
+    expect(result.length).toBe(4);
+  });
+  it('suggestGapFills does not throw on a healthy transition list', () => {
+    suggestGapFills([T.a1, T.a2, T.b1], 'C');
   });
 });
 

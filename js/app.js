@@ -9,7 +9,7 @@ import { PHASE_CONFIG, MIN_POOL_SIZE,
          SCORE_WEIGHTS_DEFAULT, POOL_FILTER_DEFAULT } from './config.js';
 import { getNeighbours } from './genres.js';
 import { state } from './state.js';
-import { titleKey, fmtDur, fmtMin, lerpColor, toHex, camCompat, calcPhaseScore, calcBpmTransitionScore, bpmHint, effectiveBpm, isHalfDouble } from './utils.js';
+import { titleKey, fmtDur, fmtMin, lerpColor, toHex, camCompat, calcPhaseScore, calcBpmTransitionScore, bpmHint, effectiveBpm, isHalfDouble, artistKeys } from './utils.js';
 import { getAllTracks, getPool, getPhasePool, getPhasePoolWithNeighbours, getGenreStats,
          registerTrack, addTrack, pickNext, buildUp, buildDown,
          buildPlateau, buildDecreasing, buildAlternating, pickReplacement } from './algorithm.js';
@@ -1228,8 +1228,7 @@ function _buildUsedFromWod(wod, excludeIdx) {
     if (i === excludeIdx) return;
     usedIds.add(t.id || t.song);
     const tk = titleKey(t.song); if (tk) usedTitleKeys.add(tk);
-    const ak = t.artist.split(',')[0].trim().toLowerCase();
-    usedArtists.set(ak, (usedArtists.get(ak) || 0) + 1);
+    for (const ak of artistKeys(t.artist)) usedArtists.set(ak, (usedArtists.get(ak) || 0) + 1);
   });
   return { usedIds, usedTitleKeys, usedArtists };
 }

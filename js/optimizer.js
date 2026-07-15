@@ -2,6 +2,7 @@
 import { spotifyCall } from './spotify.js';
 import { getAllTracks } from './algorithm.js';
 import { calcSortScore, titleKey } from './utils.js';
+import { state } from './state.js';
 
 // ===== SPOTIFY IMPORT =====
 
@@ -79,7 +80,7 @@ export function analyseFlow(tracks, phase) {
       transitions.push({ from: cur, to: next, score: null, rating: 'unknown' });
       continue;
     }
-    const score = calcSortScore(next, cur, phase);
+    const score = calcSortScore(next, cur, phase, state.scoreWeights);
     const rating = score >= SCORE_GREEN ? 'green' : score >= SCORE_YELLOW ? 'yellow' : 'red';
     transitions.push({ from: cur, to: next, score, rating });
   }
@@ -118,7 +119,7 @@ export function reorderGreedy(tracks, phase) {
   let bestStartScore = -Infinity;
   let startIdx = 0;
   pool.forEach((t, i) => {
-    const s = calcSortScore(t, t, phase); // self-score approximation as start fitness
+    const s = calcSortScore(t, t, phase, state.scoreWeights); // self-score approximation as start fitness
     if (s > bestStartScore) { bestStartScore = s; startIdx = i; }
   });
   result.push(pool[startIdx]);
@@ -130,7 +131,7 @@ export function reorderGreedy(tracks, phase) {
     let bestI = -1;
     pool.forEach((t, i) => {
       if (usedIdx.has(i)) return;
-      const s = calcSortScore(t, cur, phase);
+      const s = calcSortScore(t, cur, phase, state.scoreWeights);
       if (s > bestScore) { bestScore = s; bestI = i; }
     });
     if (bestI < 0) break;
@@ -160,14 +161,14 @@ export function suggestGapFills(tracks, phase) {
     const cur  = tracks[i];
     const next = tracks[i + 1];
     if (cur._external || next._external) continue;
-    const score = calcSortScore(next, cur, phase);
+    const score = calcSortScore(next, cur, phase, state.scoreWeights);
     if (score >= SCORE_YELLOW) continue;
 
     // Find up to 3 candidates that bridge cur → next
     const candidates = globalPool
       .map(t => ({
         t,
-        score: calcSortScore(t, cur, phase) + (next ? calcSortScore(next, t, phase) : 0),
+        score: calcSortScore(t, cur, phase, state.scoreWeights) + (next ? calcSortScore(next, t, phase, state.scoreWeights) : 0),
       }))
       .filter(({ t }) => !playlistIds.has(t.id || t.song))
       .sort((a, b) => b.score - a.score)

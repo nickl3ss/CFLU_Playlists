@@ -7,12 +7,16 @@ export const GENRE_CONFIG = {
 
   mainGenres: [
     { id: 'EDM / Electronic', role: 'peak',
+      // manual override (Issue #166): auto-computed distance ranked Deutsche Musik #1 (weight
+      // 1.0) — a sonic-feature artifact from Eurodance tracks in the Deutsche-Musik catch-all,
+      // not a real genre adjacency. Demoted to last/fallback. Synced with NEIGHBOUR_OVERRIDES
+      // in scripts/build_genre_config.py — keep both in sync if this genre is ever regenerated.
       neighbours: [
-        { mainId: 'Deutsche Musik',                     weight: 1.0 },
         { mainId: 'Pop & New Wave',                     weight: 0.7 },
         { mainId: 'Hip Hop / Rap',                      weight: 0.5 },
         { mainId: 'Synthwave / Electronica',            weight: 0.5 },
         { mainId: 'Ska & Reggae',                       weight: 0.5 },
+        { mainId: 'Deutsche Musik',                     weight: 0.3 },
       ]},
     { id: 'Rock', role: 'peak',
       neighbours: [

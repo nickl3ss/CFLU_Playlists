@@ -59,7 +59,9 @@ GENRE_ROLES = {
     'Deutsche Musik':          'peak',
 }
 
-# ── Neighbour weights by rank (must stay in {0.5, 0.7, 1.0} — test compat) ─
+# ── Neighbour weights by rank (auto-computed values must stay in {0.5, 0.7, 1.0}
+# — test compat). 0.3 is reserved for manual demoted-fallback overrides only
+# (see NEIGHBOUR_OVERRIDES, e.g. Issue #166) — never auto-assigned by rank. ─
 RANK_WEIGHTS = {1: 1.0, 2: 0.7}   # 3+ → 0.5
 
 MIN_NEIGHBOURS = 3
@@ -75,6 +77,19 @@ NEIGHBOUR_OVERRIDES = {
         {'mainId': 'Pop & New Wave',           'weight': 1.0},
         {'mainId': 'EDM / Electronic',         'weight': 0.7},
         {'mainId': 'Synthwave / Electronica',  'weight': 0.5},
+    ],
+    # Issue #166: auto-computed 5D distance ranks Deutsche Musik as EDM's
+    # closest neighbour (weight 1.0) because 90s/00s Eurodance tracks in the
+    # Deutsche-Musik catch-all share BPM/energy/danceability with EDM. That's
+    # a sonic-feature artifact, not a genre-adjacency judgment — Schlager still
+    # reads as a jarring genre break to a listener mid-EDM set. Demoted to last
+    # position (0.3) so it remains a fallback, not the first neighbour tried.
+    'EDM / Electronic': [
+        {'mainId': 'Pop & New Wave',                     'weight': 0.7},
+        {'mainId': 'Hip Hop / Rap',                      'weight': 0.5},
+        {'mainId': 'Synthwave / Electronica',            'weight': 0.5},
+        {'mainId': 'Ska & Reggae',                        'weight': 0.5},
+        {'mainId': 'Deutsche Musik',                     'weight': 0.3},
     ],
 }
 

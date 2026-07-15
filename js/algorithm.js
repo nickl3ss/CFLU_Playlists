@@ -2,7 +2,7 @@
 // TRACK_DATA accessed lazily — safe to import in Node.js tests without cflu_tracks.js
 import { GERMAN_GENRES, PHASE_CONFIG, CAM_ZONE1, CAM_ZONE2, BPM_GATE_MIN_SCORE, MONO_STEP_BACK_BPM } from './config.js';
 import { getNeighboursWeighted, getRoleBonus, getSubgenres, bridgeTagsForMain } from './genres.js';
-import { titleKey, titleDuplicate, camStrictOk, camCompat, calcPhaseScore, calcSortScore, isHalfDouble, calcBpmTransitionScore, effectiveBpm } from './utils.js';
+import { titleKey, titleDuplicate, camStrictOk, camCompat, calcPhaseScore, calcSortScore, isHalfDouble, calcBpmTransitionScore, effectiveBpm, artistKeys } from './utils.js';
 import { state } from './state.js';
 
 const NEIGHBOUR_BLEND_FACTOR = 0.3;
@@ -53,8 +53,7 @@ export function getPhasePoolWithNeighbours(genre, phase) {
 export function registerTrack(t, usedIds, usedTitleKeys, usedArtists) {
   usedIds.add(t.id || t.song);
   const tk = titleKey(t.song); if (tk) usedTitleKeys.add(tk);
-  const ak = t.artist.split(',')[0].trim().toLowerCase();
-  usedArtists.set(ak, (usedArtists.get(ak) || 0) + 1);
+  for (const ak of artistKeys(t.artist)) usedArtists.set(ak, (usedArtists.get(ak) || 0) + 1);
 }
 
 export function addTrack(t, result, usedIds, usedTitleKeys, usedArtists) {
@@ -115,8 +114,7 @@ function _pick(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carr
     if (t.speech > 66) return false;
     if (!bpmOk(t)) return false;
     if (titleDuplicate(t.song, usedTitleKeys)) return false;
-    const ak = t.artist.split(',')[0].trim().toLowerCase();
-    if ((usedArtists.get(ak) || 0) >= maxArtist) return false;
+    if (artistKeys(t.artist).some(ak => (usedArtists.get(ak) || 0) >= maxArtist)) return false;
     if (!_energyOk(t, wodEnergyMin, wodEnergyMax)) return false;
     if (!_camLockOk(t)) return false;
     if (state.explicitFilter === 'exclude' && t.explicit) return false;
@@ -129,8 +127,7 @@ function _pick(pool, cur, usedIds, usedTitleKeys, usedArtists, totalTracks, carr
     if (t.speech > 66) return false;
     if (!bpmOk(t)) return false;
     if (titleDuplicate(t.song, usedTitleKeys)) return false;
-    const ak = t.artist.split(',')[0].trim().toLowerCase();
-    if ((usedArtists.get(ak) || 0) >= maxArtist) return false;
+    if (artistKeys(t.artist).some(ak => (usedArtists.get(ak) || 0) >= maxArtist)) return false;
     if (!_camLockOk(t)) return false;
     if (state.explicitFilter === 'exclude' && t.explicit) return false;
     if (state.explicitFilter === 'only' && !t.explicit) return false;
@@ -286,8 +283,7 @@ export function buildDown(pool, endT, usedIds, usedTitleKeys, usedArtists, count
       if (t.bpm > cur.bpm) return false;
       if (calcBpmTransitionScore(cur.bpm, t.bpm) < BPM_GATE_MIN_SCORE) return false;
       if (titleDuplicate(t.song, usedTitleKeys)) return false;
-      const ak = t.artist.split(',')[0].trim().toLowerCase();
-      if ((usedArtists.get(ak) || 0) >= maxArtist) return false;
+      if (artistKeys(t.artist).some(ak => (usedArtists.get(ak) || 0) >= maxArtist)) return false;
       if (!_energyOk(t, wodEnergyMin, wodEnergyMax)) return false;
       if (!_camLockOk(t)) return false;
       if (state.explicitFilter === 'exclude' && t.explicit) return false;
@@ -332,8 +328,7 @@ export function pickReplacement(pool, prev, next, excludeIds, usedTitleKeys, use
     if (excludeIds.has(t.id || t.song)) return false;
     if (t.speech > 66) return false;
     if (titleDuplicate(t.song, usedTitleKeys)) return false;
-    const ak = t.artist.split(',')[0].trim().toLowerCase();
-    if ((usedArtists.get(ak) || 0) >= maxArtist) return false;
+    if (artistKeys(t.artist).some(ak => (usedArtists.get(ak) || 0) >= maxArtist)) return false;
     if (!_camLockOk(t)) return false;
     if (state.explicitFilter === 'exclude' && t.explicit) return false;
     if (state.explicitFilter === 'only' && !t.explicit) return false;

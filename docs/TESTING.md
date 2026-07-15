@@ -10,6 +10,27 @@
 
 ## New Since Last Push
 
+### N26 · Deutsche Musik/EDM Neighbour-Gewicht korrigiert (#166)
+
+| # | Step | Erwartet |
+|---|------|----------|
+| N26-1 | Genre EDM / Electronic, Phase C, hoher Referenz-BPM (≥170), 150 min generieren | Playlist bleibt deutlich länger im EDM/Pop/Hip-Hop/Synthwave-Bereich, bevor (falls überhaupt) auf Deutsche Musik zurückgefallen wird — kein Umspringen auf Schlager nach 2–3 Tracks |
+| N26-2 | Browser-Konsole: `getNeighboursWeighted('EDM / Electronic')` | Erster Eintrag ist nicht mehr `Deutsche Musik`; `Deutsche Musik` erscheint mit weight 0.3 am Ende |
+
+### N25 · Optimizer nutzt konfigurierte Score-Gewichte (#186)
+
+| # | Step | Erwartet |
+|---|------|----------|
+| N25-1 | Score-Gewichte im Spider-Web deutlich verändern (z. B. BPM=0, Camelot=0, Energy=100), dann eine Spotify-Playlist im Optimizer importieren | Flow-Analyse (Ø-Score, grün/gelb/rot-Zählung) reflektiert die geänderten Gewichte, nicht mehr die Default-Gewichte |
+| N25-2 | "🔀 Reihenfolge optimieren" mit geänderten Gewichten | Neue Reihenfolge optimiert nach den aktuell konfigurierten Gewichten |
+
+### N24 · Featuring-Künstler werden bei Diversität berücksichtigt (#165)
+
+| # | Step | Erwartet |
+|---|------|----------|
+| N24-1 | Playlist mit Genre, in dem ein Künstler sowohl als Primär- als auch als Featuring-Partner auftritt, generieren (z. B. "Blümchen, 2 Engel & Charlie" und "Tream, Blümchen") | Beide Tracks erscheinen nicht gemeinsam in einer kurzen Playlist — Featuring-Künstler zählt für das Artist-Limit |
+| N24-2 | Track-Replace (↺) auf einen Slot anwenden, dessen Nachbar-Track einen Featuring-Künstler enthält, der bereits mehrfach in der Playlist vorkommt | Ersatz-Track wiederholt diesen Künstler nicht (weder primär noch featuring) |
+
 ### N23 · CSP style-src Duplicate-Directive Fix (Code Review finding)
 
 | # | Step | Erwartet |
