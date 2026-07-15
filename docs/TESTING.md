@@ -10,6 +10,15 @@
 
 ## New Since Last Push
 
+### N29 · Generierungslogik aus app.js ausgelagert + Plateau-Camelot-Lücke geschlossen (#202)
+
+| # | Step | Erwartet |
+|---|------|----------|
+| N29-1 | Position "Ende" generieren (Phase B/C) | Verhält sich identisch zu vorher — Playlist endet auf dem Referenz-Song |
+| N29-2 | Position "Plateau" generieren, Camelot-Spalte prüfen | **Keine roten Übergänge mehr in der zweiten Hälfte** (vor diesem Fix konnten rote Übergänge auftreten — die Plateau-Kandidaten hatten nie eine Camelot-Prüfung) |
+| N29-3 | Position "Mitte" (Alternating) generieren | Unverändert — funktioniert wie vorher |
+| N29-4 | Cool-Down aktivieren, beliebige Position generieren | Unverändert — Cool-Down-Logik identisch zu vorher, nur jetzt in algorithm.js |
+
 ### N28 · CSV-Upload läuft im Hintergrund-Thread (#203)
 
 | # | Step | Erwartet |
