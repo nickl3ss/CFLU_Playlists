@@ -10,6 +10,15 @@
 
 ## New Since Last Push
 
+### N27 · Camelot als echtes Pflicht-Gate (#187)
+
+| # | Step | Erwartet |
+|---|------|----------|
+| N27-1 | Playlist generieren, BPM-Chart/Track-Liste → Camelot-Spalte über die gesamte Playlist prüfen | Keine roten (✗) Camelot-Übergänge, außer der Pool ist so klein, dass die Generierung selbst abbricht (Pool-erschöpft-Warnung erscheint dann statt eines roten Übergangs) |
+| N27-2 | ↺ Track-Tausch auf mehreren Slots anwenden | Ersatz-Track erzeugt nie einen roten Übergang zu Vorgänger oder Nachfolger |
+| N27-3 | Cool-Down aktivieren, Playlist generieren | Cool-Down-Tracks (Phase D, `buildDown`/`buildDecreasing`) zeigen keine roten Übergänge |
+| N27-4 | Sehr enger Pool (z. B. seltenes Genre + Camelot-Filter aktiv) | Playlist bricht ggf. früher ab oder zeigt "Pool erschöpft"-Warnung — kein roter Übergang als stiller Fallback |
+
 ### N26 · Deutsche Musik/EDM Neighbour-Gewicht korrigiert (#166)
 
 | # | Step | Erwartet |
