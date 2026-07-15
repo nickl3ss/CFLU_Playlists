@@ -1,7 +1,7 @@
 // algorithm.js — playlist generation only; no DOM, no state writes, no Spotify calls
 // TRACK_DATA accessed lazily — safe to import in Node.js tests without cflu_tracks.js
 import { GERMAN_GENRES, PHASE_CONFIG, CAM_ZONE1, CAM_ZONE2, BPM_GATE_MIN_SCORE, MONO_STEP_BACK_BPM } from './config.js';
-import { getNeighboursWeighted, getRoleBonus, getSubgenres, bridgeTagsForMain } from './genres.js';
+import { getNeighboursWeighted, getNeighbours, getRoleBonus, getSubgenres, bridgeTagsForMain } from './genres.js';
 import { titleKey, titleDuplicate, camStrictOk, camCompat, calcPhaseScore, calcSortScore, isHalfDouble, calcBpmTransitionScore, effectiveBpm, artistKeys } from './utils.js';
 import { state } from './state.js';
 
@@ -346,6 +346,87 @@ export function pickReplacement(pool, prev, next, excludeIds, usedTitleKeys, use
   const ref = prev || next;
   cands.sort((a, b) => calcSortScore(b, ref, phase, state.scoreWeights) - calcSortScore(a, ref, phase, state.scoreWeights));
   return cands[0];
+}
+
+// Position "End": reference track anchors the end of the WOD. Descend toward it via buildDown,
+// then fill any remaining budget forward from that anchor point before appending ref last.
+export function buildEnd(pool, ref, usedIds, usedTitleKeys, usedArtists, rawTargetSec, estTracks) {
+  const { wodEnergyMin, wodEnergyMax } = state;
+  const half = Math.round((rawTargetSec / 2) / (ref.dur || 210));
+  registerTrack(ref, usedIds, usedTitleKeys, usedArtists);
+  const before = buildDown(pool, ref, usedIds, usedTitleKeys, usedArtists, Math.ceil(half * 1.4));
+  const beforePool = pool.filter(t => !usedIds.has(t.id || t.song) && t.bpm <= ref.bpm && t.energy >= wodEnergyMin && t.energy <= wodEnergyMax);
+  const totalBefore = rawTargetSec - ref.dur;
+  let durSoFar = before.reduce((s, t) => s + t.dur, 0);
+  let cur = before.length ? before[before.length - 1] : null;
+  if (cur) {
+    while (durSoFar < totalBefore - 60) {
+      const next = pickNext(beforePool, cur, usedIds, usedTitleKeys, usedArtists, estTracks);
+      if (!next) break;
+      addTrack(next, before, usedIds, usedTitleKeys, usedArtists);
+      durSoFar += next.dur; cur = next;
+    }
+  }
+  return [...before, ref];
+}
+
+// Position "Plateau": ref sits in the middle. Descend before it (buildDown), then hold a
+// BPM plateau band (±12) after it for the second half — mirrors buildPlateau's banding but
+// centred on the reference track's own BPM instead of a fixed target.
+export function buildPlateauSplit(pool, ref, usedIds, usedTitleKeys, usedArtists, rawTargetSec) {
+  const { wodEnergyMin, wodEnergyMax, currentPhase } = state;
+  const halfSec = Math.floor(rawTargetSec / 2);
+  registerTrack(ref, usedIds, usedTitleKeys, usedArtists);
+  const before = buildDown(pool, ref, usedIds, usedTitleKeys, usedArtists, Math.ceil(halfSec / (ref.dur || 210)));
+  const after = [];
+  const platCands = pool.filter(t =>
+    !usedIds.has(t.id || t.song) &&
+    Math.abs(t.bpm - ref.bpm) <= 12 &&
+    (!titleKey(t.song) || !usedTitleKeys.has(titleKey(t.song))) &&
+    t.energy >= wodEnergyMin && t.energy <= wodEnergyMax &&
+    // REQUIREMENTS.md §3.2: red Camelot transitions are a hard gate, not a score component.
+    // This filter had no Camelot check at all prior to the #202 extraction — found live.
+    camCompat(ref.camelot, t.camelot) !== 'red'
+  ).sort((a, b) => calcPhaseScore(b, currentPhase) - calcPhaseScore(a, currentPhase));
+  let platDur = 0;
+  for (const t of platCands) {
+    if (platDur >= halfSec) break;
+    addTrack(t, after, usedIds, usedTitleKeys, usedArtists);
+    platDur += t.dur;
+  }
+  return [...before, ref, ...after];
+}
+
+// Post-WOD Cool-Down block: filters the Phase-D pool below the WOD's peak BPM, falls back to
+// neighbour genres if too few candidates, and anchors the first CD track to a valid
+// Ratio-Lattice transition from the last WOD track. Returns { cd, warnings } — caller merges
+// warnings into its own generation-log message list.
+export function buildCooldown(genre, wod, usedIds, usedTitleKeys, usedArtists) {
+  const warnings = [];
+  const maxWodBpm = wod.length ? Math.max(...wod.map(t => t.bpm)) : 100;
+  const cdBpmMax = state.currentPhase === 'D' ? Math.floor(maxWodBpm * 0.85) : Math.floor(maxWodBpm * 0.7);
+  const cdEnergyMax = PHASE_CONFIG['D'].energy[1];
+  let cdPool = getPhasePoolWithNeighbours(genre, 'D').filter(t => !usedIds.has(t.id || t.song) && t.bpm <= cdBpmMax && t.energy <= cdEnergyMax);
+  if (cdPool.length < 3) {
+    for (const nb of getNeighbours(genre)) {
+      cdPool = [...cdPool, ...getPhasePool(nb, 'D').filter(t => !usedIds.has(t.id || t.song) && t.bpm <= cdBpmMax && t.energy <= cdEnergyMax)];
+      if (cdPool.length >= 3) { warnings.push(`Cool-Down: Nachbar-Genre "${nb}" ergänzt`); break; }
+    }
+  }
+  cdPool.sort((a, b) => calcPhaseScore(b, 'D') - calcPhaseScore(a, 'D') || a.bpm - b.bpm);
+  const lastWodBpm = wod.length ? wod[wod.length - 1].bpm : 0;
+  if (lastWodBpm && cdPool.length > 1) {
+    const firstIdx = cdPool.findIndex(t => calcBpmTransitionScore(lastWodBpm, t.bpm) >= BPM_GATE_MIN_SCORE);
+    if (firstIdx > 0) cdPool.unshift(cdPool.splice(firstIdx, 1)[0]);
+  }
+  const cd = [];
+  let cdSec = 0;
+  for (const t of cdPool) {
+    if (cdSec >= state.cdMinutes * 60) break;
+    addTrack(t, cd, usedIds, usedTitleKeys, usedArtists);
+    cdSec += t.dur;
+  }
+  return { cd, warnings };
 }
 
 // startRef: full track object (preferred) or plain BPM number (backward-compat with tests)

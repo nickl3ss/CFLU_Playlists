@@ -3,15 +3,14 @@ import { PHASE_CONFIG, MIN_POOL_SIZE,
          POS_BPM, CAM_COLOR, CAM_ZONE1, CAM_ZONE2, DUR_STEPS,
          bpmStopsForPhase,
          BPM_SLIDER_MIN, BPM_SLIDER_MAX,
-         BPM_GATE_MIN_SCORE,
          GOING_WILD_GENRE,
          LASTFM_STALE_WARN_DAYS, LASTFM_STALE_DANGER_DAYS,
          SCORE_WEIGHTS_DEFAULT, POOL_FILTER_DEFAULT } from './config.js';
 import { getNeighbours } from './genres.js';
 import { state } from './state.js';
-import { titleKey, fmtDur, fmtMin, lerpColor, toHex, camCompat, calcPhaseScore, calcBpmTransitionScore, bpmHint, effectiveBpm, isHalfDouble, artistKeys } from './utils.js';
+import { titleKey, fmtDur, fmtMin, lerpColor, toHex, camCompat, calcPhaseScore, bpmHint, effectiveBpm, isHalfDouble, artistKeys } from './utils.js';
 import { getAllTracks, getPool, getPhasePool, getPhasePoolWithNeighbours, getGenreStats,
-         registerTrack, addTrack, pickNext, buildUp, buildDown,
+         registerTrack, buildUp, buildEnd, buildPlateauSplit, buildCooldown,
          buildPlateau, buildDecreasing, buildAlternating, pickReplacement } from './algorithm.js';
 import { drawChart, highlightFromRow, clearHighlight } from './chart.js';
 import { spotifyLogin, spotifyLogout, checkSpotifyCallback,
@@ -1324,74 +1323,23 @@ function _gen() {
       wod = buildUp(pool, ref, usedIds, usedTitleKeys, usedArtists, rawTargetSec, 0);
 
     } else if (state.position === 'end') {
-      const half = Math.round((rawTargetSec / 2) / (ref.dur || 210));
-      registerTrack(ref, usedIds, usedTitleKeys, usedArtists);
-      const before = buildDown(pool, ref, usedIds, usedTitleKeys, usedArtists, Math.ceil(half * 1.4));
-      const beforePool = pool.filter(t => !usedIds.has(t.id || t.song) && t.bpm <= ref.bpm && t.energy >= state.wodEnergyMin && t.energy <= state.wodEnergyMax);
-      const totalBefore = rawTargetSec - ref.dur;
-      let durSoFar = before.reduce((s, t) => s + t.dur, 0);
-      let cur = before.length ? before[before.length - 1] : null;
-      if (cur) {
-        while (durSoFar < totalBefore - 60) {
-          const next = pickNext(beforePool, cur, usedIds, usedTitleKeys, usedArtists, estTracks);
-          if (!next) break;
-          addTrack(next, before, usedIds, usedTitleKeys, usedArtists);
-          durSoFar += next.dur; cur = next;
-        }
-      }
-      wod = [...before, ref];
+      wod = buildEnd(pool, ref, usedIds, usedTitleKeys, usedArtists, rawTargetSec, estTracks);
 
     } else if (state.position === 'mid') {
       registerTrack(ref, usedIds, usedTitleKeys, usedArtists);
       wod = buildAlternating(pool, ref, usedIds, usedTitleKeys, usedArtists, rawTargetSec);
 
     } else if (state.position === 'plateau') {
-      const halfSec = Math.floor(rawTargetSec / 2);
-      registerTrack(ref, usedIds, usedTitleKeys, usedArtists);
-      const before = buildDown(pool, ref, usedIds, usedTitleKeys, usedArtists, Math.ceil(halfSec / (ref.dur || 210)));
-      const after = [];
-      const platCands = pool.filter(t =>
-        !usedIds.has(t.id || t.song) &&
-        Math.abs(t.bpm - ref.bpm) <= 12 &&
-        (!titleKey(t.song) || !usedTitleKeys.has(titleKey(t.song))) &&
-        t.energy >= state.wodEnergyMin && t.energy <= state.wodEnergyMax
-      ).sort((a, b) => calcPhaseScore(b, state.currentPhase) - calcPhaseScore(a, state.currentPhase));
-      let platDur = 0;
-      for (const t of platCands) {
-        if (platDur >= halfSec) break;
-        addTrack(t, after, usedIds, usedTitleKeys, usedArtists);
-        platDur += t.dur;
-      }
-      wod = [...before, ref, ...after];
+      wod = buildPlateauSplit(pool, ref, usedIds, usedTitleKeys, usedArtists, rawTargetSec);
     }
   }
 
   // Cool-Down
-  const cd = [];
+  let cd = [];
   if (state.cdActive) {
-    const maxWodBpm = wod.length ? Math.max(...wod.map(t => t.bpm)) : 100;
-    const cdBpmMax = state.currentPhase === 'D' ? Math.floor(maxWodBpm * 0.85) : Math.floor(maxWodBpm * 0.7);
-    const cdEnergyMax = PHASE_CONFIG['D'].energy[1];
-    let cdPool = getPhasePoolWithNeighbours(genre, 'D').filter(t => !usedIds.has(t.id || t.song) && t.bpm <= cdBpmMax && t.energy <= cdEnergyMax);
-    if (cdPool.length < 3) {
-      for (const nb of getNeighbours(genre)) {
-        cdPool = [...cdPool, ...getPhasePool(nb, 'D').filter(t => !usedIds.has(t.id || t.song) && t.bpm <= cdBpmMax && t.energy <= cdEnergyMax)];
-        if (cdPool.length >= 3) { warnMsgs.push(`Cool-Down: Nachbar-Genre "${nb}" ergänzt`); break; }
-      }
-    }
-    cdPool.sort((a, b) => calcPhaseScore(b, 'D') - calcPhaseScore(a, 'D') || a.bpm - b.bpm);
-    // Ensure first CD track has a valid Ratio-Lattice transition from the last WOD track
-    const lastWodBpm = wod.length ? wod[wod.length - 1].bpm : 0;
-    if (lastWodBpm && cdPool.length > 1) {
-      const firstIdx = cdPool.findIndex(t => calcBpmTransitionScore(lastWodBpm, t.bpm) >= BPM_GATE_MIN_SCORE);
-      if (firstIdx > 0) cdPool.unshift(cdPool.splice(firstIdx, 1)[0]);
-    }
-    let cdSec = 0;
-    for (const t of cdPool) {
-      if (cdSec >= state.cdMinutes * 60) break;
-      addTrack(t, cd, usedIds, usedTitleKeys, usedArtists);
-      cdSec += t.dur;
-    }
+    const cdResult = buildCooldown(genre, wod, usedIds, usedTitleKeys, usedArtists);
+    cd = cdResult.cd;
+    warnMsgs.push(...cdResult.warnings);
   }
 
   usedArtists.forEach((cnt, ak) => {

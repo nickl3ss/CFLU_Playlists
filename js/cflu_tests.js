@@ -11,7 +11,8 @@ import { GENRE_CONFIG, getNeighboursWeighted, getNeighbours, bridgeTags,
          bridgeTagsForMain, getSubgenres, getRoleBonus } from './genres.js';
 import { getPhasePool, getPhasePoolWithNeighbours } from './algorithm.js';
 import { addTrack, registerTrack, pickNext, pickPrev,
-         buildUp, buildDown, buildPlateau, buildDecreasing, buildAlternating, pickReplacement } from './algorithm.js';
+         buildUp, buildDown, buildEnd, buildPlateauSplit, buildCooldown,
+         buildPlateau, buildDecreasing, buildAlternating, pickReplacement } from './algorithm.js';
 import { state } from './state.js';
 import { sanitizeFilename, extractPlaylistName, formatUploadSuccess, classifyUploadResult } from './upload.js';
 import { bpmStopsForPhase, PHASE_CONFIG, RED, YEL, GRN, MONO_STEP_BACK_BPM } from './config.js';
@@ -1963,6 +1964,52 @@ describe('Camelot hard gate — red transitions excluded everywhere (#187)', () 
     const lowerOk  = mkT({id:'cg-ok2',  song:'Gate Ok 2',  artist:'Gate Band Ok2',  bpm:100, camelot:'9B', energy:40, dur:200, genre:'Rock', bpmg:'B'});
     const result = buildDecreasing([lowerRed, lowerOk], curRef, new Set(), new Set(), new Map(), 180);
     expect(result.every(t => t.id !== 'cg-red2')).toBeTruthy();
+  });
+});
+
+// ============================================================
+//  #202 — buildEnd / buildPlateauSplit / buildCooldown (extracted from app.js _gen())
+// ============================================================
+describe('buildEnd / buildPlateauSplit / buildCooldown — extracted generation logic (#202)', () => {
+  it('buildEnd returns an array ending with the reference track', () => {
+    const usedIds = new Set(), usedTitleKeys = new Set(), usedArtists = new Map();
+    const pool = [T.low, T.pre, T.a1, T.a2, T.a3];
+    const result = buildEnd(pool, T.a1, usedIds, usedTitleKeys, usedArtists, 600, 5);
+    expect(result[result.length - 1].id).toBe('a1');
+  });
+  it('buildEnd registers the reference track as used', () => {
+    const usedIds = new Set(), usedTitleKeys = new Set(), usedArtists = new Map();
+    buildEnd([T.low, T.pre, T.a1], T.a1, usedIds, usedTitleKeys, usedArtists, 400, 3);
+    expect(usedIds.has('a1')).toBeTruthy();
+  });
+  it('buildPlateauSplit returns an array containing the reference track', () => {
+    const usedIds = new Set(), usedTitleKeys = new Set(), usedArtists = new Map();
+    const pool = [T.pa, T.pb, T.pc, T.pout];
+    const result = buildPlateauSplit(pool, T.pa, usedIds, usedTitleKeys, usedArtists, 400);
+    expect(result.some(t => t.id === 'pa')).toBeTruthy();
+  });
+  it('buildPlateauSplit never puts a red-Camelot track in the after-half (found live during #202 verification)', () => {
+    const usedIds = new Set(), usedTitleKeys = new Set(), usedArtists = new Map();
+    const ref = mkT({id:'plref', song:'Plateau Ref', artist:'Plateau Band Ref', bpm:130, camelot:'9B', energy:75, dur:200, genre:'Rock', bpmg:'D'});
+    const redCand = mkT({id:'plred', song:'Plateau Red', artist:'Plateau Band Red', bpm:132, camelot:'5A', energy:75, dur:200, genre:'Rock', bpmg:'D'});
+    const okCand  = mkT({id:'plok',  song:'Plateau Ok',  artist:'Plateau Band Ok',  bpm:132, camelot:'9B', energy:75, dur:200, genre:'Rock', bpmg:'D'});
+    const result = buildPlateauSplit([redCand, okCand], ref, usedIds, usedTitleKeys, usedArtists, 400);
+    expect(result.some(t => t.id === 'plred')).toBeFalsy();
+  });
+  it('buildCooldown returns { cd, warnings } and adds no duplicate of an already-used track', () => {
+    const usedIds = new Set(['a1']), usedTitleKeys = new Set(), usedArtists = new Map();
+    const wod = [T.a1];
+    const result = buildCooldown('Rock', wod, usedIds, usedTitleKeys, usedArtists);
+    expect(Array.isArray(result.cd)).toBeTruthy();
+    expect(Array.isArray(result.warnings)).toBeTruthy();
+    expect(result.cd.every(t => t.id !== 'a1')).toBeTruthy();
+  });
+  it('buildCooldown never returns a track above the WOD-derived BPM ceiling', () => {
+    const usedIds = new Set(), usedTitleKeys = new Set(), usedArtists = new Map();
+    const wod = [T.calm]; // bpm 100 -> ceiling well below recov's/other high-bpm tracks
+    const result = buildCooldown('Synthwave / Electronica', wod, usedIds, usedTitleKeys, usedArtists);
+    const ceiling = Math.floor(100 * 0.7);
+    expect(result.cd.every(t => t.bpm <= ceiling)).toBeTruthy();
   });
 });
 
