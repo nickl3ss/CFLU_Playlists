@@ -182,6 +182,29 @@ Added to `transScore`: phase fitness points (`calcPhaseScore × 2`), bridge-subg
 
 Default weights (`SCORE_WEIGHTS_DEFAULT`): `{ bpm:40, camelot:20, energy:15, loudness:10, valence:8, dance:7, popularity:5 }`. User-configurable via the 7-axis spider-web UI panel; persisted in `localStorage` under `cflu_score_weights`.
 
+### Optimizer Score Thresholds (SCORE_GREEN / SCORE_YELLOW)
+
+`js/optimizer.js`'s `analyseFlow()` buckets each transition's `calcSortScore()` result into green/yellow/red for the flow report using two thresholds, last recalibrated 2026-07-15 (#160) after `genreDistScore` expanded from `[0,10]` to `[0,25]` (cosine similarity on Last.fm `genre_conf` vectors):
+
+```
+SCORE_GREEN  = 330   (was 320)
+SCORE_YELLOW = 210   (was 200)
+```
+
+**Methodology**: measured against the real pool (10,990 tracks, 45% with `genre_conf` populated — just under the 50% coverage originally targeted, judged sufficient to be representative) using two proxies:
+- *Well-curated proxy*: same-genre tracks sorted by BPM, adjacent pairs within 15 BPM (~11,000 transitions) — approximates what a good generation/curation produces.
+- *Unoptimized proxy*: 3,000 uniformly-random track pairs across the whole pool — approximates an arbitrary, un-optimized Spotify playlist import.
+
+| Thresholds | Well-curated: green/yellow/red | Unoptimized: green/yellow/red |
+|---|---|---|
+| 320/200 (old) | 98.3% / 1.4% / 0.2% | 79.9% / 16.9% / 3.2% |
+| 330/210 (new) | 97.6%\* / — / — | 77.6% / 18.7% / 3.7% |
+| 340/220 | 97.6% / 2.1% / 0.3% | 74.2% / 21.3% / 4.4% |
+
+\*Interpolated between the 320/200 and 340/220 rows measured directly.
+
+**Conclusion**: the originally-assumed target of "~50% green for a well-curated playlist" (from the issue as filed, before this data existed) turned out to be miscalibrated — a genuinely well-ordered playlist should read as *mostly* green with a few flagged pinch points, not a 50/50 split. The thresholds already discriminate meaningfully between curated and unoptimized orderings at both 320/200 and 330/210; the `genreDistScore` expansion's inflationary effect is real but small (roughly 1–3 percentage points of green at any given threshold). Moved to 330/210 as a modest, evidence-informed correction rather than the dramatic jump the original issue speculated about.
+
 ### _pick() — Genre-Cascade Candidate Selection
 
 Every candidate must pass `baseOk()` (or `baseOkNoEnergy()` in stufe 4): BPM gate (`calcBpmTransitionScore < BPM_GATE_MIN_SCORE` → reject), monotonicity (`effectiveBpm`; ascending phases may step back by at most `MONO_STEP_BACK_BPM`, descending phases never step forward), title dedup, per-artist cap, Camelot lock, explicit filter, and — except where noted below — the energy filter (`wodEnergyMin/Max`).
@@ -193,7 +216,7 @@ The candidate pool is built by cascading through genre-relatedness stages until 
 4. Neighbour main genre (by weight) — energy filter is relaxed only for half/double-time BPM matches (`isHalfDouble`)
 5. Camelot-only fallback (genre ignored) — used when genre context is missing or stufen 1–4 are exhausted; still enforces the full BPM gate, monotonicity, and energy filter via `baseOk()`
 
-Within whichever stage succeeds, Camelot compatibility is progressively relaxed by `applyInnerCamelot()` (Zone1/2 green → any green → non-red → unfiltered) until candidates remain.
+Within whichever stage succeeds, Camelot compatibility is progressively relaxed by `applyInnerCamelot()` (Zone1/2 green → any green → non-red) until candidates remain. Unlike the two tiers before it, the final "non-red" tier is never further relaxed — red transitions are a hard gate (REQUIREMENTS.md §3.2, ADR 18) and `applyInnerCamelot()` returns empty rather than falling back to an unfiltered (potentially red) subset.
 
 Once the final candidate set is resolved, all candidates are scored by `calcSortScore()` and the top 5 are shuffled via `crypto.getRandomValues()` — one random pick at the end, not per-stage — to avoid deterministic repetition across generations.
 
@@ -237,3 +260,6 @@ These must never be broken by any implementation change:
 | 15 | Spotify Authorization Code Flow (server-side) | PKCE stored token in browser; incompatible with iOS Web Crypto restrictions; `client_secret` must never leave the server (Key Invariant 2) | 2026-06-14 |
 | 16 | `xyScore` as orthogonal complement to `colorScore` | Everynoise xy and RGB encode partially independent audio dimensions (Pearson r = 0.51); combined signal is richer | 2026-06-15 |
 | 17 | Ratio-Lattice BPM scoring; full lattice always active | ADR 14 log₂ model extended to 7 integer-ratio lock positions (1:1, 2:1, 1:2, 3:2, 2:3, 4:3, 3:4) with per-ratio weights; `allowLog2` toggle removed — full lattice runs unconditionally. `TRANSITION_BUDGET = 500` distributed across 7 normalised components via `scoreWeights`; default weights configurable via spider-web UI. | 2026-06-19 |
+| 18 | Camelot red transitions are a hard gate, not a score component | REQUIREMENTS.md §3.2: unlike BPM/energy/valence, there is no "somewhat compatible" key transition — a red transition is enforced as an exclusion filter (`applyInnerCamelot`, and an explicit `camCompat !== 'red'` check) in every generation/replacement path (`_pick`, `pickReplacement`, `buildDown`, `buildDecreasing`, `buildPlateauSplit`), not folded into `calcSortScore`'s weighted sum. `camNorm` remains in `calcSortScore` as a soft green-vs-yellow tiebreaker *among* gate-passing candidates — the gate is about exclusion, not eliminating preference. | 2026-07-15 |
+| 19 | Long-running HTTP handlers run in a background thread + poll endpoint | `cflu_server.py` is a plain `socketserver.TCPServer` (single-threaded) — any handler that blocks for more than a few hundred ms freezes every other endpoint, including the Spotify playback proxy. Established first for Last.fm full-sync (`_handle_lastfm_sync` + `/api/lastfm/progress`), then applied to CSV upload (`_handle_upload` + `/api/upload-status`): save fast, spawn a daemon thread for the slow ETL work, return immediately, let the client poll a `{running, ...}` state dict. | 2026-07-15 |
+| 20 | `NEIGHBOUR_OVERRIDES` covers both directions | `scripts/build_genre_config.py`'s override table originally only let a genre override its *own* auto-computed neighbour list (e.g. Deutsche Musik). Extended to also override how a genre appears as *someone else's* neighbour (EDM / Electronic's Deutsche Musik weight was auto-computed at 1.0 — a sonic-feature artifact from Eurodance's audio-feature overlap with EDM, not a real genre adjacency). A new 0.3 "demoted fallback" weight tier is reserved for this override case, distinct from the auto-computed rank tiers {0.5, 0.7, 1.0}. | 2026-07-15 |

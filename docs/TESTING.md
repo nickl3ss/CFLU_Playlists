@@ -10,6 +10,25 @@
 
 ## New Since Last Push
 
+### N30 · Backlog-Batch #160–198 (12 Issues) + kritischer Server-Absturz-Fix
+
+| # | Step | Erwartet |
+|---|------|----------|
+| N30-1 | Klassen-Phase-Kacheln (A/B/C/D) betrachten | Phase A: "85–110 BPM · Plateau" (vorher fälschlich "90–110"); Phase B: "80–120 BPM · sanft aufbauend" (vorher fälschlich "80–130") |
+| N30-2 | Admin-Panel (⚙) öffnen, Redirect-URI und Browser-URL prüfen | Zeigt den tatsächlichen Port, nicht hartkodiert :8888 (relevant bei `python cflu_server.py 9999`) |
+| N30-3 | Tonart-Filter öffnen, "13" oder "abc" in Zahlen-Feld eingeben | Rote Inline-Fehlermeldung "Ungültig — gültige Zahlen: 1–12" erscheint |
+| N30-4 | Gültige Zahlen eingeben (z. B. "9 10 11") | Fehlermeldung verschwindet |
+| N30-5 | "Alle"-Link unter dem Camelot-Wheel klicken (bei aktivem Zahlenfilter) | Filter wird geleert, Wheel + Zahlen-Input aktualisieren sich |
+| N30-6 | Schnell in Camelot-Zahlen-Feld tippen | Wheel rebuilt nicht bei jedem Tastendruck (spürbar flüssiger); reagiert innerhalb ~100ms nach Tipp-Ende |
+| N30-7 | Score-Gewichtung öffnen, einen Wert ändern | "↺ Reset"-Button erscheint (vorher immer sichtbar); nach Reset-Klick verschwindet er wieder |
+| N30-8 | Seite neu laden nachdem Score-Gewichte non-default in localStorage gespeichert wurden | Reset-Button ist beim Laden bereits sichtbar |
+| N30-9 | Swap-Filter (BPM↓/↑ etc.) manuell ändern, dann Phase wechseln | Kurzer Toast "Filter auf Phase-X-Defaults zurückgesetzt" erscheint für 3s |
+| N30-10 | ↺ Track-Tausch bei Slot ohne verfügbaren Ersatz | Warnung erscheint als fixierter Toast unten — Seite scrollt nicht mehr zum oberen Rand |
+| N30-11 | CSV exportieren | Dateiname enthält Genre + Phase, z. B. `CFLU_WOD_EDM_Electronic_PhaseC_2026-07-15.csv` |
+| N30-12 | Playlist im Optimizer importieren, dann exportieren | Exportierte Playlist trägt den echten Spotify-Playlist-Namen, nicht die UUID |
+| N30-13 | Server mit einer gespeicherten Session starten, deren Scope `playlist-read-collaborative` fehlt | Terminal zeigt Warnung; **Server startet weiterhin normal** (kritischer Fix: `⚠`-Zeichen crashte vorher den gesamten Prozess unter Windows/cp1252) |
+| N30-14 | Track-Tabelle nach Generierung ansehen (Speech/Instrumental/Acoustic/Live/Loud-Spalten) | Farbcodierung passt zu den tatsächlichen Phase-Filter-Grenzen (kein Grün bei Werten, die der aktive Phasen-Filter ausschließen würde) |
+
 ### N29 · Generierungslogik aus app.js ausgelagert + Plateau-Camelot-Lücke geschlossen (#202)
 
 | # | Step | Erwartet |
