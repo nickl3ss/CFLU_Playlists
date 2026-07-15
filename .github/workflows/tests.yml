@@ -34,3 +34,6 @@ jobs:
 
       - name: Lint Python
         run: ruff check .
+
+      - name: Run Python tests
+        run: python -m unittest discover -p "test_*.py" -v
