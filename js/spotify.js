@@ -106,6 +106,19 @@ export async function playOnDevice(deviceId, uris, startIndex = 0) {
 
 // ===== PLAYLIST EXPORT =====
 
+// Spotify accepts at most 100 URIs per add-items call (Key Invariant 3).
+export const SPOTIFY_MAX_URIS_PER_CALL = 100;
+
+// Splits `uris` into consecutive batches of at most `size` entries (order preserved).
+// Pure: never mutates the input; [] for empty input. `size` is hard-capped at
+// SPOTIFY_MAX_URIS_PER_CALL so no caller can exceed the API limit by passing a bigger size.
+export function chunkUris(uris = [], size = SPOTIFY_MAX_URIS_PER_CALL) {
+  const n = Math.min(Math.max(1, Math.floor(size) || 1), SPOTIFY_MAX_URIS_PER_CALL);
+  const chunks = [];
+  for (let i = 0; i < uris.length; i += n) chunks.push(uris.slice(i, i + n));
+  return chunks;
+}
+
 export async function exportPlaylist() {
   if (!state.spConnected) {
     showStatus('Zuerst verbinden.', 'error');
@@ -126,8 +139,8 @@ export async function exportPlaylist() {
     }
     showStatus('Füge Tracks hinzu...', 'info');
     const uris = all.filter(t => t.id && t.id !== 'nan').map(t => 'spotify:track:' + t.id);
-    for (let i = 0; i < uris.length; i += 100) { // max 100 URIs per API call (Invariant 3)
-      await spotifyCall('POST', `/playlists/${pl.id}/items`, { uris: uris.slice(i, i + 100) });
+    for (const batch of chunkUris(uris)) { // max 100 URIs per API call (Invariant 3)
+      await spotifyCall('POST', `/playlists/${pl.id}/items`, { uris: batch });
     }
     showStatus('✓ Exportiert!', 'info');
     document.getElementById('sp-link-wrap').classList.remove('hidden');

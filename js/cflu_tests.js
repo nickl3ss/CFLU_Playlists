@@ -18,6 +18,9 @@ import { sanitizeFilename, extractPlaylistName, formatUploadSuccess, classifyUpl
 import { bpmStopsForPhase, PHASE_CONFIG, RED, YEL, GRN, MONO_STEP_BACK_BPM } from './config.js';
 import { analyseFlow, reorderGreedy, suggestGapFills } from './optimizer.js';
 import { spotifyLogout } from './spotify.js';
+import { chunkUris, SPOTIFY_MAX_URIS_PER_CALL } from './spotify.js';
+import * as report from './report.js';
+import { buildGenLog, buildCsv, csvFilename, csvEscape, CSV_HEADER } from './report.js';
 
 // ============================================================
 //  MINI TEST FRAMEWORK
@@ -2040,6 +2043,155 @@ describe('spotifyLogout — logout is sent as POST (#208)', () => {
   it('uses method POST — the server answers GET with 404 since #208', () => {
     const calls = captureFetch(() => spotifyLogout());
     expect(calls[0].opts && calls[0].opts.method).toBe('POST');
+  });
+});
+
+// ============================================================
+//  #207 — chunkUris (spotify.js) + report.js (extracted from app.js in #206)
+// ============================================================
+describe('chunkUris — Spotify Export-Batching (Invariant 3)', () => {
+  const mkUris = n => Array.from({length: n}, (_, i) => 'spotify:track:' + String(i).padStart(4, '0'));
+  it('0 URIs ergibt []',                              () => expect(chunkUris([])).toEqual([]));
+  it('undefined ergibt []',                           () => expect(chunkUris()).toEqual([]));
+  it('1 URI ergibt genau einen 1er-Chunk',            () => expect(chunkUris(['spotify:track:x'])).toEqual([['spotify:track:x']]));
+  it('100 URIs ergibt genau einen Chunk mit 100',     () => expect(chunkUris(mkUris(100)).map(c => c.length)).toEqual([100]));
+  it('101 URIs ergibt [100, 1]',                      () => expect(chunkUris(mkUris(101)).map(c => c.length)).toEqual([100, 1]));
+  it('250 URIs ergibt [100, 100, 50]',                () => expect(chunkUris(mkUris(250)).map(c => c.length)).toEqual([100, 100, 50]));
+  it('Reihenfolge bleibt erhalten (flat === input)',  () => { const u = mkUris(250); expect(chunkUris(u).flat()).toEqual(u); });
+  it('Kein Chunk je größer als 100 (1000 URIs)',      () => expect(chunkUris(mkUris(1000)).every(c => c.length <= 100)).toBeTruthy());
+  it('size > 100 wird auf 100 gekappt (Invariant 3)', () => expect(chunkUris(mkUris(250), 500).map(c => c.length)).toEqual([100, 100, 50]));
+  it('size 0 / negativ fällt auf 1 zurück (keine Endlosschleife)', () => expect(chunkUris(mkUris(3), 0).map(c => c.length)).toEqual([1, 1, 1]));
+  it('Kleinere size wird respektiert (25 / 10 → [10,10,5])', () => expect(chunkUris(mkUris(25), 10).map(c => c.length)).toEqual([10, 10, 5]));
+  it('Default-size ist die API-Grenze 100',           () => expect(SPOTIFY_MAX_URIS_PER_CALL).toBe(100));
+  it('Input wird nicht mutiert',                      () => {
+    const u = mkUris(150); const copy = [...u];
+    chunkUris(u);
+    expect(u).toEqual(copy);
+    expect(u).toHaveLength(150);
+  });
+});
+
+// Minimal ctx snapshot the way app.js's _genLogContext() builds it from state.
+const GL_NOW = new Date(2026, 6, 15, 10, 30);
+function glCtx(over = {}) {
+  return Object.assign({
+    phase: 'C', ref: T.a1, position: 'start', wodMinutes: 20, crossfadeSec: 0,
+    wodEnergyMin: 50, wodEnergyMax: 85,
+    scoreWeights: { energy: 15, loudness: 10, valence: 8, dance: 7, popularity: 5 },
+    poolFilter: { minBpm: 0, maxBpm: 220, minEnergy: 0, minValence: 0, minDance: 0, minPopularity: 0 },
+    cdActive: false, cdMinutes: 15, camLetter: 'both', camNumbers: [],
+    directPoolSize: 42, fullPoolSize: 58, now: GL_NOW,
+  }, over);
+}
+const CD_TRACK = mkT({id:'cd1', song:'Chill Out', artist:'Band Z', bpm:80, camelot:'9B', energy:30, dur:240, genre:'Ambient', bpmg:'A'});
+
+describe('report.js — buildGenLog', () => {
+  const std = buildGenLog('Rock', [T.a1, T.a2, T.a3], [], [], glCtx());
+  it('Standard: Kopfzeile mit Datum/Uhrzeit',        () => {
+    expect(std).toContain('  CFLU WOD PLAYLIST LOG  —  ' + GL_NOW.toLocaleDateString('de-DE') + '  ' + GL_NOW.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}));
+  });
+  it('Standard: Phase-Zeile mit PHASE_CONFIG-Label', () => expect(std).toContain('  Phase:           C — ' + PHASE_CONFIG.C.label));
+  it('Standard: Genre-Zeile',                        () => expect(std).toContain('  Genre:           Rock'));
+  it('Standard: Referenz-Song-Zeile',                () => expect(std).toContain('  Referenz-Song:   Band A — Alpha One'));
+  it('Standard: Position-Zeile (Phase C sichtbar)',  () => expect(std).toContain('  Position:        Start'));
+  it('Standard: WOD-Dauer + Energy-Bereich',         () => { expect(std).toContain('  WOD-Dauer:       20 min'); expect(std).toContain('  Energy-Bereich:  50–85'); });
+  it('Standard: Score-Gewichte-Zeile',               () => expect(std).toContain('  Score-Gewichte:  E:15 Loud:10 Val:8 Dance:7 Pop:5'));
+  it('Standard: Pool-Zeilen aus ctx-Größen',         () => {
+    expect(std).toContain('  Phase-C-Pool (Rock):  42 Tracks');
+    expect(std).toContain('  Mit Nachbar-Genres:              58 Tracks');
+  });
+  it('Standard: Referenz-Zeile mit REF-Delta',       () => { expect(std).toMatch(/^ {2}1 {2}Alpha One\s+Band A\s+120\s+REF\s+9B/m); expect(std).toContain('[Referenz-Song]'); });
+  it('Standard: zweite Zeile mit BPM-Delta +4',      () => expect(std).toMatch(/^ {2}2 {2}Alpha Two\s+Band B\s+124\s+\+4\s+10B/m));
+  it('Standard: Zusammenfassung WOD-Zeile',          () => expect(std).toContain('  WOD:        3 Tracks  ·  ' + fmtDur(630) + '  ·  BPM 120 → 128'));
+  it('Standard: Camelot-Zähler-Zeile',               () => expect(std).toMatch(/^ {2}Camelot: {4}\d+x grün \(\+\) {2}· {2}\d+x gelb \(~\) {2}· {2}\d+x rot \(-\)$/m));
+  it('Standard: Ø Energy gerundet',                  () => expect(std).toContain('  Ø Energy:   ' + Math.round((72 + 76 + 75) / 3)));
+  it('Standard: keine Warn-, Crossfade-, Cool-Down-, Tonart- oder Swap-Filter-Zeilen', () => {
+    expect(std).not.toMatch(/^ {2}! /m);
+    expect(std).not.toContain('Crossfade:');
+    expect(std).not.toContain('Cool-Down');
+    expect(std).not.toContain('Tonart-Filter:');
+    expect(std).not.toContain('Swap-Filter:');
+  });
+  it('Standard: pur — gleiche Eingaben ergeben identischen Text', () => expect(buildGenLog('Rock', [T.a1, T.a2, T.a3], [], [], glCtx())).toBe(std));
+  it('Warnfall: Warnungen erscheinen als "! "-Zeilen im POOL-Block', () => {
+    const log = buildGenLog('Rock', [T.a1], [], ['⚠ Pool erschöpft: 5 min generiert von 20 min Ziel', '"band a" mehrfach in Playlist (2×)'], glCtx());
+    expect(log).toContain('  ! ⚠ Pool erschöpft: 5 min generiert von 20 min Ziel');
+    expect(log).toContain('  ! "band a" mehrfach in Playlist (2×)');
+  });
+  it('Warnfall: Crossfade-Zeile + roh/effektiv-Dauer', () => {
+    const log = buildGenLog('Rock', [T.a1, T.a2], [], [], glCtx({crossfadeSec: 6}));
+    expect(log).toContain('  Crossfade:       6s (Spotify Mixing)');
+    expect(log).toContain(fmtDur(410) + ' roh  ·  ' + fmtMin(404) + ' effektiv');
+  });
+  it('Warnfall: Tonart-Filter + Swap-Filter-Zeilen',  () => {
+    const log = buildGenLog('Rock', [T.a1], [], [], glCtx({camLetter: 'A', camNumbers: [8, 9], poolFilter: { minBpm: 125, maxBpm: 220, minEnergy: 70, minValence: 0, minDance: 0, minPopularity: 0 }}));
+    expect(log).toContain('  Tonart-Filter:   Buchstabe: A  ·  Zahlen: 8 9');
+    expect(log).toContain('  Swap-Filter:     BPM:125–220  E≥70  (gilt für Tausch-Kandidaten)');
+  });
+  it('Warnfall: Fremd-Genre-Track wird als Fallback markiert', () => {
+    const log = buildGenLog('Rock', [T.a1, T.hi], [], [], glCtx());
+    expect(log).toContain('Genre: Punk (Fallback)');
+    expect(log).not.toContain('Genre: Rock (Fallback)');
+  });
+  it('Cool-Down-Fall: Einstellungs-Zeile + CD-Tabelle mit fortlaufender Nummer', () => {
+    const log = buildGenLog('Rock', [T.a1, T.a2, T.a3], [CD_TRACK], [], glCtx({cdActive: true}));
+    expect(log).toContain('  Cool-Down:       aktiv · 15 min');
+    expect(log).toContain('--- Cool-Down (15 min) ---');
+    expect(log).toMatch(/^ {2}4 {2}Chill Out\s+Band Z\s+80\s+9B\s+30\s+\d+ {2}\| Genre: Ambient$/m);
+  });
+  it('Cool-Down-Fall: Zusammenfassung enthält CD-Zeile', () => {
+    const log = buildGenLog('Rock', [T.a1], [CD_TRACK], [], glCtx({cdActive: true}));
+    expect(log).toContain('  Cool-Down:  1 Tracks  ·  ' + fmtDur(240) + '  ·  BPM 80 → 80');
+  });
+  it('Phase A: keine Position-Zeile (positionVisible=false)', () => expect(buildGenLog('Rock', [T.a1], [], [], glCtx({phase: 'A'}))).not.toContain('Position:'));
+  it('Ohne Referenz-Song: keine Referenz-Zeile',     () => expect(buildGenLog('Rock', [T.a1], [], [], glCtx({ref: null}))).not.toContain('Referenz-Song:'));
+  it('Leere Playlist: Zusammenfassung 0 Tracks',     () => expect(buildGenLog('Rock', [], [], [], glCtx())).toContain('  WOD:        0 Tracks  ·  —  ·  BPM 0 → 0'));
+});
+
+describe('report.js — buildCsv / csvFilename', () => {
+  const HEADER = 'Nr,Artist,Title,BPM,Camelot,Energy,Duration,Genre';
+  it('Header-Zeile exakt',                            () => expect(buildCsv([]).split('\r\n')[0]).toBe(HEADER));
+  it('CSV_HEADER-Konstante passt zur Header-Zeile',   () => expect(CSV_HEADER.join(',')).toBe(HEADER));
+  it('Leere Playlist: nur Header, kein Zeilenumbruch am Ende', () => expect(buildCsv([], [])).toBe(HEADER));
+  it('Datenzeile: Spaltenreihenfolge + Werte',        () => expect(buildCsv([T.a1]).split('\r\n')[1]).toBe('1,Band A,Alpha One,120,9B,72,3:30,Rock'));
+  it('Zeilen sind CRLF-getrennt, kein nacktes LF',    () => {
+    const csv = buildCsv([T.a1, T.a2]);
+    expect(csv.split('\r\n')).toHaveLength(3);
+    expect(csv.replace(/\r\n/g, '')).not.toContain('\n');
+  });
+  it('Cool-Down-Tracks werden fortlaufend nummeriert', () => expect(buildCsv([T.a1], [CD_TRACK]).split('\r\n')[2]).toBe('2,Band Z,Chill Out,80,9B,30,4:00,Ambient'));
+  it('Fehlende Camelot/Genre-Felder bleiben leer',    () => {
+    const t = mkT({id:'nc', song:'No Cam', artist:'Band N', bpm:100, camelot:'', energy:50, dur:65, genre:'', bpmg:'B'});
+    expect(buildCsv([t]).split('\r\n')[1]).toBe('1,Band N,No Cam,100,,50,1:05,');
+  });
+  it('Dauer 0/undefined ergibt 0:00',                 () => expect(buildCsv([mkT({id:'nd', song:'No Dur', artist:'Band N', bpm:100, camelot:'1A', energy:50, genre:'Rock', bpmg:'B'})]).split('\r\n')[1]).toBe('1,Band N,No Dur,100,1A,50,0:00,Rock'));
+  it('Escaping: Komma im Titel wird in Anführungszeichen gesetzt', () => expect(csvEscape('Hello, World')).toBe('"Hello, World"'));
+  it('Escaping: Anführungszeichen werden verdoppelt', () => expect(csvEscape('Say "Hi"')).toBe('"Say ""Hi"""'));
+  it('Escaping: Zeilenumbruch wird gequotet',         () => expect(csvEscape('a\nb')).toBe('"a\nb"'));
+  it('Escaping: normales Feld bleibt unverändert',    () => expect(csvEscape('Band A')).toBe('Band A'));
+  it('Escaping: null/undefined ergibt leeres Feld',   () => { expect(csvEscape(null)).toBe(''); expect(csvEscape(undefined)).toBe(''); });
+  it('Escaping wirkt in der Datenzeile (Artist mit Komma, Titel mit Quote)', () => {
+    const t = mkT({id:'esc', song:'Say "Hi"', artist:'Band A, Band B', bpm:120, camelot:'9B', energy:72, dur:210, genre:'Rock', bpmg:'D'});
+    expect(buildCsv([t]).split('\r\n')[1]).toBe('1,"Band A, Band B","Say ""Hi""",120,9B,72,3:30,Rock');
+  });
+  it('csvFilename: Muster CFLU_WOD_<Genre>_Phase<X>_<Datum>.csv, Genre sanitisiert', () => expect(csvFilename('EDM / Electronic', 'C', '2026-07-15')).toBe('CFLU_WOD_EDM___Electronic_PhaseC_2026-07-15.csv'));
+  it('csvFilename: leeres Genre ergibt Mix',          () => expect(csvFilename('', 'C', '2026-07-15')).toBe('CFLU_WOD_Mix_PhaseC_2026-07-15.csv'));
+  it('csvFilename: Genre auf 20 Zeichen gekürzt',     () => expect(csvFilename('Alle Deutschen Tracks', 'B', '2026-07-15')).toBe('CFLU_WOD_Alle_Deutschen_Track_PhaseB_2026-07-15.csv'));
+  it('csvFilename: Umlaute/Sonderzeichen werden zu _', () => expect(csvFilename('Schlager & Kölsch', 'A', '2026-07-15')).toBe('CFLU_WOD_Schlager___K_lsch_PhaseA_2026-07-15.csv'));
+  it('csvFilename: Datum default = heute (ISO)',      () => expect(csvFilename('Rock', 'C')).toMatch(/^CFLU_WOD_Rock_PhaseC_\d{4}-\d{2}-\d{2}\.csv$/));
+});
+
+describe('report.js — Node-Import-Guard (kein DOM, kein state)', () => {
+  it('Modul ist in Node importierbar und exportiert die erwarteten Funktionen', () => {
+    ['buildGenLog', 'buildCsv', 'csvFilename', 'csvEscape'].forEach(fn => expect(typeof report[fn]).toBe('function'));
+  });
+  it('Export-Oberfläche ist exakt {CSV_HEADER, buildCsv, buildGenLog, csvEscape, csvFilename}', () => {
+    expect(Object.keys(report).sort()).toEqual(['CSV_HEADER', 'buildCsv', 'buildGenLog', 'csvEscape', 'csvFilename']);
+  });
+  it('buildGenLog kommt ohne state aus (Defaults für scoreWeights/poolFilter)', () => {
+    const log = buildGenLog('Rock', [T.a1], [], [], {phase: 'C', wodMinutes: 20, wodEnergyMin: 50, wodEnergyMax: 85, now: GL_NOW});
+    expect(log).toContain('  Score-Gewichte:  E:15 Loud:10 Val:8 Dance:7 Pop:5');
+    expect(log).not.toContain('Swap-Filter:');
   });
 });
 
