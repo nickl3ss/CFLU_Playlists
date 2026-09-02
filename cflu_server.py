@@ -14,6 +14,14 @@ Files (gitignored, local — all in keyvault/):
 Redirect URI (must match Spotify Dashboard exactly):
     http://127.0.0.1:<PORT>/api/spotify/callback   (default PORT=8888)
 
+Routes:
+    GET   /api/spotify/login, /api/spotify/callback, /api/spotify/status,
+          /api/lastfm/status, /api/lastfm/progress, /api/upload-status
+          (anything else is served as a static file)
+    POST  /api/upload-csv, /api/spotify/call, /api/spotify/logout, /api/lastfm/sync
+          State-changing endpoints are POST only, and every POST sits behind the
+          Origin gate (_origin_allowed, #208) — foreign Origin → 403 before routing.
+
 Usage:
     python cflu_server.py [PORT]   (default: 8888)
 """
@@ -134,7 +142,15 @@ def _lastfm_sync_reader(proc) -> None:
 # L-03: Work from the script's own directory regardless of CWD at launch.
 os.chdir(pathlib.Path(__file__).parent)
 
-PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8888
+
+def _parse_port(argv: list[str]) -> int:
+    """`python cflu_server.py [PORT]` → PORT (default 8888). Consulted only when the module
+    is run directly: `import cflu_server` from the unit tests must not parse unittest's own
+    argv (`discover`, `-p`, …) — that raised ValueError at import before #208."""
+    return int(argv[1]) if len(argv) > 1 else 8888
+
+
+PORT = _parse_port(sys.argv) if __name__ == '__main__' else 8888
 UPLOAD_DIR = os.path.join('Playlists', 'WebUpload')
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # S-04: 10 MB hard cap
 
@@ -305,6 +321,28 @@ def _sanitize(name):
     return re.sub(r'\s+', ' ', name) or 'Upload'
 
 
+def _origin_allowed(origin: str | None, port: int) -> bool:
+    """CSRF gate for the state-changing (POST) routes — #208, ADR 21.
+
+    A POST with `Content-Type: text/plain` is a CORS *simple request*: the browser sends it
+    without a preflight, so any web page open in the user's browser could hit e.g.
+    `/api/spotify/call` with the user's full Spotify scopes. Browsers always attach an
+    `Origin` header to POST requests, so a same-origin check on it closes that hole:
+
+    - None / ''                                                   → allowed: only non-browser
+      clients (curl, scripts) omit Origin, and those are not a CSRF vector.
+    - exactly `http://127.0.0.1:<port>` or `http://localhost:<port>` → allowed.
+    - anything else (other host/port, `null`, https, trailing slash/path, …) → rejected.
+
+    Exact string comparison on purpose: browsers serialise Origin as lowercase
+    `scheme://host[:port]` with no path, so no normalisation is needed — and no prefix
+    match (startswith) that `http://127.0.0.1:8888.evil.example` could slip past.
+    """
+    if not origin:
+        return True
+    return origin in (f'http://127.0.0.1:{port}', f'http://localhost:{port}')
+
+
 class CFLUHandler(SimpleHTTPRequestHandler):
     def end_headers(self):
         for name, value in _SECURITY_HEADERS:
@@ -321,8 +359,6 @@ class CFLUHandler(SimpleHTTPRequestHandler):
             self._handle_spotify_callback()
         elif path == '/api/spotify/status':
             self._handle_spotify_status()
-        elif path == '/api/spotify/logout':
-            self._handle_spotify_logout()
         elif path == '/api/lastfm/status':
             self._handle_lastfm_status()
         elif path == '/api/lastfm/progress':
@@ -335,10 +371,15 @@ class CFLUHandler(SimpleHTTPRequestHandler):
     # ===== POST routing =====
 
     def do_POST(self):
+        # #208: CSRF gate — every POST is state-changing; reject foreign Origins before routing.
+        if not _origin_allowed(self.headers.get('Origin'), PORT):
+            return self._respond(403, {'error': 'origin not allowed'})
         if self.path == '/api/upload-csv':
             self._handle_upload()
         elif self.path == '/api/spotify/call':
             self._handle_spotify_call()
+        elif self.path == '/api/spotify/logout':
+            self._handle_spotify_logout()
         elif self.path == '/api/lastfm/sync':
             self._handle_lastfm_sync()
         else:

@@ -16,7 +16,8 @@ export function spotifyLogin() {
 }
 
 export async function spotifyLogout() {
-  await fetch('/api/spotify/logout').catch(() => {});
+  // #208: logout is state-changing → POST only (server rejects GET with 404).
+  await fetch('/api/spotify/logout', { method: 'POST' }).catch(() => {});
   state.spConnected = false;
   state.spDisplayName = null;
   state.spDevices = [];
