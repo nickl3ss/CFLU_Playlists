@@ -191,7 +191,7 @@ SCORE_GREEN  = 330   (was 320)
 SCORE_YELLOW = 210   (was 200)
 ```
 
-**Methodology**: measured against the real pool (10,990 tracks, 45% with `genre_conf` populated — just under the 50% coverage originally targeted, judged sufficient to be representative) using two proxies:
+**Methodology**: measured 2026-07-15 against the real pool as it then stood (10,990 tracks, 45% with `genre_conf` populated — just under the 50% coverage originally targeted, judged sufficient to be representative; the pool has since grown to 11,832 tracks (#209) without recalibration — a recalibration is only worthwhile after the Last.fm resync of #210 raises `genre_conf` coverage) using two proxies:
 - *Well-curated proxy*: same-genre tracks sorted by BPM, adjacent pairs within 15 BPM (~11,000 transitions) — approximates what a good generation/curation produces.
 - *Unoptimized proxy*: 3,000 uniformly-random track pairs across the whole pool — approximates an arbitrary, un-optimized Spotify playlist import.
 
