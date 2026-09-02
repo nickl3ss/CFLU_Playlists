@@ -109,6 +109,19 @@ app.js (← all modules)
 
 **Preserve rules in `merge()` (rebuild-safe):** States `2`, `3`, `5`, `6`, `7` survive `--rebuild`; `genres_raw` + `genre` + `decisive_genre` preserved for states `2` and `6`. State `4` recalculated on every rebuild. State `7` is terminal: ignored by ETL phases [F] and [A].
 
+### Known Data Gaps
+
+Measured 2026-09-03 after the Last.fm full resync (#210); pool = 11,832 tracks. Each gap lists its cause and the way out so nobody re-diagnoses it.
+
+| Gap | Count | Cause | Way out |
+|-----|-------|-------|---------|
+| `genre_conf` absent | 4,749 (40.1 %) | 4,173 tracks are unknown to Last.fm (no track/album/artist tags at all); 576 have strong tags that map to no main genre (`soundtrack`, `composer`, `metalcore`, `instrumental`, `video game music`, `brazilian`, `indie`, `latin`, `folk`, `deep house`, …). Lowering `_LASTFM_MIN_COUNT` does not help (15 → 5 gains 0.9 pp). `genreDistScore` falls back to the xy-score `[0,10]` for these tracks. | Extend `_TAG_TO_MAIN_GENRE` for the unmapped tag families (≈ +576 tracks at most); Spotify artist enrichment (#169) for the 4,173 unknown ones. |
+| `open_genre = 7` — no genre at all | 444 (3.8 %) | Spotify, same-artist inheritance, Claude Haiku and Last.fm all found nothing; state 7 is terminal and skipped by [F] and [A]. `genres_raw` is empty, so these tracks are only reachable through `_pick()` stage 5 (Camelot-only fallback) and never contribute to genre coherence. | Accepted (decision 2026-09-02). Next source: Spotify artist genres via #169. |
+| `avg_color` / `avg_xy` absent | 843 (7.1 %) | None of the track's `genres_raw` tags matches an Everynoise genre name (`_match_color_tag` / `_match_xy_tag`), so `colorScore` and `xyScore` are 0 for these transitions. Includes all 444 state-7 tracks. | Alias/fuzzy matching against Everynoise names; otherwise resolved together with the two gaps above. |
+| `open_genre = 3` — user find | 0 | The Admin Panel that sets state 3 (#105) does not exist yet; the state is defined and preserved by `merge()` but never produced. | #105. |
+
+`genre_conf` coverage history: 45 % (2026-07-15, #160 calibration) → 46.4 % (2026-08-28 build) → 59.9 % (2026-09-03 resync, #210).
+
 ### PHASE_CONFIG
 
 Each phase entry contains: `bpm [lo, hi]`, `bpmCore [lo, hi]`, `energy {min, max}`, `dance {min, max}`, `valence {min, max}`, `loud {min}`, `instrumental {max}`, `acoustic {max}`, `label`.
@@ -191,7 +204,7 @@ SCORE_GREEN  = 330   (was 320)
 SCORE_YELLOW = 210   (was 200)
 ```
 
-**Methodology**: measured 2026-07-15 against the real pool as it then stood (10,990 tracks, 45% with `genre_conf` populated — just under the 50% coverage originally targeted, judged sufficient to be representative; the pool has since grown to 11,832 tracks (#209) without recalibration — a recalibration is only worthwhile after the Last.fm resync of #210 raises `genre_conf` coverage) using two proxies:
+**Methodology**: measured 2026-07-15 against the real pool as it then stood (10,990 tracks, 45% with `genre_conf` populated — just under the 50% coverage originally targeted, judged sufficient to be representative; the pool has since grown to 11,832 tracks (#209) without recalibration; the Last.fm full resync of 2026-09-03 (#210) raised `genre_conf` coverage from 46.4 % (5,493) to 59.9 % (7,083 of 11,832) — see *Known Data Gaps* for why it plateaus there — and a recalibration against that coverage is a separate follow-up) using two proxies:
 - *Well-curated proxy*: same-genre tracks sorted by BPM, adjacent pairs within 15 BPM (~11,000 transitions) — approximates what a good generation/curation produces.
 - *Unoptimized proxy*: 3,000 uniformly-random track pairs across the whole pool — approximates an arbitrary, un-optimized Spotify playlist import.
 
