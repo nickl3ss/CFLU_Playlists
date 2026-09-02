@@ -187,8 +187,9 @@ http://127.0.0.1:8888/CFLU_Tests.html
 
 **Python — Pool Builder ETL:**
 ```bash
+pip install ruff                                   # one-time; local D3 lint gate
 python -m unittest discover -p "test_*.py"
-ruff check .
+ruff check .                                       # or: python -m ruff check .  (if ruff is not on PATH)
 ```
 CI (`.github/workflows/tests.yml`) runs all of the above — JS tests, ESLint, ruff, and the Python unit tests — on every push and pull request.
 

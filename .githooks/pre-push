@@ -29,10 +29,14 @@ fi
 echo ""
 
 # ── D3c · Ruff (only if Python files changed) ──────────────
+# ruff may be installed as a module only (pip on Windows without Scripts/ on PATH) —
+# fall back to `python -m ruff` so the gate never fails on "command not found" (#211).
+RUFF="ruff"
+command -v ruff >/dev/null 2>&1 || RUFF="python -m ruff"
 PY_CHANGED=$(git diff --name-only HEAD @{u} 2>/dev/null | grep '\.py$' || true)
 if [ -n "$PY_CHANGED" ]; then
-  echo "▶ D3c  ruff check . (Python files changed)"
-  if ! ruff check .; then
+  echo "▶ D3c  $RUFF check . (Python files changed)"
+  if ! $RUFF check .; then
     echo ""
     echo "✗  Ruff FAILED — push blocked. Fix Python issues first."
     exit 1
