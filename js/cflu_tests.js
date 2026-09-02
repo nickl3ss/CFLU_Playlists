@@ -17,6 +17,7 @@ import { state } from './state.js';
 import { sanitizeFilename, extractPlaylistName, formatUploadSuccess, classifyUploadResult } from './upload.js';
 import { bpmStopsForPhase, PHASE_CONFIG, RED, YEL, GRN, MONO_STEP_BACK_BPM } from './config.js';
 import { analyseFlow, reorderGreedy, suggestGapFills } from './optimizer.js';
+import { spotifyLogout } from './spotify.js';
 
 // ============================================================
 //  MINI TEST FRAMEWORK
@@ -2010,6 +2011,35 @@ describe('buildEnd / buildPlateauSplit / buildCooldown — extracted generation 
     const result = buildCooldown('Synthwave / Electronica', wod, usedIds, usedTitleKeys, usedArtists);
     const ceiling = Math.floor(100 * 0.7);
     expect(result.cd.every(t => t.bpm <= ceiling)).toBeTruthy();
+  });
+});
+
+// ============================================================
+//  #208 — spotifyLogout() transport: state-changing → POST only
+// ============================================================
+describe('spotifyLogout — logout is sent as POST (#208)', () => {
+  // test_cflu_server.py proves the server side (GET /api/spotify/logout → 404, POST → 200);
+  // this is the browser side of the same contract: the client must actually send POST.
+  // fetch() is spotifyLogout()'s first statement, so the call is observable synchronously
+  // (the runner's it() does not await). The stub returns a promise that never settles, so the
+  // continuation after the await (state reset + DOM writes) never runs — no document stub
+  // needed, no unhandled rejection, nothing leaks into later tests in Node or CFLU_Tests.html.
+  function captureFetch(fn) {
+    const calls = [];
+    const hadFetch = 'fetch' in globalThis, origFetch = globalThis.fetch;
+    globalThis.fetch = (url, opts) => { calls.push({ url, opts }); return new Promise(() => {}); };
+    try { fn(); }
+    finally { if (hadFetch) globalThis.fetch = origFetch; else delete globalThis.fetch; }
+    return calls;
+  }
+  it('fetches /api/spotify/logout exactly once', () => {
+    const calls = captureFetch(() => spotifyLogout());
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe('/api/spotify/logout');
+  });
+  it('uses method POST — the server answers GET with 404 since #208', () => {
+    const calls = captureFetch(() => spotifyLogout());
+    expect(calls[0].opts && calls[0].opts.method).toBe('POST');
   });
 });
 
