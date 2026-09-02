@@ -30,12 +30,14 @@
 | `js/algorithm.js` | Core generation: `_pick()` (genre-cascade), `buildUp/Down/Plateau/Decreasing/Alternating/End/PlateauSplit/Cooldown`, `pickReplacement` |
 | `js/optimizer.js` | Playlist import, flow analysis (`analyseFlow`, `SCORE_GREEN`/`SCORE_YELLOW`), greedy reorder, gap fill — no DOM, no Spotify token handling |
 | `js/chart.js` | BPM step chart + bidirectional hover synchronisation |
+| `js/widgets.js` | SVG widgets: Camelot wheel (`drawCamWheel`), scoring radar (`drawScoringRadar`), pool-filter radar (`drawFilterRadar`) + `SW_KEYS`/`PF_KEYS`/`PF_MAX` — reads state, writes DOM only; no business logic |
 | `js/spotify.js` | Spotify auth proxy, playlist export, device control — browser never holds a token (Key Invariant 2) |
 | `js/genre_space.js` | 3D Everynoise star map (Three.js) — reads state + `GENRE_MAP` + `TRACK_DATA`; writes canvas only |
 | `js/upload.js` | CSV upload UI + polling (`_pollUploadStatus` against `/api/upload-status` — the ETL runs in a background thread server-side); pure helpers (`sanitizeFilename`, `extractPlaylistName`, `formatUploadSuccess`) — standalone `<script>` in HTML |
 | `js/resolve.js` | `SOURCE_PRECEDENCE` + pure resolve functions — no DOM, no state, no Spotify calls |
 | `js/register.js` | Pool Register tab — lazy-loads `data/*.json`, writes DOM only |
-| `js/app.js` | UI wiring: imports all modules, event handlers, `_gen()`, `renderResult()`, init |
+| `js/report.js` | Pure formatting: `buildGenLog` (generation log text), `buildCsv`/`csvEscape`/`csvFilename` (CSV export) — no DOM, no state, no Spotify; Node-importable and unit-tested |
+| `js/app.js` | UI wiring: imports all modules, event handlers, `_gen()`, `renderResult()`, init; thin wrappers only — `_genLogContext()` snapshots state for `report.buildGenLog`, `exportCsv()` downloads `report.buildCsv` |
 
 ### Module Dependency Graph
 
@@ -51,10 +53,12 @@ genres.js    (← config.js)
 algorithm.js  (← config, state, utils, genres)
 optimizer.js  (← utils; algorithm for getAllTracks)
 chart.js      (← state)
+widgets.js    (← state, config)
 spotify.js    (← state)
 genre_space.js (← state, GENRE_MAP, TRACK_DATA)
 upload.js     (standalone <script>)
 resolve.js    (standalone pure module)
+report.js     (← config, utils; pure — no state)
 register.js   (← resolve, spotify)
        ↓
 app.js (← all modules)

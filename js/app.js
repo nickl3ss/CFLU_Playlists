@@ -5,14 +5,16 @@ import { PHASE_CONFIG, PROGRESSION_LABEL, MIN_POOL_SIZE,
          BPM_SLIDER_MIN, BPM_SLIDER_MAX,
          GOING_WILD_GENRE,
          LASTFM_STALE_WARN_DAYS, LASTFM_STALE_DANGER_DAYS,
-         SCORE_WEIGHTS_DEFAULT, POOL_FILTER_DEFAULT } from './config.js';
+         SCORE_WEIGHTS_DEFAULT } from './config.js';
 import { getNeighbours } from './genres.js';
 import { state } from './state.js';
-import { titleKey, fmtDur, fmtMin, lerpColor, toHex, camCompat, calcPhaseScore, bpmHint, effectiveBpm, isHalfDouble, artistKeys } from './utils.js';
+import { titleKey, fmtDur, fmtMin, lerpColor, toHex, camCompat, calcPhaseScore, bpmHint, effectiveBpm, artistKeys } from './utils.js';
 import { getAllTracks, getPool, getPhasePool, getPhasePoolWithNeighbours, getGenreStats,
          registerTrack, buildUp, buildEnd, buildPlateauSplit, buildCooldown,
          buildPlateau, buildDecreasing, buildAlternating, pickReplacement } from './algorithm.js';
 import { drawChart, highlightFromRow, clearHighlight } from './chart.js';
+import { drawCamWheel, drawScoringRadar, drawFilterRadar, SW_KEYS, PF_KEYS, PF_MAX } from './widgets.js';
+import { buildGenLog, buildCsv, csvFilename } from './report.js';
 import { spotifyLogin, spotifyLogout, checkSpotifyCallback,
          exportPlaylist, getDevices, playOnDevice, spotifyCall } from './spotify.js';
 import { initGenreSpace, updatePlaylistMode, resizeGenreSpace } from './genre_space.js';
@@ -223,7 +225,7 @@ function onPhaseSelect(phase) {
   // #195: detect manual swap-filter changes (relative to the outgoing phase's defaults)
   // before they get silently overwritten below.
   const prevDefaults = phaseFilterDefaults(prevPhase);
-  const filterWasModified = prevPhase !== phase && _PF_KEYS.some(k => state.poolFilter[k] !== prevDefaults[k]);
+  const filterWasModified = prevPhase !== phase && PF_KEYS.some(k => state.poolFilter[k] !== prevDefaults[k]);
   applyPhaseFilter(phase);
   if (filterWasModified) _showPhaseFilterResetToast(phase);
 }
@@ -798,59 +800,14 @@ function updateGenBtn() {
   document.getElementById('gen-btn').disabled = !(state.selectedTrack && state.selectedTrack.bpm > 0);
 }
 
-// ===== SCORING RADAR =====
-// BPM and Camelot are fixed internal weights (not user-adjustable).
-const _SW_KEYS = ['energy', 'loudness', 'valence', 'dance', 'popularity'];
-const _SW_LABELS = ['E', 'Loud', 'Val', 'Dance', 'Pop'];
-
-function drawScoringRadar() {
-  const svg = document.getElementById('scoring-radar');
-  if (!svg) return;
-  const cx = 100, cy = 100, r = 72;
-  const n = _SW_KEYS.length;
-  const angle = i => (i * 2 * Math.PI / n) - Math.PI / 2; // BPM at top
-
-  const pt = (i, frac) => {
-    const a = angle(i);
-    return [cx + frac * r * Math.cos(a), cy + frac * r * Math.sin(a)];
-  };
-
-  let html = '';
-
-  // Concentric rings at 25/50/75/100
-  for (const pct of [0.25, 0.5, 0.75, 1.0]) {
-    const pts = Array.from({length: n}, (_, i) => pt(i, pct).join(',')).join(' ');
-    html += `<polygon points="${pts}" fill="none" stroke="#333" stroke-width="1"/>`;
-  }
-
-  // Axis lines
-  for (let i = 0; i < n; i++) {
-    const [x, y] = pt(i, 1.0);
-    html += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#333" stroke-width="1"/>`;
-  }
-
-  // Labels
-  for (let i = 0; i < n; i++) {
-    const [x, y] = pt(i, 1.18);
-    const anchor = Math.abs(Math.cos(angle(i))) < 0.1 ? 'middle'
-      : Math.cos(angle(i)) < 0 ? 'end' : 'start';
-    html += `<text x="${x}" y="${y}" text-anchor="${anchor}" dominant-baseline="middle" fill="#888" font-size="9" font-family="monospace">${_SW_LABELS[i]}</text>`;
-  }
-
-  // Data polygon
-  const vals = _SW_KEYS.map(k => Math.max(0, Math.min(100, state.scoreWeights[k] || 0)) / 100);
-  const polyPts = vals.map((v, i) => pt(i, v).join(',')).join(' ');
-  html += `<polygon points="${polyPts}" fill="#1db954" fill-opacity="0.35" stroke="#1db954" stroke-width="1.5"/>`;
-
-  svg.innerHTML = html;
-}
+// ===== SCORING RADAR (wiring — drawScoringRadar lives in widgets.js) =====
 
 // #191: the reset button doubles as the "you're off default" indicator — hidden unless at
 // least one score weight deviates from SCORE_WEIGHTS_DEFAULT.
 function _updateSwResetVisibility() {
   const btn = document.getElementById('sw-reset-btn');
   if (!btn) return;
-  const isDefault = _SW_KEYS.every(k => state.scoreWeights[k] === SCORE_WEIGHTS_DEFAULT[k]);
+  const isDefault = SW_KEYS.every(k => state.scoreWeights[k] === SCORE_WEIGHTS_DEFAULT[k]);
   btn.style.display = isDefault ? 'none' : '';
 }
 
@@ -867,138 +824,7 @@ function onScoreWeightChange(key, raw) {
   try { localStorage.setItem('cflu_score_weights', JSON.stringify(state.scoreWeights)); } catch (e) { void e; /* storage unavailable */ }
 }
 
-// ===== CAMELOT WHEEL =====
-const _CAM_COLORS = [
-  null,       // 0 — unused (1-indexed)
-  '#f04040',  // 1
-  '#f07820',  // 2
-  '#e8c020',  // 3
-  '#90cc20',  // 4
-  '#1db954',  // 5 — Spotify green
-  '#18b87a',  // 6
-  '#18b0cc',  // 7
-  '#2090e0',  // 8
-  '#4060e8',  // 9
-  '#8040e0',  // 10
-  '#cc30c8',  // 11
-  '#e82070',  // 12
-];
-
-// #197: darken via HSL lightness rather than raw RGB scaling. RGB×0.55 dims perceptually
-// unevenly (the eye reads green as brighter than blue at equal RGB) — HSL lightness scaling
-// is uniform across all 12 wheel colours.
-function _camDarken(hex) {
-  const r = parseInt(hex.slice(1, 3), 16) / 255;
-  const g = parseInt(hex.slice(3, 5), 16) / 255;
-  const b = parseInt(hex.slice(5, 7), 16) / 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  const l = (max + min) / 2;
-  let h = 0, s = 0;
-  const d = max - min;
-  if (d !== 0) {
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
-    else if (max === g) h = (b - r) / d + 2;
-    else h = (r - g) / d + 4;
-    h /= 6;
-  }
-  const l2 = l * 0.55;
-  const hue2rgb = (p, q, t) => {
-    if (t < 0) t += 1;
-    if (t > 1) t -= 1;
-    if (t < 1 / 6) return p + (q - p) * 6 * t;
-    if (t < 1 / 2) return q;
-    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-    return p;
-  };
-  let r2, g2, b2;
-  if (s === 0) {
-    r2 = g2 = b2 = l2;
-  } else {
-    const q = l2 < 0.5 ? l2 * (1 + s) : l2 + s - l2 * s;
-    const p = 2 * l2 - q;
-    r2 = hue2rgb(p, q, h + 1 / 3);
-    g2 = hue2rgb(p, q, h);
-    b2 = hue2rgb(p, q, h - 1 / 3);
-  }
-  return `rgb(${Math.round(r2 * 255)},${Math.round(g2 * 255)},${Math.round(b2 * 255)})`;
-}
-
-function _camArcPath(cx, cy, r1, r2, startDeg, endDeg) {
-  const rad = d => d * Math.PI / 180;
-  const s = rad(startDeg), e = rad(endDeg);
-  const f = n => n.toFixed(2);
-  const x1 = cx + r1 * Math.cos(s), y1 = cy + r1 * Math.sin(s);
-  const x2 = cx + r2 * Math.cos(s), y2 = cy + r2 * Math.sin(s);
-  const x3 = cx + r2 * Math.cos(e), y3 = cy + r2 * Math.sin(e);
-  const x4 = cx + r1 * Math.cos(e), y4 = cy + r1 * Math.sin(e);
-  return `M${f(x1)},${f(y1)} L${f(x2)},${f(y2)} A${r2},${r2},0,0,1,${f(x3)},${f(y3)} L${f(x4)},${f(y4)} A${r1},${r1},0,0,0,${f(x1)},${f(y1)} Z`;
-}
-
-function drawCamWheel() {
-  const svg = document.getElementById('cam-wheel');
-  if (!svg) return;
-  svg.innerHTML = '';
-  const ns = 'http://www.w3.org/2000/svg';
-  const cx = 90, cy = 90;
-  const rA1 = 34, rA2 = 60;  // inner ring = A (minor)
-  const rB1 = 61, rB2 = 84;  // outer ring = B (major)
-  const GAP = 1.8;
-  const { camLetter, camNumbers } = state;
-  const allNums = camNumbers.length === 0;
-  const hasA = camLetter === 'A' || camLetter === 'both';
-  const hasB = camLetter === 'B' || camLetter === 'both';
-  const NEUTRAL = '#1e1e1e';
-  const mk = (tag, attrs) => {
-    const el = document.createElementNS(ns, tag);
-    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
-    return el;
-  };
-
-  for (let n = 1; n <= 12; n++) {
-    const midDeg   = (n - 1) * 30 - 90;
-    const startDeg = midDeg - 15 + GAP;
-    const endDeg   = midDeg + 15 - GAP;
-    const midRad   = midDeg * Math.PI / 180;
-    const col      = _CAM_COLORS[n];
-    const numSel   = allNums || camNumbers.includes(n);
-
-    svg.appendChild(mk('path', {
-      d: _camArcPath(cx, cy, rA1, rA2, startDeg, endDeg),
-      fill: (hasA && numSel) ? _camDarken(col) : NEUTRAL,
-      'data-cam-n': n,
-    }));
-
-    svg.appendChild(mk('path', {
-      d: _camArcPath(cx, cy, rB1, rB2, startDeg, endDeg),
-      fill: (hasB && numSel) ? col : NEUTRAL,
-      'data-cam-n': n,
-    }));
-
-    const labelR = (rA1 + rA2) / 2;
-    const lbl = mk('text', {
-      x: (cx + labelR * Math.cos(midRad)).toFixed(1),
-      y: (cy + labelR * Math.sin(midRad)).toFixed(1),
-      'text-anchor': 'middle',
-      'dominant-baseline': 'central',
-      'font-size': '9',
-      'font-weight': '700',
-      'font-family': 'var(--ff-mono)',
-      fill: numSel && (hasA || hasB) ? '#fff' : '#444',
-      'pointer-events': 'none',
-    });
-    lbl.textContent = n;
-    svg.appendChild(lbl);
-  }
-
-  // Ring labels in center
-  [['A', cy - 7, '#666'], ['B', cy + 7, '#999']].forEach(([t, y, fill]) => {
-    const el = mk('text', { x: cx, y, 'text-anchor': 'middle', 'dominant-baseline': 'central',
-      'font-size': '8', 'font-family': 'var(--ff-mono)', fill, 'pointer-events': 'none' });
-    el.textContent = t;
-    svg.appendChild(el);
-  });
-}
+// ===== CAMELOT WHEEL (wiring — drawCamWheel lives in widgets.js) =====
 
 function onCamWheelClick(e) {
   const seg = e.target.closest('[data-cam-n]');
@@ -1040,7 +866,7 @@ function phaseFilterDefaults(phase) {
 
 function applyPhaseFilter(phase) {
   Object.assign(state.poolFilter, phaseFilterDefaults(phase));
-  _PF_KEYS.forEach(key => {
+  PF_KEYS.forEach(key => {
     const v = state.poolFilter[key];
     const sl = document.getElementById('pf-' + key);
     const nm = document.getElementById('pfn-' + key);
@@ -1050,54 +876,10 @@ function applyPhaseFilter(phase) {
   drawFilterRadar();
 }
 
-// ===== POOL FILTER RADAR =====
-const _PF_KEYS   = ['minBpm', 'maxBpm', 'minEnergy', 'minValence', 'minDance', 'minPopularity'];
-const _PF_LABELS = ['BPM↓', 'BPM↑', 'E≥', 'Val≥', 'Dce≥', 'Pop≥'];
-const _PF_MAX    = { minBpm: 220, maxBpm: 220, minEnergy: 100, minValence: 100, minDance: 100, minPopularity: 100 };
-
-function drawFilterRadar() {
-  const svg = document.getElementById('filter-radar');
-  if (!svg) return;
-  const cx = 100, cy = 100, r = 72;
-  const n = _PF_KEYS.length;
-  const angle = i => (i * 2 * Math.PI / n) - Math.PI / 2;
-
-  const pt = (i, frac) => {
-    const a = angle(i);
-    return [cx + frac * r * Math.cos(a), cy + frac * r * Math.sin(a)];
-  };
-
-  let html = '';
-  for (const pct of [0.25, 0.5, 0.75, 1.0]) {
-    const pts = Array.from({length: n}, (_, i) => pt(i, pct).join(',')).join(' ');
-    html += `<polygon points="${pts}" fill="none" stroke="#333" stroke-width="1"/>`;
-  }
-  for (let i = 0; i < n; i++) {
-    const [x, y] = pt(i, 1.0);
-    html += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#333" stroke-width="1"/>`;
-  }
-  for (let i = 0; i < n; i++) {
-    const [x, y] = pt(i, 1.18);
-    const anchor = Math.abs(Math.cos(angle(i))) < 0.1 ? 'middle'
-      : Math.cos(angle(i)) < 0 ? 'end' : 'start';
-    html += `<text x="${x}" y="${y}" text-anchor="${anchor}" dominant-baseline="middle" fill="#888" font-size="9" font-family="monospace">${_PF_LABELS[i]}</text>`;
-  }
-  // "Permissiveness" view: full polygon (1.0) = default = pool fully open.
-  // Restrictions shrink the polygon on the corresponding axis.
-  //   minBpm:  0 (no floor)  → 1.0;   high floor  → smaller
-  //   maxBpm:  220 (no ceil) → 1.0;   low ceiling → smaller
-  //   min*:    0 (no filter) → 1.0;   high min    → smaller
-  const vals = _PF_KEYS.map(k => {
-    const raw = Math.max(0, Math.min(_PF_MAX[k], state.poolFilter[k] ?? POOL_FILTER_DEFAULT[k]));
-    return k === 'maxBpm' ? raw / _PF_MAX[k] : 1 - raw / _PF_MAX[k];
-  });
-  const polyPts = vals.map((v, i) => pt(i, v).join(',')).join(' ');
-  html += `<polygon points="${polyPts}" fill="#f7c948" fill-opacity="0.35" stroke="#f7c948" stroke-width="1.5"/>`;
-  svg.innerHTML = html;
-}
+// ===== POOL FILTER RADAR (wiring — drawFilterRadar lives in widgets.js) =====
 
 function onPoolFilterChange(key, raw) {
-  const maxVal = _PF_MAX[key];
+  const maxVal = PF_MAX[key];
   const val = Math.max(0, Math.min(maxVal, parseInt(raw, 10) || 0));
   state.poolFilter[key] = val;
   const slider = document.getElementById('pf-' + key);
@@ -1118,139 +900,16 @@ function clearSearch(id) {
 }
 
 // ===== GENERATION LOG =====
-function buildGenLog(genre, wod, cd, warnMsgs) {
-  const now = new Date();
-  const dateStr = now.toLocaleDateString('de-DE') + '  ' + now.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+// Snapshot of the state values + pool sizes that buildGenLog() (report.js, pure) used to read
+// directly — app.js gathers them here so report.js stays free of state.js and algorithm.js.
+function _genLogContext(genre) {
   const phase = state.currentPhase;
-  const phaseCfg = PHASE_CONFIG[phase];
-  const ref = state.selectedTrack;
-  const SEP = '='.repeat(68);
-  const sep = '-'.repeat(68);
-  const L = [];
-  const add = s => L.push(s);
-  const pad = (s, n) => String(s).slice(0, n).padEnd(n);
-  const rpad = (s, n) => String(s).slice(0, n).padStart(n);
-
-  add(SEP);
-  add(`  CFLU WOD PLAYLIST LOG  —  ${dateStr}`);
-  add(SEP);
-  add('');
-  add('EINSTELLUNGEN');
-  add(`  Phase:           ${phase} — ${phaseCfg?.label || ''}`);
-  add(`  Genre:           ${genre}`);
-  if (ref) {
-    const ps = calcPhaseScore(ref, phase);
-    add(`  Referenz-Song:   ${ref.artist} — ${ref.song}`);
-    add(`                   ${ref.bpm} BPM  |  Camelot: ${ref.camelot}  |  Energy: ${ref.energy}  |  Phase-Score: ${ps}`);
-  }
-  if (phaseCfg?.positionVisible) {
-    const posLabels = {start: 'Start', end: 'Ende', mid: 'Midpoint', plateau: 'Mid Plateau'};
-    add(`  Position:        ${posLabels[state.position] || state.position}`);
-  }
-  add(`  WOD-Dauer:       ${state.wodMinutes} min`);
-  if (state.crossfadeSec > 0) add(`  Crossfade:       ${state.crossfadeSec}s (Spotify Mixing)`);
-  add(`  Energy-Bereich:  ${state.wodEnergyMin}–${state.wodEnergyMax}`);
-  const sw = state.scoreWeights;
-  add(`  Score-Gewichte:  E:${sw.energy} Loud:${sw.loudness} Val:${sw.valence} Dance:${sw.dance} Pop:${sw.popularity}`);
-  const pf = state.poolFilter;
-  const pfParts = [];
-  if (pf.minBpm > 0 || pf.maxBpm < 220) pfParts.push(`BPM:${pf.minBpm}–${pf.maxBpm}`);
-  if (pf.minEnergy > 0) pfParts.push(`E≥${pf.minEnergy}`);
-  if (pf.minValence > 0) pfParts.push(`Val≥${pf.minValence}`);
-  if (pf.minDance > 0) pfParts.push(`Dce≥${pf.minDance}`);
-  if (pf.minPopularity > 0) pfParts.push(`Pop≥${pf.minPopularity}`);
-  if (pfParts.length) add(`  Swap-Filter:     ${pfParts.join('  ')}  (gilt für Tausch-Kandidaten)`);
-  if (state.cdActive) add(`  Cool-Down:       aktiv · ${state.cdMinutes} min`);
-  if (state.camLetter !== 'both' || state.camNumbers.length > 0) {
-    const parts = [];
-    if (state.camLetter !== 'both') parts.push('Buchstabe: ' + state.camLetter);
-    if (state.camNumbers.length > 0) parts.push('Zahlen: ' + state.camNumbers.join(' '));
-    add(`  Tonart-Filter:   ${parts.join('  ·  ')}`);
-  }
-  add('');
-  add(sep);
-  add('POOL');
-  const directPool = getPhasePool(genre, phase);
-  const fullPool   = getPhasePoolWithNeighbours(genre, phase);
-  add(`  Phase-${phase}-Pool (${genre}):  ${directPool.length} Tracks`);
-  if (fullPool.length > directPool.length)
-    add(`  Mit Nachbar-Genres:              ${fullPool.length} Tracks`);
-  warnMsgs.forEach(w => add(`  ! ${w}`));
-  add('');
-  add(sep);
-
-  // Track table
-  const refId = ref ? (ref.id || ref.song) : null;
-  add('TRACKS');
-  add(`${rpad('#',3)}  ${pad('Titel',30)}  ${pad('Artist',20)}  ${rpad('BPM',3)}  ${rpad('DBPM',5)}  ${pad('Cam',5)}  ${rpad('E',3)}  ${rpad('FS',3)}  Entscheidung`);
-  add('-'.repeat(100));
-  wod.forEach((t, i) => {
-    const prev  = i > 0 ? wod[i - 1] : null;
-    let delta = 'REF';
-    if (prev) {
-      const rawD = (t.bpm >= prev.bpm ? '+' : '') + (t.bpm - prev.bpm);
-      const hd   = isHalfDouble(prev.bpm, t.bpm);
-      delta = rawD + (hd ? (t.bpm < prev.bpm ? '÷2' : '×2') : '');
-    }
-    const cc    = prev ? camCompat(prev.camelot, t.camelot) : null;
-    const ccSym = cc === 'green' ? '+' : cc === 'yellow' ? '~' : cc === 'red' ? '-' : ' ';
-    const camStr = pad((t.camelot || '—') + ' ' + ccSym, 5);
-    const ps    = calcPhaseScore(t, phase);
-    const isRef = (t.id && t.id === refId) || (t.song === ref?.song && t.artist === ref?.artist);
-    let reason  = '';
-    if (isRef) {
-      reason = '[Referenz-Song]';
-    } else if (prev && cc) {
-      const zone  = CAM_ZONE1.has(t.camelot) ? ' Zone1' : CAM_ZONE2.has(t.camelot) ? ' Zone2' : '';
-      if      (cc === 'green')  reason = 'Camelot +' + zone;
-      else if (cc === 'yellow') reason = 'Camelot ~';
-      else {
-        reason = 'Camelot -';
-      }
-    }
-    if (t.genre) reason += (reason ? '  | ' : '') + `Genre: ${t.genre}${!isRef && t.genre !== genre ? ' (Fallback)' : ''}`;
-    add(`${rpad(i+1,3)}  ${pad(t.song,30)}  ${pad(t.artist,20)}  ${rpad(t.bpm,3)}  ${rpad(delta,5)}  ${camStr}  ${rpad(t.energy,3)}  ${rpad(ps,3)}  ${reason}`);
-  });
-
-  if (cd.length) {
-    add('');
-    add(`--- Cool-Down (${state.cdMinutes} min) ---`);
-    add(`${rpad('#',3)}  ${pad('Titel',30)}  ${pad('Artist',20)}  ${rpad('BPM',3)}  ${pad('Cam',5)}  ${rpad('E',3)}  ${rpad('FS',3)}`);
-    add('-'.repeat(75));
-    cd.forEach((t, i) => {
-      const ps = calcPhaseScore(t, 'D');
-      const genreStr = t.genre ? `  | Genre: ${t.genre}` : '';
-      add(`${rpad(wod.length+i+1,3)}  ${pad(t.song,30)}  ${pad(t.artist,20)}  ${rpad(t.bpm,3)}  ${pad(t.camelot||'—',5)}  ${rpad(t.energy,3)}  ${rpad(ps,3)}${genreStr}`);
-    });
-  }
-
-  add('');
-  add(sep);
-  add('ZUSAMMENFASSUNG');
-  const wodSec = wod.reduce((s, t) => s + t.dur, 0);
-  const cdSec  = cd.reduce((s, t) => s + t.dur, 0);
-  const bpms   = wod.map(t => t.bpm);
-  let cG = 0, cY = 0, cR = 0;
-  for (let i = 1; i < wod.length; i++) {
-    const c = camCompat(wod[i-1].camelot, wod[i].camelot);
-    if (c === 'green') cG++; else if (c === 'yellow') cY++; else cR++;
-  }
-  const avgEng = wod.length ? Math.round(wod.reduce((s, t) => s + t.energy, 0) / wod.length) : 0;
-  const xfadeLog = state.crossfadeSec || 0;
-  const effectiveLog = xfadeLog > 0 && wod.length > 1 ? Math.max(0, wodSec - (wod.length - 1) * xfadeLog) : wodSec;
-  const durStr = xfadeLog > 0
-    ? `${fmtDur(wodSec)} roh  ·  ${fmtMin(effectiveLog)} effektiv`
-    : fmtDur(wodSec);
-  add(`  WOD:        ${wod.length} Tracks  ·  ${durStr}  ·  BPM ${bpms[0]||0} → ${bpms[bpms.length-1]||0}`);
-  if (cd.length) {
-    const cdBpms = cd.map(t => t.bpm);
-    add(`  Cool-Down:  ${cd.length} Tracks  ·  ${fmtDur(cdSec)}  ·  BPM ${cdBpms[0]||0} → ${cdBpms[cdBpms.length-1]||0}`);
-  }
-  add(`  Camelot:    ${cG}x grün (+)  ·  ${cY}x gelb (~)  ·  ${cR}x rot (-)`);
-  add(`  Ø Energy:   ${avgEng}`);
-  add('');
-  add(SEP);
-  return L.join('\n');
+  const { selectedTrack: ref, position, wodMinutes, crossfadeSec, wodEnergyMin, wodEnergyMax,
+          scoreWeights, poolFilter, cdActive, cdMinutes, camLetter, camNumbers } = state;
+  return { phase, ref, position, wodMinutes, crossfadeSec, wodEnergyMin, wodEnergyMax,
+           scoreWeights, poolFilter, cdActive, cdMinutes, camLetter, camNumbers,
+           directPoolSize: getPhasePool(genre, phase).length,
+           fullPoolSize:   getPhasePoolWithNeighbours(genre, phase).length };
 }
 
 // ===== DEVICE PLAYBACK =====
@@ -1472,7 +1131,7 @@ function _gen() {
 
   state.generatedWod = wod;
   state.generatedCd  = cd;
-  const logText = buildGenLog(genre, wod, cd, warnMsgs);
+  const logText = buildGenLog(genre, wod, cd, warnMsgs, _genLogContext(genre));
   renderResult(genre, wod, cd, warnMsgs, logText);
 }
 
@@ -1559,27 +1218,16 @@ function renderResult(genre, wod, cd, warns, logText) {
   });
 }
 
+// Thin download wrapper — CSV text and filename come from report.js (pure, unit-tested).
 function exportCsv() {
   const all = [...state.generatedWod, ...state.generatedCd];
   if (!all.length) return;
-  const esc = v => {
-    const s = String(v ?? '');
-    return s.includes(',') || s.includes('"') || s.includes('\n')
-      ? '"' + s.replace(/"/g, '""') + '"' : s;
-  };
-  const rows = [['Nr', 'Artist', 'Title', 'BPM', 'Camelot', 'Energy', 'Duration', 'Genre']];
-  all.forEach((t, i) => {
-    const mm = Math.floor((t.dur || 0) / 60);
-    const ss = String((t.dur || 0) % 60).padStart(2, '0');
-    rows.push([i + 1, t.artist, t.song, t.bpm, t.camelot || '', t.energy, `${mm}:${ss}`, t.genre || '']);
-  });
-  const csv = rows.map(r => r.map(esc).join(',')).join('\r\n');
-  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const csv = buildCsv(state.generatedWod, state.generatedCd);
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });  // UTF-8 BOM for Excel
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  const safeName = (state.poolGenre || 'Mix').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 20);
-  a.download = `CFLU_WOD_${safeName}_Phase${state.currentPhase}_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = csvFilename(state.poolGenre, state.currentPhase);
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -1762,13 +1410,13 @@ function init() {
   document.getElementById('cam-lock-toggle').addEventListener('change', e => { state.lockCamFilter = e.target.checked; });
   document.getElementById('cam-wheel-reset').addEventListener('click', onCamWheelReset);
   // Score weight sliders and number inputs
-  _SW_KEYS.forEach(key => {
+  SW_KEYS.forEach(key => {
     document.getElementById('sw-' + key)?.addEventListener('input', e => onScoreWeightChange(key, e.target.value));
     document.getElementById('sn-' + key)?.addEventListener('input', e => onScoreWeightChange(key, e.target.value));
   });
   document.getElementById('sw-reset-btn')?.addEventListener('click', () => {
     Object.assign(state.scoreWeights, SCORE_WEIGHTS_DEFAULT);
-    _SW_KEYS.forEach(key => {
+    SW_KEYS.forEach(key => {
       const v = SCORE_WEIGHTS_DEFAULT[key];
       const sl = document.getElementById('sw-' + key);
       const nm = document.getElementById('sn-' + key);
@@ -1780,7 +1428,7 @@ function init() {
     try { localStorage.setItem('cflu_score_weights', JSON.stringify(state.scoreWeights)); } catch (e) { void e; }
   });
   // Pool filter sliders and number inputs
-  _PF_KEYS.forEach(key => {
+  PF_KEYS.forEach(key => {
     document.getElementById('pf-' + key)?.addEventListener('input', e => onPoolFilterChange(key, e.target.value));
     document.getElementById('pfn-' + key)?.addEventListener('input', e => onPoolFilterChange(key, e.target.value));
   });
@@ -1858,10 +1506,10 @@ function init() {
   try {
     const saved = JSON.parse(localStorage.getItem('cflu_score_weights') || 'null');
     if (saved && typeof saved === 'object') {
-      _SW_KEYS.forEach(k => { if (typeof saved[k] === 'number') state.scoreWeights[k] = saved[k]; });
+      SW_KEYS.forEach(k => { if (typeof saved[k] === 'number') state.scoreWeights[k] = saved[k]; });
     }
   } catch (e) { void e; /* storage unavailable or invalid JSON */ }
-  _SW_KEYS.forEach(key => {
+  SW_KEYS.forEach(key => {
     const v = state.scoreWeights[key] ?? 0;
     document.getElementById('sw-' + key)?.setAttribute('value', v);
     const sl = document.getElementById('sw-' + key);
