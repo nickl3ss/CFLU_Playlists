@@ -198,16 +198,35 @@ class MergeTests(unittest.TestCase):
                 self.assertEqual(t['genre'], 'Rock')
                 self.assertEqual(t['decisive_genre'], 'alternative rock')
 
-    def test_rebuild_preserves_only_open_genre_for_states_3_5_7(self):
+    def test_rebuild_preserves_only_open_genre_for_states_5_and_7(self):
         by_id, _, _ = self._merge(rebuild=True)
-        for og in (3, 5, 7):
+        for og in (5, 7):
             with self.subTest(open_genre=og):
                 t = by_id[f'ex{og}']
                 self.assertEqual(t['open_genre'], og)
-                # documented contract: only the state survives — genre fields follow the re-import
+                # both-failed states carry no curated genre — the fields follow the re-import
                 self.assertEqual(t['genres_raw'], ['house'])
                 self.assertEqual(t['genre'], 'EDM / Electronic')
                 self.assertEqual(t['decisive_genre'], 'house')
+
+    def test_rebuild_preserves_open_genre_for_state_3(self):
+        by_id, _, _ = self._merge(rebuild=True)
+        self.assertEqual(by_id['ex3']['open_genre'], 3)
+
+    @unittest.expectedFailure
+    def test_rebuild_preserves_full_genre_for_state_3(self):
+        # REQUIREMENTS.md §5.2 Data integrity: "Pool rebuilds MUST NOT destroy manual genre
+        # curation (open_genre=3)"; PROJECT.md ADR 9: manual (open_genre=3) fields must survive.
+        # merge() today preserves genres_raw/genre/decisive_genre only for states 2 and 6
+        # (CLAUDE.md state table, PROJECT.md §Data Model) — the two rules conflict. State 3 is
+        # not produced anywhere yet (Admin Panel #105 not built), so this pins the MUST instead
+        # of enshrining the overwrite: #105 must make it pass and drop the expectedFailure.
+        by_id, _, _ = self._merge(rebuild=True)
+        t = by_id['ex3']
+        self.assertEqual(t['open_genre'], 3)
+        self.assertEqual(t['genres_raw'], ['alternative rock'])
+        self.assertEqual(t['genre'], 'Rock')
+        self.assertEqual(t['decisive_genre'], 'alternative rock')
 
     def test_rebuild_does_not_preserve_inherited_state_4(self):
         by_id, _, _ = self._merge(rebuild=True)
@@ -397,6 +416,18 @@ class TagGenresAiTests(unittest.TestCase):
                 self.assertEqual(t['genre'], 'Rock')
                 self.assertEqual(t['decisive_genre'], plb._GENRE_CANONICAL['Rock'])
                 self.assertEqual(t['bpmg'], 'D')
+
+    def test_unconfident_allowed_genre_does_not_set_2(self):
+        # the `confident` gate: an allowed genre with confident=false is a hedged guess, not a
+        # find — it must never become state 2 (which merge() would then preserve on --rebuild)
+        tracks = self._candidates()
+        tagged, create = self._run(tracks, reply='{"genre": "Rock", "confident": false}')
+        self.assertEqual(tagged, 0)
+        self.assertEqual(create.call_count, 2)
+        self.assertEqual(tracks[0]['open_genre'], 5)   # 1 → 5: the API answered, no find
+        self.assertEqual(tracks[1]['open_genre'], 4)   # 4 stays 4
+        self.assertEqual(tracks[0]['genres_raw'], [])
+        self.assertEqual(tracks[1]['genres_raw'], ['alternative rock'])
 
     def test_only_states_1_and_4_are_sent_to_the_api(self):
         tracks = [_pool_track(f't{og}', 'Band A', og, ['alternative rock'])
