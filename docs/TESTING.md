@@ -10,7 +10,23 @@
 
 ## New Since Last Push
 
-_(leer — wird beim nächsten Push mit N32 befüllt)_
+### N31 · Backlog-Analyse-Batch — Origin-Gate (#208), app.js-Split (#206), neue Tests (#205, #207), Port-80-Fix
+
+| # | Step | Erwartet |
+|---|------|----------|
+| N31-1 | `PYTHONIOENCODING=utf-8 python -m unittest discover -p "test_*.py" -v` | `Ran 83 tests … OK (expected failures=1)` — neue Klassen `MergeTests`, `InheritGenresTests`, `TagGenresAiTests` (#205) und `OriginAllowedTests`, `ParsePortTests`, `RoutingGateTests` (#208); kein Netzwerk, kein keyvault nötig |
+| N31-2 | `node js/cflu_tests.js` | `501/501 bestanden` — neue Blöcke `chunkUris`, `report.js — buildGenLog`, `report.js — buildCsv / csvFilename`, `spotifyLogout — POST` |
+| N31-3 | Admin-Panel → Spotify verbinden → **Abmelden** | Status „Abgemeldet.", Spotify-Bereich ausgeblendet, nach Reload weiterhin getrennt; Server-Konsole zeigt `"POST /api/spotify/logout HTTP/1.1" 200` |
+| N31-4 | Browser-Konsole der App: `fetch('/api/spotify/logout').then(r => r.status)`, danach `fetch('/api/spotify/logout', {method:'POST'}).then(r => r.status)` | GET → **404**; POST → **200** |
+| N31-5 | Terminal: `curl -s -i -X POST -H "Origin: http://evil.example" -H "Content-Type: text/plain" --data "{}" http://127.0.0.1:8888/api/lastfm/sync` (ebenso `/api/upload-csv`, `/api/spotify/call`) | `HTTP/1.0 403` mit `{"error": "origin not allowed"}`; kein Sync startet, kein Upload, keine Spotify-Aktion |
+| N31-6 | Terminal ohne Origin: `curl -s -i -X POST -H "Content-Type: application/json" --data "{}" http://127.0.0.1:8888/api/upload-csv` | Kein 403 — `400 {"error": "missing content"}` (Handler wird erreicht) |
+| N31-7 | CSV-Upload, Last.fm-Sync-Button und Spotify-Export im Browser ausführen | Alle drei funktionieren wie vor #208 (eigener Origin passiert das Gate); keine 403 in der Netzwerk-Ansicht |
+| N31-8 | Advanced-Modus → Tonart-Filter: Camelot-Wheel betrachten, A/beide/B-Slider schieben, Segment anklicken, „Alle" | Rendering wie vor #206 (innerer Ring abgedunkelt, äußerer Vollfarbe, nicht gewählte grau); Klick toggelt, Badge/Hint/Filterliste aktualisieren sich, Reset leert |
+| N31-9 | Score-Gewichte-Slider verschieben + ↺ Reset; Swap-Filter-Slider verschieben + Phase wechseln | Scoring-Radar (grün) folgt live und springt beim Reset zurück; Filter-Radar (gelb) reagiert, Phasenwechsel setzt auf Phase-Defaults (Toast) |
+| N31-10 | Playlist mit Referenz-Song, Cool-Down und Crossfade > 0 generieren; Generierungs-Log öffnen | Struktur identisch zu vorher: Kopf mit Datum/Uhrzeit, EINSTELLUNGEN, POOL, TRACKS-Tabelle mit REF/±Delta, Cool-Down-Tabelle, ZUSAMMENFASSUNG mit roh · effektiv |
+| N31-11 | CSV exportieren, Datei öffnen | Name `CFLU_WOD_<Genre>_Phase<X>_<YYYY-MM-DD>.csv`; BOM + Header `Nr,Artist,Title,BPM,Camelot,Energy,Duration,Genre`, CRLF, CD-Tracks fortlaufend nummeriert, Titel mit Komma/Anführungszeichen in Quotes |
+| N31-12 | (optional, Spotify Premium) Playlist > 100 Tracks exportieren | Export fehlerfrei; Netzwerk-Tab zeigt mehrere `POST /api/spotify/call` auf `/playlists/<id>/items` mit je ≤ 100 URIs (Invariant 3) |
+| N31-13 | (optional) `python cflu_server.py 80`, App über `http://127.0.0.1/CFLU_WOD_Builder.html` öffnen, Abmelden klicken | Kein 403 — Origin ohne `:80` wird akzeptiert (Port-80-Fix) |
 
 ---
 
