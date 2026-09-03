@@ -16,7 +16,7 @@
 | C1 | Pool Builder | `CFLU_Pool_Build.py` | ETL pipeline: reads `Playlists/**/*.csv`, deduplicates by Spotify track ID, writes `cflu_tracks.js`. Standard mode: add-only; `--rebuild` for full update. |
 | C2 | WOD Builder UI | `CFLU_WOD_Builder.html` + `js/` + `css/` | Main UI: song selection, playlist generation, BPM chart, Spotify export |
 | C3 | Track Data | `cflu_tracks.js` | Auto-generated track pool (non-module global `TRACK_DATA`) |
-| C4 | Tests | `js/cflu_tests.js` + `CFLU_Tests.html` + `test_cflu_pool_build.py` | JS: canonical dual-mode test class (`node js/cflu_tests.js` → stdout + exit code; browser: `CFLU_Tests.html`). 440 tests. Python: `python -m unittest discover`, 27 tests, covers the ETL's pure functions. |
+| C4 | Tests | `js/cflu_tests.js` + `CFLU_Tests.html` + `test_cflu_pool_build.py` + `test_cflu_server.py` | JS: canonical dual-mode test class (`node js/cflu_tests.js` → stdout + exit code; browser: `CFLU_Tests.html`). 501 tests. Python: `python -m unittest discover`, 83 tests (1 `@expectedFailure` pinning REQUIREMENTS.md §5.2 for `open_genre=3`, to be lifted by #105): ETL pure functions, `merge()` preserve rules (Invariant 9), `inherit_genres()`, `tag_genres_ai()` (Invariant 10), server Origin gate + routing (ADR 21). |
 | C5 | Server | `cflu_server.py` | Local HTTP server (port 8888): serves static files, handles CSV upload, proxies all Spotify API calls |
 
 ### JS Modules (C2 internal)

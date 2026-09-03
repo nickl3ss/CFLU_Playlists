@@ -218,7 +218,7 @@ If `a` fails: iterate until green (max 2 rounds). After 2 failures: stop, report
 Do **not** skip with `--no-verify`.
 
 **D4 · Tests:**
-Update or create test cases in `js/cflu_tests.js` (JS) or `test_cflu_pool_build.py` (Python) for any new or changed behaviour.
+Update or create test cases in `js/cflu_tests.js` (JS), `test_cflu_pool_build.py` (Python ETL) or `test_cflu_server.py` (Python server) for any new or changed behaviour.
 If the change affects user-visible behaviour, update `docs/TESTING.md`:
 - Add steps to **New Since Last Push** if a feature was added or changed
 - Revise **Regression Suite** if an existing step no longer applies

@@ -121,7 +121,7 @@ python CFLU_Pool_Build.py
 | **PLB** | Pool Builder | `CFLU_Pool_Build.py` | Python ETL pipeline: reads `Playlists/*.csv`, generates `cflu_tracks.js` |
 | **WOD** | WOD Generator | `CFLU_WOD_Builder.html` + `js/` | Main app: playlist logic, scoring, UI, Spotify export |
 | **TRK** | Track Store | `cflu_tracks.js` | Auto-generated track pool — tracked in repo; do not edit manually |
-| **TST** | Test Suite | `js/cflu_tests.js` · `CFLU_Tests.html` · `test_cflu_pool_build.py` | JS: dual-mode (`node js/cflu_tests.js` CLI · browser renderer). Python: `python -m unittest discover` |
+| **TST** | Test Suite | `js/cflu_tests.js` · `CFLU_Tests.html` · `test_cflu_pool_build.py` · `test_cflu_server.py` | JS: dual-mode (`node js/cflu_tests.js` CLI · browser renderer). Python: `python -m unittest discover` |
 
 ## File Overview
 
@@ -134,7 +134,8 @@ CFLU_Start.sh           ← macOS/Linux launcher
 cflu_server.py          ← [PLB] Custom HTTP server (port 8888, POST /api/upload-csv)
 cflu.service            ← Linux systemd user-service (auto-start on login)
 CFLU_Pool_Build.py      ← [PLB] Pool builder (Playlists/*.csv → cflu_tracks.js)
-test_cflu_pool_build.py ← [TST] Python unit tests for the ETL's pure functions
+test_cflu_pool_build.py ← [TST] Python unit tests for the ETL (pure functions, merge() preserve rules, inherit/AI tagging)
+test_cflu_server.py     ← [TST] Python unit tests for the server (Origin gate, routing, logout)
 package.json            ← {"type":"module"} — enables node js/cflu_tests.js
 pyproject.toml          ← Ruff linter config (Python)
 CLAUDE.md               ← Workflow rules for Claude Code sessions
