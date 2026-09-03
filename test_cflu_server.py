@@ -40,6 +40,13 @@ class OriginAllowedTests(unittest.TestCase):
         self.assertTrue(cflu_server._origin_allowed('http://127.0.0.1:8888', 8888))
         self.assertFalse(cflu_server._origin_allowed('http://127.0.0.1:8888', 8899))
 
+    def test_default_port_80_is_serialised_without_port(self):
+        # browsers never send ':80' in Origin — on port 80 the gate must accept the port-less form
+        self.assertTrue(cflu_server._origin_allowed('http://127.0.0.1', 80))
+        self.assertTrue(cflu_server._origin_allowed('http://localhost', 80))
+        self.assertFalse(cflu_server._origin_allowed('http://127.0.0.1:80', 80))   # not a browser serialisation
+        self.assertFalse(cflu_server._origin_allowed('http://127.0.0.1', 8899))    # port-less only means 80
+
     # --- everything else is rejected ---
 
     def test_wrong_port(self):

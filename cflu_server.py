@@ -331,7 +331,8 @@ def _origin_allowed(origin: str | None, port: int) -> bool:
 
     - None / ''                                                   → allowed: only non-browser
       clients (curl, scripts) omit Origin, and those are not a CSRF vector.
-    - exactly `http://127.0.0.1:<port>` or `http://localhost:<port>` → allowed.
+    - exactly `http://127.0.0.1:<port>` or `http://localhost:<port>` → allowed
+      (port-less `http://127.0.0.1` / `http://localhost` when <port> is 80).
     - anything else (other host/port, `null`, https, trailing slash/path, …) → rejected.
 
     Exact string comparison on purpose: browsers serialise Origin as lowercase
@@ -340,7 +341,10 @@ def _origin_allowed(origin: str | None, port: int) -> bool:
     """
     if not origin:
         return True
-    return origin in (f'http://127.0.0.1:{port}', f'http://localhost:{port}')
+    # Browsers omit the default port when serialising Origin (`http://127.0.0.1`, never
+    # `http://127.0.0.1:80`), so a server started on port 80 must accept the port-less form.
+    suffix = '' if port == 80 else f':{port}'
+    return origin in (f'http://127.0.0.1{suffix}', f'http://localhost{suffix}')
 
 
 class CFLUHandler(SimpleHTTPRequestHandler):
