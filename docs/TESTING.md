@@ -124,6 +124,8 @@ Run these steps in order. All must pass before a push is considered confirmed.
 |---|------|----------|
 | R8-1 | Run `node js/cflu_tests.js` | All tests pass — output ends with `N/N bestanden — ALLE TESTS BESTANDEN` |
 | R8-2 | Run `npm run lint` | No errors (warnings acceptable) |
+| R8-3 | Run `PYTHONIOENCODING=utf-8 python -m unittest discover -p "test_*.py"` | `OK (expected failures=1)` — the single expected failure pins REQUIREMENTS §5.2 for `open_genre=3` until merge() preserves it (see `test_cflu_pool_build.py`) |
+| R8-4 | Run `ruff check .` (or `python -m ruff check .` if ruff is not on PATH) | `All checks passed!` |
 
 ---
 
